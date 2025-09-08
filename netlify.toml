@@ -1,0 +1,14 @@
+[build]
+  # Use the monorepo's frontend as the base directory
+  base = "frontend"
+  # Netlify installs dependencies automatically; run the vite build
+  command = "npm run build"
+  # The publish dir is relative to the base when base is set
+  publish = "dist"
+
+## SPA routing: serve index.html for all non-file routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
