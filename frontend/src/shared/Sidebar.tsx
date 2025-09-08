@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useLang } from '../modules/lang/LangContext';
 
 type Item = {
   label: string;
@@ -86,18 +87,19 @@ function IconChevron(props: React.SVGProps<SVGSVGElement>) {
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { t } = useLang();
 
   const items: Item[] = [
-    { label: 'Home', to: '/', icon: <IconHome className="h-5 w-5" /> },
-    { label: 'Sales', to: '/dashboard', icon: <IconChart className="h-5 w-5" /> },
-    { label: 'Inventory', to: '/inventory', icon: <IconBoxes className="h-5 w-5" /> },
-    { label: 'Rankings', to: '/rankings', icon: <IconTrophy className="h-5 w-5" /> },
-    { label: 'Social Media', to: '/social', icon: <IconFile className="h-5 w-5" /> },
+    { label: t('home'), to: '/', icon: <IconHome className="h-5 w-5" /> },
+    { label: t('sales'), to: '/dashboard', icon: <IconChart className="h-5 w-5" /> },
+    { label: t('inventory'), to: '/inventory', icon: <IconBoxes className="h-5 w-5" /> },
+    { label: t('rankings'), to: '/rankings', icon: <IconTrophy className="h-5 w-5" /> },
+    { label: t('social_media'), to: '/social', icon: <IconFile className="h-5 w-5" /> },
   ];
 
   const secondary: Item[] = [
-    { label: 'Settings', to: '/settings', icon: <IconCog className="h-5 w-5" /> },
-    { label: 'Language', to: '/language', icon: <IconGlobe className="h-5 w-5" /> },
+    { label: t('settings'), to: '/settings', icon: <IconCog className="h-5 w-5" /> },
+    { label: t('language'), to: '/language', icon: <IconGlobe className="h-5 w-5" /> },
   ];
 
   return (
@@ -120,10 +122,10 @@ export default function Sidebar() {
           )}
         </div>
         <button
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? t('expand') + ' sidebar' : t('collapse') + ' sidebar'}
           className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"
           onClick={() => setCollapsed((v) => !v)}
-          title={collapsed ? 'Expand' : 'Collapse'}
+          title={collapsed ? t('expand') : t('collapse')}
         >
           <div className={`transition-transform ${collapsed ? '' : 'rotate-180'}`}>
             <IconChevron className="h-4 w-4" />
@@ -187,7 +189,7 @@ export default function Sidebar() {
           className="flex w-full items-center justify-center gap-2 rounded-full bg-gray-100 py-2 text-xs text-gray-600 hover:bg-gray-200"
         >
           <IconChevron className={`h-4 w-4 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
-          {!collapsed && <span>Collapse</span>}
+          {!collapsed && <span>{t('collapse')}</span>}
         </button>
       </div>
     </aside>
