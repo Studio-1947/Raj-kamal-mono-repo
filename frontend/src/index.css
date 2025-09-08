@@ -4,13 +4,15 @@
 
 :root {
   color-scheme: light dark;
+  --app-bg: #EFEFEF;
 }
 
 body {
-  @apply text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900;
+  /* Use shared background color variable for light theme */
+  background-color: var(--app-bg);
+  @apply text-gray-900 dark:text-gray-100 dark:bg-gray-900;
 }
 /* 
 .container {
   @apply mx-auto max-w-5xl px-4;
 } */
-

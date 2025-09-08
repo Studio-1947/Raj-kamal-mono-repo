@@ -105,7 +105,8 @@ export default function Sidebar() {
   return (
     <aside
       className={
-        `group relative flex h-screen flex-col border-r border-gray-200 bg-white/90 backdrop-blur ` +
+        // Ensure a space between class groups so Tailwind utilities are parsed correctly
+        `group relative flex h-full flex-col border-r border-gray-200 bg-white/90 backdrop-blur rounded-3xl overflow-hidden ` +
         `transition-[width] duration-300 ease-in-out ${collapsed ? 'w-[72px]' : 'w-64'}`
       }
     >
@@ -144,7 +145,7 @@ export default function Sidebar() {
                   title={collapsed ? it.label : undefined}
                   className={
                     `flex items-center gap-3 rounded-lg px-3 py-2 text-sm ` +
-                    `${active ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`
+                    `${active ? 'bg-[#526BA3] text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`
                   }
                 >
                   <span className="text-gray-500">{it.icon}</span>
