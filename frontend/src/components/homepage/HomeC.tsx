@@ -1,4 +1,5 @@
 import React from "react";
+import { MdOutlineKeyboardArrowUp } from "react-icons/md";
 
 /**
  * Hindi Sales Dashboard – pixel-close clone of your reference.
@@ -273,7 +274,7 @@ function RevenueCard() {
         <div className="text-3xl sm:text-4xl font-extrabold text-[#43547E]">
           {revenue.value}
         </div>
-        <Pill tone="blue" className="py-2">
+        <Pill tone="blue" className="py-2 bg-[East Bay/100] text-[#526BA3]">
           This Month
         </Pill>
 
@@ -293,7 +294,8 @@ function RevenueCard() {
       {/* deltas */}
       <div className="mt-2 flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-2 text-green-700">
-          <ArrowUp className="w-3 h-3" />{" "}
+          {/* <ArrowUp className="w-3 h-3" />{" "} */}
+          <MdOutlineKeyboardArrowUp className="w-3 h-3" />
           <span className="font-semibold">2.05%</span>{" "}
           <span className="text-gray-500">from last month</span>
         </span>
@@ -552,35 +554,6 @@ function SocialMediaCard() {
 \*******************/
 export default function HindiBooksSalesDashboard() {
   return (
-    // <div className="">
-    //   {/* 12-col grid on large screens; stack on mobile */}
-    //   <div className="">
-    //     <div className="flex ">
-    //       <div className="w-1/2">
-    //         <RevenueCard />
-    //       </div>
-    //       <div className="w-1/2 ">
-    //         <div className="">
-    //           <TopBookCard />
-    //         </div>
-    //         <div className="">
-    //           <TopAuthorCard />
-    //         </div>
-    //       </div>
-    //     </div>
-    //     <div className="flex items-stretch">
-    //       <div className="w-1/2">
-    //         <InventoryCard />
-    //       </div>
-    //       <div className="w-1/2 h-full">
-    //         <SocialMediaCard />
-    //       </div>
-    //     </div>
-    //   </div>
-    // </div>
-    //   );
-    // }
-
     <main className="mx-auto max-w-[1200px] py-6 text-slate-800 dark:text-slate-100">
       {/* Header numbers (kept simple; edit freely) */}
       {/* <div className="mb-4 flex flex-wrap items-end gap-3">
