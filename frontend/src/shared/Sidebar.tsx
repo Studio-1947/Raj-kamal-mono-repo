@@ -264,11 +264,22 @@ export default function Sidebar() {
                   to={it.to}
                   title={collapsed ? it.label : undefined}
                   className={
-                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm max-w-[200px] h-[50px] ` +
-                    `${active ? 'bg-[#526BA3] text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`
+                    (
+                      // Common
+                      'flex items-center text-sm transition-all ' +
+                      // Expanded styles
+                      (!collapsed
+                        ? `gap-3 rounded-lg px-3 py-2 h-[50px] max-w-[200px] ${active ? 'bg-[#526BA3] text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`
+                        // Collapsed styles
+                        : `${active
+                            // active -> centered circle
+                            ? 'mx-auto justify-center rounded-full bg-[#526BA3] text-white w-11 h-11'
+                            // inactive -> centered icon, no pill
+                            : 'mx-auto justify-center rounded-lg w-11 h-11 text-gray-600 hover:text-gray-900'}`)
+                    )
                   }
                 >
-                  <span className="text-gray-500">{iconEl}</span>
+                  <span className={active ? 'text-white' : 'text-gray-500'}>{iconEl}</span>
                   {!collapsed && <span className="truncate">{it.label}</span>}
                 </Link>
               </li>
@@ -301,9 +312,16 @@ export default function Sidebar() {
                 <Link
                   to={it.to}
                   title={collapsed ? it.label : undefined}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  className={
+                    (
+                      'flex items-center text-sm transition-all ' +
+                      (!collapsed
+                        ? 'gap-3 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        : `${isActive ? 'mx-auto justify-center rounded-full bg-[#526BA3] text-white w-11 h-11' : 'mx-auto justify-center rounded-lg w-11 h-11 text-gray-600 hover:text-gray-900'}`)
+                    )
+                  }
                 >
-                  <span className="text-gray-500">{iconEl}</span>
+                  <span className={isActive ? 'text-white' : 'text-gray-500'}>{iconEl}</span>
                   {!collapsed && <span className="truncate">{it.label}</span>}
                 </Link>
               </li>
