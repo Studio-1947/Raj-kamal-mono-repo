@@ -1,8 +1,10 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { authenticateToken, AuthRequest } from '../middleware/authPrisma.js';
+import { prisma } from '../lib/prisma.js';
+import { Role } from '@prisma/client';
 
 const router = Router();
 
@@ -18,82 +20,52 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-// Mock user database (replace with actual database)
-const users: Array<{
-  id: string;
-  email: string;
-  password: string;
-  name: string;
-  role: string;
-  createdAt: Date;
-}> = [
-  {
-    id: '1',
-    email: 'admin@rajkamal.com',
-    password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-    name: 'Admin User',
-    role: 'admin',
-    createdAt: new Date(),
-  }
-];
-
-// Register endpoint
-router.post('/register', async (req: Request, res: Response) => {
+// Register admin (only once)
+router.post('/register', async (req: Request, res: Response): Promise<any> => {
   try {
     const { email, password, name } = registerSchema.parse(req.body);
 
-    // Check if user already exists
-    const existingUser = users.find(user => user.email === email);
-    if (existingUser) {
+    // Enforce single admin account: allow register only if no ADMIN exists
+    const existingAdmin = await prisma.user.findFirst({ where: { role: Role.ADMIN } });
+    if (existingAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Registration disabled: admin already exists'
+      });
+    }
+
+    // Also prevent duplicate email just in case
+    const existingByEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingByEmail) {
       return res.status(400).json({
         success: false,
         error: 'User with this email already exists'
       });
     }
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user
-    const newUser = {
-      id: (users.length + 1).toString(),
-      email,
-      password: hashedPassword,
-      name,
-      role: 'user',
-      createdAt: new Date(),
-    };
-
-    users.push(newUser);
-
-    // Generate JWT token
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET not configured');
-    }
-
-    const token = jwt.sign(
-      { 
-        id: newUser.id, 
-        email: newUser.email, 
-        role: newUser.role 
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        role: Role.ADMIN,
       },
+      select: { id: true, email: true, name: true, role: true }
+    });
+
+    const secret = process.env.JWT_SECRET as string;
+    if (!secret) throw new Error('JWT_SECRET not configured');
+    const token = jwt.sign(
+      { id: newUser.id, email: newUser.email, role: newUser.role },
       secret,
-      { expiresIn: '7d' }
+      { expiresIn: 60 * 60 * 24 * 7 }
     );
 
-    res.status(201).json({
+ res.status(201).json({
       success: true,
-      data: {
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          name: newUser.name,
-          role: newUser.role,
-        },
-        token
-      }
+      data: { user: newUser, token }
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -105,20 +77,20 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     console.error('Registration error:', error);
-    res.status(500).json({
+ res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
   }
 });
 
-// Login endpoint
-router.post('/login', async (req: Request, res: Response) => {
+// Login endpoint (admin only)
+router.post('/login', async (req: Request, res: Response): Promise<any> => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    // Find user
-    const user = users.find(u => u.email === email);
+    // Find user in database
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -135,31 +107,26 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Generate JWT token
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET not configured');
+    // Only allow admin login
+    if (user.role !== Role.ADMIN) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only admin login is permitted'
+      });
     }
 
+    const secret = process.env.JWT_SECRET as string;
+    if (!secret) throw new Error('JWT_SECRET not configured');
     const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email, 
-        role: user.role 
-      },
+      { id: user.id, email: user.email, role: user.role },
       secret,
-      { expiresIn: '7d' }
+      { expiresIn: 60 * 60 * 24 * 7 }
     );
 
-    res.json({
+ res.json({
       success: true,
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        },
+        user: { id: user.id, email: user.email, name: user.name, role: user.role },
         token
       }
     });
@@ -173,7 +140,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     console.error('Login error:', error);
-    res.status(500).json({
+ res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -181,35 +148,45 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // Get current user profile
-router.get('/me', authenticateToken, (req: AuthRequest, res: Response) => {
-  const user = users.find(u => u.id === req.user?.id);
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      error: 'User not found'
-    });
-  }
-
-  res.json({
-    success: true,
-    data: {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        createdAt: user.createdAt,
-      }
+router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
-  });
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, email: true, name: true, role: true, createdAt: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+ res.json({ success: true, data: { user } });
+  } catch (error) {
+    console.error('Me error:', error);
+ res.status(500).json({ success: false, error: 'Internal server error' });
+  }
 });
 
 // Logout endpoint (client-side token removal)
-router.post('/logout', (req: Request, res: Response) => {
-  res.json({
+router.post('/logout', (req: Request, res: Response): any => {
+ res.json({
     success: true,
     message: 'Logged out successfully'
   });
+});
+
+// Admin existence status
+router.get('/admin-status', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const count = await prisma.user.count({ where: { role: Role.ADMIN } });
+ res.json({ success: true, data: { hasAdmin: count > 0, count } });
+  } catch (error) {
+    console.error('Admin status error:', error);
+ res.status(500).json({ success: false, error: 'Internal server error' });
+  }
 });
 
 export default router;
