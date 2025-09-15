@@ -135,7 +135,8 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <nav className="mt-2 flex-1 px-2">
+      <nav className="mt-2 flex-1 px-2 flex flex-col overflow-hidden min-h-0">
+        <div className="flex-1 overflow-y-auto pr-1">
         <ul className="space-y-1">
           {items.map((it) => {
             const active = location.pathname === it.to;
@@ -189,11 +190,12 @@ export default function Sidebar() {
             );
           })}
         </ul>
+        </div>
 
-        <div className="my-4 h-px w-full bg-gray-100" />
+        <div className="my-4 h-px w-full bg-gray-100 shrink-0" />
 
         {/* Account (Amod) menu */}
-        <div className='relative top-[250px]'>
+        <div className="mt-auto shrink-0">
           <div ref={amodRef} className="relative">
             <button
               onClick={() => setOpenMenu((v) => (v === 'amod' ? null : 'amod'))}
