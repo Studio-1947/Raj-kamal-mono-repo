@@ -8,7 +8,7 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <h1 className="text-3xl font-bold text-gray-900">{t('dashboard_title')}</h1>
-      <p className="mt-2 text-gray-600">{t('dashboard_subtitle')}</p>
+      <p className="mt-2 text-[#C41E3A]">{t('dashboard_subtitle')}</p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t('total_sales')} value="$24,320" delta="+8.2%" fromLastWeek={t('from_last_week')} />
