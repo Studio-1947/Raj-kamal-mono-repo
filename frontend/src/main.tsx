@@ -11,7 +11,8 @@ import { LangProvider } from './modules/lang/LangContext';
 import AppRoutes from './routes/AppRoutes';
 import './index.css';
 
-const root = createRoot(document.getElementById('root')!);
+
+const root = createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
     <Provider store={store}>
