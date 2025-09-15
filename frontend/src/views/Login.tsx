@@ -1,20 +1,33 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../modules/auth/AuthContext';
+import { useLogin } from '../services/authService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const loginMutation = useLogin();
   const navigate = useNavigate();
   const location = useLocation() as any;
   const from = location.state?.from?.pathname || '/dashboard';
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, from, navigate]);
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    // TODO: call backend; for now, use stub token
-    login('stub-token');
-    navigate(from, { replace: true });
+    const payload = { email: email.trim().toLowerCase(), password };
+    loginMutation.mutate(payload, {
+      onSuccess: (data) => {
+        if (data?.success && data.data?.token) {
+          navigate(from, { replace: true });
+        }
+      },
+    });
   }
 
   return (
@@ -41,9 +54,17 @@ export default function Login() {
             required
           />
         </div>
-        <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-white">Sign in</button>
+        {loginMutation.isError && (
+          <p className="text-sm text-red-600">{(loginMutation.error as any)?.response?.data?.error || 'Login failed'}</p>
+        )}
+        <button
+          type="submit"
+          disabled={loginMutation.isPending}
+          className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        >
+          {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
+        </button>
       </form>
     </main>
   );
 }
-

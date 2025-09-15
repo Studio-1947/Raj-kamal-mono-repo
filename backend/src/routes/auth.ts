@@ -10,13 +10,19 @@ const router = Router();
 
 // Validation schemas
 const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z
+    .string()
+    .email('Invalid email address')
+    .transform((v) => v.toLowerCase().trim()),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters').transform((v) => v.trim()),
 });
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z
+    .string()
+    .email('Invalid email address')
+    .transform((v) => v.toLowerCase().trim()),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -63,7 +69,7 @@ router.post('/register', async (req: Request, res: Response): Promise<any> => {
       { expiresIn: 60 * 60 * 24 * 7 }
     );
 
- res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: { user: newUser, token }
     });
@@ -77,7 +83,7 @@ router.post('/register', async (req: Request, res: Response): Promise<any> => {
     }
 
     console.error('Registration error:', error);
- res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -123,7 +129,7 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
       { expiresIn: 60 * 60 * 24 * 7 }
     );
 
- res.json({
+    return res.json({
       success: true,
       data: {
         user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -140,7 +146,7 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
     }
 
     console.error('Login error:', error);
- res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -163,16 +169,16 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Pr
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
- res.json({ success: true, data: { user } });
+    return res.json({ success: true, data: { user } });
   } catch (error) {
     console.error('Me error:', error);
- res.status(500).json({ success: false, error: 'Internal server error' });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
 // Logout endpoint (client-side token removal)
 router.post('/logout', (req: Request, res: Response): any => {
- res.json({
+  return res.json({
     success: true,
     message: 'Logged out successfully'
   });
@@ -182,10 +188,10 @@ router.post('/logout', (req: Request, res: Response): any => {
 router.get('/admin-status', async (_req: Request, res: Response): Promise<any> => {
   try {
     const count = await prisma.user.count({ where: { role: Role.ADMIN } });
- res.json({ success: true, data: { hasAdmin: count > 0, count } });
+    return res.json({ success: true, data: { hasAdmin: count > 0, count } });
   } catch (error) {
     console.error('Admin status error:', error);
- res.status(500).json({ success: false, error: 'Internal server error' });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 

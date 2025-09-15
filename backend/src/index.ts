@@ -11,9 +11,15 @@ import inventoryRoutes from './routes/inventory.js';
 import rankingsRoutes from './routes/rankings.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
+import { ensureAdminExists } from './lib/bootstrap.js';
 
 // Load environment variables
 dotenv.config();
+
+// Ensure a fixed admin exists on startup (before serving requests)
+await ensureAdminExists().catch((err) => {
+  console.error('Admin bootstrap failed:', err);
+});
 
 const app = express();
 const PORT = process.env.PORT || 4000;

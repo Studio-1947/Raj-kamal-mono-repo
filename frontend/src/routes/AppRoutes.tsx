@@ -7,17 +7,20 @@ import Rankings from '../views/Rankings';
 import Social from '../views/Social';
 import Settings from '../views/Settings';
 import Language from '../views/Language';
+import Login from '../views/Login';
+import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/inventory" element={<Inventory />} />
-      <Route path="/rankings" element={<Rankings />} />
-      <Route path="/social" element={<Social />} />
-      <Route path="/settings" element={<Settings />} />
-      <Route path="/language" element={<Language />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+      <Route path="/rankings" element={<ProtectedRoute><Rankings /></ProtectedRoute>} />
+      <Route path="/social" element={<ProtectedRoute><Social /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/language" element={<ProtectedRoute><Language /></ProtectedRoute>} />
       <Route path="/404" element={<NotFound />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>
