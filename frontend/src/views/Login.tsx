@@ -10,7 +10,7 @@ export default function Login() {
   const loginMutation = useLogin();
   const navigate = useNavigate();
   const location = useLocation() as any;
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || '/';
 
   useEffect(() => {
     if (isAuthenticated) {

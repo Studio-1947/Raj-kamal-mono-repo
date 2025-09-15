@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLang } from '../modules/lang/LangContext';
+import { useLogout } from '../services/authService';
+import { useAuth } from '../modules/auth/AuthContext';
 import {
   IconHomeDefault,
   IconHomeActive,
@@ -60,6 +62,18 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { t } = useLang();
+  const navigate = useNavigate();
+  const { logout: clientLogout } = useAuth();
+  const logoutMutation = useLogout();
+
+  function handleLogout() {
+    // Immediately clear client state and navigate
+    clientLogout();
+    setOpenMenu(null);
+    navigate('/login', { replace: true });
+    // Best-effort notify backend (no need to block UI)
+    logoutMutation.mutate();
+  }
 
   const items: Item[] = [
     { label: t('home'), to: '/', icon: <span /> },
@@ -230,6 +244,13 @@ export default function Sidebar() {
                     <IconSettingsDefault className="h-4 w-4" />
                     <span>My Account</span>
                   </Link>
+                  <button
+                    onClick={handleLogout}
+                    disabled={logoutMutation.isPending}
+                    className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60"
+                  >
+                    <span>Logout</span>
+                  </button>
                 </div>
               </div>
             )) ||
@@ -243,6 +264,13 @@ export default function Sidebar() {
                     <IconSettingsDefault className="h-4 w-4" />
                     <span>My Account</span>
                   </Link>
+                  <button
+                    onClick={handleLogout}
+                    disabled={logoutMutation.isPending}
+                    className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60"
+                  >
+                    <span>Logout</span>
+                  </button>
                 </div>
               ))}
           </div>
