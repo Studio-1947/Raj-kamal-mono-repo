@@ -1,8 +1,6 @@
 import AppLayout from "../shared/AppLayout";
 import { useLang } from "../modules/lang/LangContext";
-import HomeDashboard from "../components/homepage/Chart";
 import HindiBooksSalesDashboard from "../components/homepage/HomeC";
-// import HindiBooksSalesDashboard from "../components/homepage/HomeC";
 
 export default function Home() {
   const { t } = useLang();

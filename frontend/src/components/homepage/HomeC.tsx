@@ -1,4 +1,15 @@
 import React from "react";
+import { IoMdInformationCircle } from "react-icons/io";
+import { MdOutlineKeyboardArrowUp } from "react-icons/md";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
 
 /**
  * Hindi Sales Dashboard – pixel-close clone of your reference.
@@ -77,7 +88,7 @@ function FooterButton({ children }: React.PropsWithChildren) {
   return (
     <button
       type="button"
-      className="w-full rounded-xl bg-[#EAF1FF] text-[#3856B8] font-semibold py-2.5 text-sm hover:brightness-95"
+      className="w-full rounded-xl bg-[#F4F7FA] b-1 b-[#E5ECF4] text-[#3856B8] font-semibold py-2.5 text-sm hover:brightness-95"
     >
       {children}
     </button>
@@ -186,6 +197,92 @@ const revenue = {
   series: [0, 5, 40, 80, 78, 55, 42, 12, 38, 80, 30],
 };
 
+// Colors to keep Online/Offline consistent across legend and lines
+const ONLINE_COLOR = "#2B4D9C"; // deep blue
+const OFFLINE_COLOR = "#7EA6FF"; // light blue
+
+type RevenuePoint = {
+  name: string;
+  online: number;
+  offline: number;
+};
+
+// Month-wise mock series roughly matching the screenshot shape
+const revenueData: RevenuePoint[] = [
+  { name: "Jan", online: 500, offline: 300 },
+  { name: "Feb", online: 3_000, offline: 1_200 },
+  { name: "Mar", online: 35_000, offline: 22_000 },
+  { name: "Apr", online: 80_000, offline: 65_000 },
+  { name: "May", online: 95_000, offline: 90_000 },
+  { name: "Jun", online: 60_000, offline: 50_000 },
+  { name: "Jul", online: 50_000, offline: 40_000 },
+  { name: "Aug", online: 20_000, offline: 8_000 },
+  { name: "Sep", online: 45_000, offline: 30_000 },
+  { name: "Oct", online: 75_000, offline: 58_000 },
+];
+
+function formatIN(tick: number) {
+  try {
+    return new Intl.NumberFormat("en-IN").format(tick);
+  } catch {
+    return tick.toString();
+  }
+}
+
+function RevenueLineChart() {
+  return (
+    <div className="h-[220px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={revenueData}
+          margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+        >
+          <CartesianGrid stroke="#E5E7EB" vertical={false} />
+          <XAxis
+            dataKey="name"
+            tick={{ fontSize: 12, fill: "#6B7280" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tickFormatter={formatIN}
+            width={56}
+            tick={{ fontSize: 12, fill: "#6B7280" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            formatter={(value: number, name: string) => [
+              formatIN(value as number),
+              name,
+            ]}
+            labelClassName="text-sm"
+            contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb" }}
+          />
+          <Line
+            type="monotone"
+            dataKey="online"
+            name="Online"
+            stroke={ONLINE_COLOR}
+            strokeWidth={3}
+            dot={{ r: 4, strokeWidth: 0, fill: ONLINE_COLOR }}
+            activeDot={{ r: 6 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="offline"
+            name="Offline"
+            stroke={OFFLINE_COLOR}
+            strokeWidth={3}
+            dot={{ r: 4, strokeWidth: 0, fill: OFFLINE_COLOR }}
+            activeDot={{ r: 6 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 const topBook = {
   cover:
     "https://images.unsplash.com/photo-1512820790803-83ca734da794?q=80&w=300&auto=format&fit=crop",
@@ -193,7 +290,7 @@ const topBook = {
   author: "Vinod Kumar Shukla",
   isbn: "978-0143030607",
   language: "Hindi",
-  growth: "+25%",
+  growth: "25%",
   rupees: "+ ₹1,83,000",
 };
 
@@ -273,18 +370,24 @@ function RevenueCard() {
         <div className="text-3xl sm:text-4xl font-extrabold text-[#43547E]">
           {revenue.value}
         </div>
-        <Pill tone="blue" className="py-2">
+        <Pill tone="blue" className="py-2 bg-[East Bay/100] text-[#526BA3]">
           This Month
         </Pill>
 
         {/* legend */}
         <div className="ml-auto flex items-center gap-4 text-xs">
           <span className="inline-flex items-center gap-1 text-gray-700">
-            <span className="size-2 rounded-full bg-[#1e3a8a] inline-block" />{" "}
+            <span
+              className="size-2 rounded-full inline-block"
+              style={{ backgroundColor: ONLINE_COLOR }}
+            />{" "}
             Online
           </span>
-          <span className="inline-flex items-center gap-1 text-gray-400">
-            <span className="size-2 rounded-full bg-gray-400 inline-block" />{" "}
+          <span className="inline-flex items-center gap-1 text-gray-700">
+            <span
+              className="size-2 rounded-full inline-block"
+              style={{ backgroundColor: OFFLINE_COLOR }}
+            />{" "}
             Offline
           </span>
         </div>
@@ -293,31 +396,34 @@ function RevenueCard() {
       {/* deltas */}
       <div className="mt-2 flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-2 text-green-700">
-          <ArrowUp className="w-3 h-3" />{" "}
-          <span className="font-semibold">2.05%</span>{" "}
+          {/* <ArrowUp className="w-3 h-3" />{" "} */}
+          <MdOutlineKeyboardArrowUp className="w-5 h-5 text-[#2EC700]" />
+          <span className="font-semibold text-[#43547E]">2.05%</span>{" "}
           <span className="text-gray-500">from last month</span>
         </span>
         <span className="inline-flex items-center gap-2 text-gray-700">
           {" "}
-          <span className="font-semibold">0.05%</span>{" "}
+          <MdOutlineKeyboardArrowUp className="w-5 h-5 text-[#2EC700]" />
+          <span className="font-semibold text-[#43547E]">0.05%</span>{" "}
           <span className="text-gray-500">vs January</span>
         </span>
-        <span className="inline-flex items-center gap-2 text-blue-700">
+        <span className="inline-flex items-center gap-2">
           {" "}
-          <span className="font-semibold">5.25%</span>{" "}
+          <MdOutlineKeyboardArrowUp className="w-5 h-5 text-[#2EC700]" />
+          <span className="font-semibold text-[#43547E]">5.25%</span>{" "}
           <span className="text-gray-500">vs target</span>
         </span>
       </div>
 
       {/* chart */}
       <div className="mt-3 rounded-2xl border border-black/5 bg-white overflow-hidden">
-        <MiniLineChart series={revenue.series} />
+        <RevenueLineChart />
       </div>
 
       {/* info chip */}
       <div className="mt-3 rounded-2xl bg-gray-100 text-gray-700 px-4 py-3 flex items-center gap-2">
-        <span className="inline-flex items-center justify-center rounded-full bg-[#E5EEFF] text-[#2B4D9C] w-6 h-6">
-          <InfoCircle className="w-4 h-4" />
+        <span className="inline-flex items-center justify-center rounded-full bg-[#E5EEFF] text-[#43547E] w-6 h-6">
+          <IoMdInformationCircle className="w-8 h-8" />
         </span>
         <span className="text-sm">
           Amazon contributed 25% of this month’s growth.
@@ -332,17 +438,21 @@ function TopBookCard() {
     <Card
       title={
         <div className="flex items-center">
-          <span className="font-semibold">Top Book</span>
+          <span className="font-semibold text-[16px] text-[#000000]">
+            Top Book
+          </span>
           <div className="ml-auto flex items-center gap-2 text-xs">
-            <span className="font-semibold text-[#2947A9]">Month</span>
-            <span className="text-gray-400">Year</span>
+            <span className="font-semibold text-[#43547E] text-[16px]">
+              Month
+            </span>
+            <span className="text-gray-400 text-[16px]">Year</span>
           </div>
         </div>
       }
       className="lg:col-span-5"
       footer={<FooterButton>See More</FooterButton>}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-5">
         <img
           src={topBook.cover}
           alt="book cover"
@@ -352,17 +462,20 @@ function TopBookCard() {
           <div className="font-semibold text-gray-900">{topBook.title}</div>
           <div className="text-sm text-gray-600">{topBook.author}</div>
           <p className="mt-1 text-xs text-gray-500">
-            <span className="font-semibold">ISBN:</span> {topBook.isbn}{" "}
-            <span className="ml-2 font-semibold">Language:</span>{" "}
+            <span className="font-semibold text-[#43547E]">ISBN:</span>{" "}
+            {topBook.isbn}{" "}
+            <span className="ml-2 font-semibold text-[#43547E]">Language:</span>{" "}
             {topBook.language}
           </p>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-3xl font-extrabold text-[#1e3a8a] inline-flex items-center gap-1">
+          <div className="text-3xl font-extrabold text-[#43547E] inline-flex items-center gap-1">
             {topBook.growth}
             <ArrowUp className="w-4 h-4 text-green-600" />
           </div>
-          <div className="text-[11px] text-gray-500">{topBook.rupees}</div>
+          <div className="text-[13px] text-gray-500 text-left">
+            {topBook.rupees}
+          </div>
         </div>
       </div>
     </Card>
@@ -374,14 +487,18 @@ function TopAuthorCard() {
     <Card
       title={
         <div className="flex items-center">
-          <span className="font-semibold">Top Author</span>
+          <span className="font-semibold text-[#000000] text-[16px]">
+            Top Author
+          </span>
           <div className="ml-auto flex items-center gap-2 text-xs">
-            <span className="font-semibold text-[#2947A9]">Month</span>
-            <span className="text-gray-400">Year</span>
+            <span className="font-semibold text-[#43547E] text-[16px]">
+              Month
+            </span>
+            <span className="text-gray-400 text-[16px]">Year</span>
           </div>
         </div>
       }
-      className="lg:col-span-5"
+      className="lg:col-span-5 "
       footer={<FooterButton>See More</FooterButton>}
     >
       <div className="flex items-start gap-3">
@@ -411,7 +528,7 @@ function InventoryCard() {
     <Card
       title={
         <div className="flex items-center gap-3">
-          <span className="font-semibold">Inventory</span>
+          <span className="font-semibold text-[#000000]">Inventory</span>
           <Pill tone="red">Critical</Pill>
         </div>
       }
@@ -438,7 +555,7 @@ function InventoryCard() {
                     <div className="text-[11px] text-[#C03548] font-semibold">
                       Stock Available
                     </div>
-                    <div className="text-2xl font-extrabold">
+                    <div className="text-2xl font-extrabold text-[#971A34]">
                       {item.available}
                     </div>
                     <div className="text-[11px] text-gray-500">
@@ -552,35 +669,6 @@ function SocialMediaCard() {
 \*******************/
 export default function HindiBooksSalesDashboard() {
   return (
-    // <div className="">
-    //   {/* 12-col grid on large screens; stack on mobile */}
-    //   <div className="">
-    //     <div className="flex ">
-    //       <div className="w-1/2">
-    //         <RevenueCard />
-    //       </div>
-    //       <div className="w-1/2 ">
-    //         <div className="">
-    //           <TopBookCard />
-    //         </div>
-    //         <div className="">
-    //           <TopAuthorCard />
-    //         </div>
-    //       </div>
-    //     </div>
-    //     <div className="flex items-stretch">
-    //       <div className="w-1/2">
-    //         <InventoryCard />
-    //       </div>
-    //       <div className="w-1/2 h-full">
-    //         <SocialMediaCard />
-    //       </div>
-    //     </div>
-    //   </div>
-    // </div>
-    //   );
-    // }
-
     <main className="mx-auto max-w-[1200px] py-6 text-slate-800 dark:text-slate-100">
       {/* Header numbers (kept simple; edit freely) */}
       {/* <div className="mb-4 flex flex-wrap items-end gap-3">
