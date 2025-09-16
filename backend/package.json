@@ -13,7 +13,11 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "postinstall": "prisma generate"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
