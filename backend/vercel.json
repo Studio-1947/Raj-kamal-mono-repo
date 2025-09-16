@@ -1,8 +1,16 @@
 {
   "version": 2,
-  "functions": {
-    "api/**/*.{js,ts}": {
-      "runtime": "nodejs20.x"
+  "buildCommand": "npm run vercel-build",
+  "builds": [
+    {
+      "src": "api/[...path].ts",
+      "use": "@vercel/node"
     }
-  }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/[...path]"
+    }
+  ]
 }
