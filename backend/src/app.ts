@@ -57,6 +57,25 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Root endpoint - Backend status page
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: '🚀 Raj-Kamal Backend API is running!',
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      dashboard: '/api/dashboard',
+      inventory: '/api/inventory',
+      rankings: '/api/rankings'
+    },
+    documentation: 'Visit /api/auth/admin-status to check admin setup'
+  });
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
