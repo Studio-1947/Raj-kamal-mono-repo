@@ -88,6 +88,28 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/rankings', rankingsRoutes);
 
+// Fallback route for any unmatched requests
+app.use('*', (req, res) => {
+  console.log('🔍 Fallback route hit:', req.method, req.originalUrl);
+  res.status(200).json({
+    message: '🚀 Raj-Kamal Backend API is running!',
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    requestedPath: req.originalUrl,
+    method: req.method,
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      dashboard: '/api/dashboard',
+      inventory: '/api/inventory',
+      rankings: '/api/rankings'
+    },
+    documentation: 'Visit /api/auth/admin-status to check admin setup'
+  });
+});
+
 // Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
