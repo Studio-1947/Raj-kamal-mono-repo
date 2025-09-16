@@ -11,6 +11,14 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/[...path]"
+    },
+    {
+      "src": "/health",
+      "dest": "/api/[...path]"
+    },
+    {
+      "src": "/",
+      "dest": "/api/[...path]"
     }
   ]
 }
