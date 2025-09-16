@@ -1,10 +1,16 @@
 {
   "version": 2,
-  "functions": {
-    "api/**/*.{js,ts}": {
-      "runtime": "nodejs18.x"
+  "buildCommand": "npm run vercel-build",
+  "builds": [
+    {
+      "src": "api/[...path].ts",
+      "use": "@vercel/node"
     }
-  },
-  "buildCommand": "echo Skipping project build; using built-in Node runtime",
-  "installCommand": "npm install"
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/[...path]"
+    }
+  ]
 }
