@@ -2,9 +2,10 @@
   "version": 2,
   "functions": {
     "api/**/*.{js,ts}": {
-      "runtime": "nodejs18.x"
+      "runtime": "@vercel/node@3.0.7"
     }
   },
-  "buildCommand": "echo Skipping project build; using built-in Node runtime",
-  "installCommand": "npm install"
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": "dist"
 }
