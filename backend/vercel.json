@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/**/*": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "buildCommand": "echo Skipping project build; using @vercel/node for api",
+  "installCommand": "npm install"
+}
+
