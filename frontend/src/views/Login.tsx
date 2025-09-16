@@ -62,7 +62,7 @@ export default function Login() {
           disabled={loginMutation.isPending}
           className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
         >
-          {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
+          {loginMutation.isPending ? 'Signing in...' : 'Sign in'}
         </button>
       </form>
     </main>

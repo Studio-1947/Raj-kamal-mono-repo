@@ -2,12 +2,31 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { store } from '../store';
 import { logout } from '../store/slices/authSlice';
 
+const DEFAULT_BASE_URL = 'https://raj-kamal-mono-repo.vercel.app/api';
+
+function normalizeBaseUrl(value?: string): string {
+  const rawUrl = value?.trim() || DEFAULT_BASE_URL;
+
+  try {
+    const parsed = new URL(rawUrl);
+
+    if (!parsed.pathname.endsWith('/')) {
+      parsed.pathname = `${parsed.pathname}/`;
+    }
+
+    return parsed.toString();
+  } catch {
+    const sanitized = rawUrl.replace(/\/+$/, '');
+    return `${sanitized}/`;
+  }
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000/api',
+      baseURL: normalizeBaseUrl((import.meta as any).env?.VITE_API_URL),
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
@@ -21,9 +40,14 @@ class ApiClient {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       (config) => {
+        if (typeof config.url === 'string' && config.url.startsWith('/')) {
+          config.url = config.url.replace(/^\/+/, '');
+        }
+
         const token = store.getState().auth.token;
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+          config.headers = config.headers ?? {};
+          (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
         }
         return config;
       },
