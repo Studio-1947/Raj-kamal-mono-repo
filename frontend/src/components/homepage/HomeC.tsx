@@ -669,7 +669,7 @@ function SocialMediaCard() {
 \*******************/
 export default function HindiBooksSalesDashboard() {
   return (
-    <main className="mx-auto max-w-[1200px] py-6 text-slate-800 dark:text-slate-100">
+    <main className="mx-auto w-full py-6 text-slate-800 dark:text-slate-100">
       {/* Header numbers (kept simple; edit freely) */}
       {/* <div className="mb-4 flex flex-wrap items-end gap-3">
         <h1 className="text-2xl font-bold text-[#43547E]">₹32,00,000</h1>

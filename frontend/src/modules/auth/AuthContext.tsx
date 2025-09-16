@@ -1,8 +1,12 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
+import { useAppSelector, useAppDispatch } from '../../hooks/redux';
+import { loginSuccess, logout, setUser } from '../../store/slices/authSlice';
+import { useGetMe } from '../../services/authService';
 
 type AuthContextValue = {
   isAuthenticated: boolean;
   token: string | null;
+  user: any;
   login: (token: string) => void;
   logout: () => void;
 };
@@ -10,27 +14,42 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, token, user } = useAppSelector((state) => state.auth);
+  
+  // Fetch user data if token exists
+  const { data: userData } = useGetMe();
 
   useEffect(() => {
-    const t = localStorage.getItem('rk_token');
-    if (t) setToken(t);
-  }, []);
+    const storedToken = localStorage.getItem('rk_token');
+    if (storedToken && !token) {
+      // Token exists in localStorage but not in Redux, restore it
+      dispatch(loginSuccess({ user: null, token: storedToken }));
+    }
+  }, [dispatch, token]);
+
+  // Update user data when fetched
+  useEffect(() => {
+    if (userData?.success && userData.data.user) {
+      dispatch(setUser(userData.data.user));
+    }
+  }, [userData, dispatch]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      isAuthenticated: Boolean(token),
+      isAuthenticated,
       token,
+      user,
       login: (t: string) => {
         localStorage.setItem('rk_token', t);
-        setToken(t);
+        dispatch(loginSuccess({ user: null, token: t }));
       },
       logout: () => {
         localStorage.removeItem('rk_token');
-        setToken(null);
+        dispatch(logout());
       },
     }),
-    [token]
+    [isAuthenticated, token, user, dispatch]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
