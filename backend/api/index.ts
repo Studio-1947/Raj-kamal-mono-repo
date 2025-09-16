@@ -20,4 +20,3 @@ await initializeAdmin();
 
 // Export the Express app as the default handler
 export default app;
-
