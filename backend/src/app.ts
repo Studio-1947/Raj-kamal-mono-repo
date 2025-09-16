@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import cors, { CorsOptions } from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
@@ -17,18 +17,45 @@ dotenv.config();
 
 const app = express();
 
+const sanitizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, '');
+
+const corsOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => sanitizeOrigin(origin))
+  .filter(Boolean);
+
+if (corsOrigins.length === 0) {
+  corsOrigins.push('http://localhost:5173');
+}
+
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const normalizedOrigin = sanitizeOrigin(origin);
+    if (corsOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`Blocked CORS origin: ${origin}`);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
+
 // Security middleware
 app.use(helmet());
 
 // CORS configuration
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  }),
-);
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
