@@ -8,8 +8,9 @@ const initializeAdmin = async () => {
     try {
       await ensureAdminExists();
       adminInitialized = true;
+      console.log('✅ Admin initialization completed');
     } catch (err) {
-      console.error('Admin bootstrap failed:', err);
+      console.error('❌ Admin bootstrap failed:', err);
     }
   }
 };
@@ -17,5 +18,6 @@ const initializeAdmin = async () => {
 // Initialize admin before handling requests
 await initializeAdmin();
 
+// Export the Express app as the default handler
 export default app;
 
