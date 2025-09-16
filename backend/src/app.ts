@@ -59,6 +59,7 @@ app.get('/health', (req, res) => {
 
 // Root endpoint - Backend status page
 app.get('/', (req, res) => {
+  console.log('📍 Root route accessed:', req.url);
   res.status(200).json({
     message: '🚀 Raj-Kamal Backend API is running!',
     status: 'OK',
@@ -72,7 +73,12 @@ app.get('/', (req, res) => {
       inventory: '/api/inventory',
       rankings: '/api/rankings'
     },
-    documentation: 'Visit /api/auth/admin-status to check admin setup'
+    documentation: 'Visit /api/auth/admin-status to check admin setup',
+    requestInfo: {
+      url: req.url,
+      method: req.method,
+      headers: req.headers
+    }
   });
 });
 

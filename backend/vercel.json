@@ -6,19 +6,5 @@
       "src": "api/[...path].ts",
       "use": "@vercel/node"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/[...path]"
-    },
-    {
-      "src": "/health",
-      "dest": "/api/[...path]"
-    },
-    {
-      "src": "/",
-      "dest": "/api/[...path]"
-    }
   ]
 }
