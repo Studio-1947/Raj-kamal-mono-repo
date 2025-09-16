@@ -169,7 +169,7 @@ router.get('/categories', authenticateToken, (req: AuthRequest, res: Response) =
 });
 
 // Get overall rankings summary
-router.get('/summary', authenticateToken, (req: AuthRequest, res: Response) => {
+router.get('/summary', authenticateToken, (req: AuthRequest, res: Response): void => {
   const topProduct = productRankings[0];
   const topCustomer = customerRankings[0];
   const topCategory = categoryRankings[0];
@@ -177,21 +177,21 @@ router.get('/summary', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json({
     success: true,
     data: {
-      topProduct: {
+      topProduct: topProduct ? {
         name: topProduct.name,
         sales: topProduct.sales,
         revenue: topProduct.revenue,
-      },
-      topCustomer: {
+      } : null,
+      topCustomer: topCustomer ? {
         name: topCustomer.name,
         totalSpent: topCustomer.totalSpent,
         totalOrders: topCustomer.totalOrders,
-      },
-      topCategory: {
+      } : null,
+      topCategory: topCategory ? {
         name: topCategory.name,
         totalSales: topCategory.totalSales,
         totalRevenue: topCategory.totalRevenue,
-      },
+      } : null,
     }
   });
 });

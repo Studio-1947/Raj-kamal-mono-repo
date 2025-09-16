@@ -89,15 +89,16 @@ router.get('/items', authenticateToken, (req: AuthRequest, res: Response) => {
 });
 
 // Get inventory item by ID
-router.get('/items/:id', authenticateToken, (req: AuthRequest, res: Response) => {
+router.get('/items/:id', authenticateToken, (req: AuthRequest, res: Response): void => {
   const { id } = req.params;
   const item = inventoryItems.find(item => item.id === id);
   
   if (!item) {
-    return res.status(404).json({
+    res.status(404).json({
       success: false,
       error: 'Item not found'
     });
+    return;
   }
   
   res.json({

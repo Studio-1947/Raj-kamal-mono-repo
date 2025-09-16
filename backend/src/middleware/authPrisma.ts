@@ -11,15 +11,16 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    return res.status(401).json({ 
+    res.status(401).json({ 
       success: false, 
       error: 'Access token required' 
     });
+    return;
   }
 
   try {
@@ -37,10 +38,11 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     });
 
     if (!user) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         success: false, 
         error: 'User not found' 
       });
+      return;
     }
 
     req.user = {
@@ -51,27 +53,30 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     
     next();
   } catch (error) {
-    return res.status(403).json({ 
+    res.status(403).json({ 
       success: false, 
       error: 'Invalid or expired token' 
     });
+    return;
   }
 };
 
 export const requireRole = (roles: Role[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         success: false, 
         error: 'Authentication required' 
       });
+      return;
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
+      res.status(403).json({ 
         success: false, 
         error: 'Insufficient permissions' 
       });
+      return;
     }
 
     next();
