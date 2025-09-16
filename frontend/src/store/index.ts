@@ -19,7 +19,8 @@ export const store = configureStore({
         ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
       },
     }),
-  devTools: process.env.NODE_ENV !== 'production',
+  // Use Vite's env flags instead of Node's process.env
+  devTools: import.meta.env.DEV,
 });
 
 export type RootState = ReturnType<typeof store.getState>;
