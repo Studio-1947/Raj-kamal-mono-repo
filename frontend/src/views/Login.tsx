@@ -4,32 +4,38 @@ import { useAuth } from '../modules/auth/AuthContext';
 import { useLogin } from '../services/authService';
 import { RajkamalLogo } from '../shared/RajkamalLogo';
 
-export default function Login() {
+const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { isAuthenticated } = useAuth();
+  const { login: authLogin, isAuthenticated } = useAuth();
   const loginMutation = useLogin();
   const navigate = useNavigate();
-  const location = useLocation() as any;
-  const from = location.state?.from?.pathname || '/';
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname || '/';
 
   useEffect(() => {
     if (isAuthenticated) {
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, from, navigate]);
+  }, [isAuthenticated, navigate, from]);
 
-  function onSubmit(e: FormEvent) {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const payload = { email: email.trim().toLowerCase(), password };
-    loginMutation.mutate(payload, {
-      onSuccess: (data) => {
-        if (data?.success && data.data?.token) {
-          navigate(from, { replace: true });
-        }
-      },
-    });
-  }
+    
+    try {
+      const loginResult = await loginMutation.mutateAsync(payload);
+      
+      // The token is in loginResult.data.token based on your backend response
+      if (loginResult?.data?.token) {
+        authLogin(loginResult.data.token);
+        // Navigation happens automatically via useEffect when isAuthenticated changes
+      }
+    } catch (error) {
+      // Error is handled by React Query and displayed in the form
+      console.error('Login failed:', error);
+    }
+  };
 
   const errorMessage = (loginMutation.error as any)?.response?.data?.error || 'Login failed';
 
@@ -76,7 +82,7 @@ export default function Login() {
             <p className="mt-2 text-sm text-slate-500">Sign in to continue to your Rajkamal workspace.</p>
           </div>
 
-          <form onSubmit={onSubmit} className="mt-8 space-y-6">
+          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium text-slate-600">
                 Work email
@@ -153,4 +159,6 @@ export default function Login() {
       </section>
     </main>
   );
-}
+};
+
+export default Login;

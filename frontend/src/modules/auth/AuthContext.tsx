@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { loginSuccess, logout, setUser } from '../../store/slices/authSlice';
 import { useGetMe } from '../../services/authService';
@@ -9,51 +9,66 @@ type AuthContextValue = {
   user: any;
   login: (token: string) => void;
   logout: () => void;
+  loading: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const dispatch = useAppDispatch();
-  const { isAuthenticated, token, user } = useAppSelector((state) => state.auth);
+  const { token, user, isAuthenticated } = useAppSelector((state) => state.auth);
+  const [loading, setLoading] = useState(true);
   
-  // Fetch user data if token exists
-  const { data: userData } = useGetMe();
+  const { data: userData, isLoading: userLoading, error: userError } = useGetMe(!!token);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('rk_token');
     if (storedToken && !token) {
-      // Token exists in localStorage but not in Redux, restore it
-      dispatch(loginSuccess({ user: null, token: storedToken }));
+      dispatch(loginSuccess({ token: storedToken, user: null }));
+    } else if (!storedToken && !token) {
+      setLoading(false);
     }
   }, [dispatch, token]);
 
-  // Update user data when fetched
   useEffect(() => {
-    if (userData?.success && userData.data.user) {
+    if (userData && token) {
       dispatch(setUser(userData.data.user));
+      setLoading(false);
+    } else if (userError && token) {
+      // Token is invalid, clear it
+      localStorage.removeItem('rk_token');
+      dispatch(logout());
+      setLoading(false);
+    } else if (!userLoading && !token) {
+      setLoading(false);
     }
-  }, [userData, dispatch]);
+  }, [userData, userLoading, userError, token, dispatch]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      isAuthenticated,
-      token,
-      user,
-      login: (t: string) => {
-        localStorage.setItem('rk_token', t);
-        dispatch(loginSuccess({ user: null, token: t }));
-      },
-      logout: () => {
-        localStorage.removeItem('rk_token');
-        dispatch(logout());
-      },
-    }),
-    [isAuthenticated, token, user, dispatch]
+  const login = (token: string) => {
+    localStorage.setItem('rk_token', token);
+    dispatch(loginSuccess({ token, user: null }));
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('rk_token');
+    dispatch(logout());
+  };
+
+  const value: AuthContextValue = {
+    isAuthenticated: isAuthenticated && !!user && !!token,
+    token,
+    user,
+    login,
+    logout: handleLogout,
+    loading,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+};
 
 export function useAuth() {
   const ctx = useContext(AuthContext);

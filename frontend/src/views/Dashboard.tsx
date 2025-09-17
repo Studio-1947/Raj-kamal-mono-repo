@@ -17,12 +17,12 @@ export default function Dashboard() {
         <StatCard label={t('refunds')} value="12" delta="-0.6%" fromLastWeek={t('from_last_week')} negative />
       </div>
 
-      {token && (
+      {/* {token && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold text-gray-700">{t('auth_token')}</h2>
           <pre className="mt-2 overflow-x-auto rounded bg-gray-900 p-3 text-xs text-green-300">{token}</pre>
         </div>
-      )}
+      )} */}
     </AppLayout>
   );
 }
