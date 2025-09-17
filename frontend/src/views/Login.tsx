@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../modules/auth/AuthContext';
 import { useLogin } from '../services/authService';
 import { RajkamalLogo } from '../shared/RajkamalLogo';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -132,7 +133,14 @@ const Login: React.FC = () => {
               disabled={loginMutation.isPending}
               className="flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-orange-400 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loginMutation.isPending ? 'Signing in...' : 'Sign in'}
+              {loginMutation.isPending ? (
+                <div className="flex items-center gap-2">
+                  <LoadingSpinner size="sm" className="gap-0" message="" />
+                  <span>Signing in...</span>
+                </div>
+              ) : (
+                'Sign in'
+              )}
             </button>
           </form>
 
