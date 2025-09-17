@@ -74,11 +74,13 @@ export const useRegister = () => {
   });
 };
 
-export const useGetMe = (p0: boolean) => {
+export const useGetMe = (enabled: boolean = true) => {
   return useQuery({
     queryKey: ['auth', 'me'],
     queryFn: authApi.getMe,
-    enabled: !!store.getState().auth.token,
+    enabled: enabled && !!store.getState().auth.token,
+    retry: false, // Don't retry failed auth requests
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

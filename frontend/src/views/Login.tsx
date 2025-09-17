@@ -26,10 +26,10 @@ const Login: React.FC = () => {
     try {
       const loginResult = await loginMutation.mutateAsync(payload);
       
-      // Check if login was successful and extract token
+      // The token is in loginResult.data.token based on your backend response
       if (loginResult?.data?.token) {
         authLogin(loginResult.data.token);
-        // Navigation will happen automatically via useEffect
+        // Navigation happens automatically via useEffect when isAuthenticated changes
       }
     } catch (error) {
       // Error is handled by React Query and displayed in the form

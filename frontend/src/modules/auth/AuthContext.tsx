@@ -19,13 +19,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { token, user, isAuthenticated } = useAppSelector((state) => state.auth);
   const [loading, setLoading] = useState(true);
   
-  const { data: userData, isLoading: userLoading } = useGetMe(!!token);
+  const { data: userData, isLoading: userLoading, error: userError } = useGetMe(!!token);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('rk_token');
     if (storedToken && !token) {
       dispatch(loginSuccess({ token: storedToken, user: null }));
-    } else {
+    } else if (!storedToken && !token) {
       setLoading(false);
     }
   }, [dispatch, token]);
@@ -33,11 +33,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (userData && token) {
       dispatch(setUser(userData.data.user));
-    }
-    if (!userLoading && token) {
+      setLoading(false);
+    } else if (userError && token) {
+      // Token is invalid, clear it
+      localStorage.removeItem('rk_token');
+      dispatch(logout());
+      setLoading(false);
+    } else if (!userLoading && !token) {
       setLoading(false);
     }
-  }, [userData, userLoading, token, dispatch]);
+  }, [userData, userLoading, userError, token, dispatch]);
 
   const login = (token: string) => {
     localStorage.setItem('rk_token', token);
@@ -50,12 +55,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const value: AuthContextValue = {
-    isAuthenticated: isAuthenticated && !!user,
+    isAuthenticated: isAuthenticated && !!user && !!token,
     token,
     user,
     login,
     logout: handleLogout,
-    loading: loading || userLoading,
+    loading,
   };
 
   return (
