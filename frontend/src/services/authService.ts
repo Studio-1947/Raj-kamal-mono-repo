@@ -74,7 +74,7 @@ export const useRegister = () => {
   });
 };
 
-export const useGetMe = () => {
+export const useGetMe = (p0: boolean) => {
   return useQuery({
     queryKey: ['auth', 'me'],
     queryFn: authApi.getMe,
