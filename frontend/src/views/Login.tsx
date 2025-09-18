@@ -4,8 +4,9 @@ import { useAuth } from '../modules/auth/AuthContext';
 import { useLogin } from '../services/authService';
 import { RajkamalLogo } from '../shared/RajkamalLogo';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+// Import the 3D logo image
+import rajkamalLogo3D from '../../public/raj-kamal-3d-logo.webp';
 
-// Inline SVG icons to replace Heroicons dependency
 const EyeIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
@@ -139,12 +140,12 @@ const Login: React.FC = () => {
   };
 
   return (
-    <main className="flex min-h-screen flex-col bg-slate-100 lg:flex-row">
+    <main className="flex min-h-screen flex-col bg-gradient-to-br from-rose-600 via-rose-500 to-orange-400 lg:flex-row overflow-hidden">
       <section className="relative hidden w-full flex-1 overflow-hidden bg-gradient-to-br from-rose-600 via-rose-500 to-orange-400 text-white lg:flex lg:max-w-2xl xl:max-w-3xl">
         <div className="absolute inset-0">
           <div className="absolute -left-28 top-24 h-80 w-80 rounded-full bg-white/15 blur-3xl" />
           <div className="absolute right-[-80px] bottom-16 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute left-16 bottom-24 h-56 w-56 rounded-full border border-white/20" />
+          {/* <div className="absolute left-[270px] bottom-[370px] h-56 w-56 rounded-full border border-white/20" /> */}
         </div>
         <div className="relative z-10 flex h-full w-full flex-col justify-between p-12">
           <RajkamalLogo
@@ -153,7 +154,17 @@ const Login: React.FC = () => {
             emblemWrapperClassName="h-16 w-16 bg-white/10 text-white ring-white/40"
             emblemClassName="h-16 w-16"
           />
-          <div className="mt-16 max-w-lg space-y-6">
+          
+          {/* Add 3D Logo in center */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <img 
+              src={rajkamalLogo3D} 
+              alt="Rajkamal 3D Logo" 
+              className="h-80 w-80 object-contain  drop-shadow-2xl"
+            />
+          </div>
+          
+          <div className="mt-16 max-w-lg space-y-6 relative z-10">
             <h2 className="text-4xl font-semibold leading-tight">
               Unlock sharper intelligence for every Rajkamal partner.
             </h2>
@@ -168,8 +179,23 @@ const Login: React.FC = () => {
         </div>
       </section>
 
-      <section className="flex w-full flex-1 items-center justify-center px-6 py-12 sm:px-10 lg:px-16">
-        <div className="w-full max-w-md rounded-3xl bg-white/95 p-8 shadow-xl backdrop-blur sm:p-10">
+      <section className="relative flex w-full flex-1 items-center justify-center px-6 py-12 sm:px-10 lg:px-16 lg:bg-slate-100">
+        {/* Mobile background decorations */}
+        <div className="absolute inset-0 lg:hidden">
+          <div className="absolute -right-16 top-20 h-64 w-64 rounded-full bg-white/15 blur-3xl" />
+          <div className="absolute left-[-60px] bottom-32 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute right-12 bottom-20 h-40 w-40 rounded-full border border-white/20" />
+          {/* Mobile 3D Logo */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <img 
+              src={rajkamalLogo3D} 
+              alt="Rajkamal 3D Logo" 
+              className="h-64 w-64 object-contain opacity-15 drop-shadow-2xl"
+            />
+          </div>
+        </div>
+        
+        <div className="relative z-10 w-full max-w-md rounded-3xl bg-white/95 p-8 shadow-xl backdrop-blur sm:p-10">
           <RajkamalLogo
             showWordmark={false}
             className="justify-center"
@@ -267,7 +293,7 @@ const Login: React.FC = () => {
               {fieldErrors.password && (
                 <div className="flex items-center gap-2 text-sm text-red-600">
                   <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M18 10a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
                   </svg>
                   <span>{fieldErrors.password}</span>
                 </div>
