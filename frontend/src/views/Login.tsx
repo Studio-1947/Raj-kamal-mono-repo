@@ -166,11 +166,12 @@ const Login: React.FC = () => {
           
           <div className="mt-16 max-w-lg space-y-6 relative z-10">
             <h2 className="text-4xl font-semibold leading-tight">
-              Unlock sharper intelligence for every Rajkamal partner.
+              Unlock sharper intelligence for the Rajkamal Dashboard.
             </h2>
             <p className="text-base text-rose-50/90">
-              Monitor inventory health, track sales momentum, and spot emerging opportunities with dashboards that stay in sync across your teams.
-            </p>
+            
+  राजकमल का अपना स्मार्ट डैशबोर्ड
+           </p>
             <div className="flex items-center gap-3 text-sm text-rose-50/80">
               <span className="inline-flex h-1 w-12 rounded-full bg-white/80" />
               <span>Real-time analytics - Territory visibility - Collaborative planning</span>
