@@ -22,8 +22,27 @@ export interface Order {
 }
 
 export interface SalesChartData {
+  name: string;
   month: string;
   sales: number;
+  online: number;
+  offline: number;
+}
+
+export interface TopBook {
+  id: string;
+  title: string;
+  author: string;
+  sales: number;
+  revenue: number;
+  growth: number;
+}
+
+export interface TerritoryPerformance {
+  territory: string;
+  sales: number;
+  growth: number;
+  orders: number;
 }
 
 export interface DashboardResponse {
@@ -32,6 +51,8 @@ export interface DashboardResponse {
     stats: DashboardStats;
     recentOrders: Order[];
     salesChart: SalesChartData[];
+    topBooks: TopBook[];
+    territoryPerformance: TerritoryPerformance[];
   };
 }
 
@@ -40,14 +61,17 @@ const dashboardApi = {
   getOverview: async (): Promise<DashboardResponse> => {
     return apiClient.get('/dashboard/overview');
   },
-  getSales: async (): Promise<{ success: boolean; data: { totalSales: number; growth: number; chartData: SalesChartData[] } }> => {
+  getSales: async (): Promise<{ success: boolean; data: { totalSales: number; growth: number; chartData: SalesChartData[]; monthlyComparison: any } }> => {
     return apiClient.get('/dashboard/sales');
   },
-  getOrders: async (): Promise<{ success: boolean; data: { totalOrders: number; growth: number; recentOrders: Order[] } }> => {
+  getOrders: async (): Promise<{ success: boolean; data: { totalOrders: number; growth: number; recentOrders: Order[]; ordersByStatus: any } }> => {
     return apiClient.get('/dashboard/orders');
   },
-  getCustomers: async (): Promise<{ success: boolean; data: { totalCustomers: number; growth: number } }> => {
+  getCustomers: async (): Promise<{ success: boolean; data: { totalCustomers: number; growth: number; newCustomers: number; returningCustomers: number; customerSegments: any } }> => {
     return apiClient.get('/dashboard/customers');
+  },
+  getAnalytics: async (): Promise<{ success: boolean; data: { topBooks: TopBook[]; territoryPerformance: TerritoryPerformance[]; salesTrend: SalesChartData[]; conversionRate: number; averageOrderValue: number } }> => {
+    return apiClient.get('/dashboard/analytics');
   },
 };
 
@@ -80,6 +104,14 @@ export const useDashboardCustomers = () => {
   return useQuery({
     queryKey: ['dashboard', 'customers'],
     queryFn: dashboardApi.getCustomers,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useDashboardAnalytics = () => {
+  return useQuery({
+    queryKey: ['dashboard', 'analytics'],
+    queryFn: dashboardApi.getAnalytics,
     staleTime: 5 * 60 * 1000,
   });
 };

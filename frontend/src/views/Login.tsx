@@ -24,7 +24,7 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{email?: string; password?: string}>({});
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [showGlobalError, setShowGlobalError] = useState(false);
   const { login: authLogin, isAuthenticated } = useAuth();
   const loginMutation = useLogin();
@@ -63,36 +63,36 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     // Clear previous errors
     setFieldErrors({});
     setShowGlobalError(false);
-    
+
     // Client-side validation
-    const errors: {email?: string; password?: string} = {};
-    
+    const errors: { email?: string; password?: string } = {};
+
     if (!email.trim()) {
       errors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       errors.email = 'Please enter a valid email address';
     }
-    
+
     if (!password) {
       errors.password = 'Password is required';
     } else if (password.length < 6) {
       errors.password = 'Password must be at least 6 characters';
     }
-    
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
     }
-    
+
     const payload = { email: email.trim().toLowerCase(), password };
-    
+
     try {
       const loginResult = await loginMutation.mutateAsync(payload);
-      
+
       if (loginResult?.data?.token) {
         authLogin(loginResult.data.token);
       }
@@ -111,31 +111,31 @@ const Login: React.FC = () => {
   // Enhanced error message extraction
   const getGlobalErrorMessage = () => {
     const error = loginMutation.error as any;
-    
+
     if (error?.response?.data?.error) {
       return error.response.data.error;
     }
-    
+
     if (error?.response?.data?.message) {
       return error.response.data.message;
     }
-    
+
     if (error?.response?.status === 401) {
       return 'Invalid email or password. Please check your credentials and try again.';
     }
-    
+
     if (error?.response?.status === 429) {
       return 'Too many login attempts. Please wait a moment before trying again.';
     }
-    
+
     if (error?.response?.status >= 500) {
       return 'Server error. Please try again later or contact support if the problem persists.';
     }
-    
+
     if (error?.message === 'Network Error') {
       return 'Network connection error. Please check your internet connection and try again.';
     }
-    
+
     return 'Login failed. Please check your credentials and try again.';
   };
 
@@ -154,24 +154,24 @@ const Login: React.FC = () => {
             emblemWrapperClassName="h-16 w-16 bg-white/10 text-white ring-white/40"
             emblemClassName="h-16 w-16"
           />
-          
+
           {/* Add 3D Logo in center */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <img 
-              src={rajkamalLogo3D} 
-              alt="Rajkamal 3D Logo" 
+            <img
+              src={rajkamalLogo3D}
+              alt="Rajkamal 3D Logo"
               className="h-80 w-80 object-contain  drop-shadow-2xl"
             />
           </div>
-          
+
           <div className="mt-16 max-w-lg space-y-6 relative z-10">
             <h2 className="text-4xl font-semibold leading-tight">
               Unlock sharper intelligence for the Rajkamal Dashboard.
             </h2>
             <p className="text-base text-rose-50/90">
-            
-  राजकमल का अपना स्मार्ट डैशबोर्ड
-           </p>
+
+              राजकमल का अपना स्मार्ट डैशबोर्ड
+            </p>
             <div className="flex items-center gap-3 text-sm text-rose-50/80">
               <span className="inline-flex h-1 w-12 rounded-full bg-white/80" />
               <span>Real-time analytics - Territory visibility - Collaborative planning</span>
@@ -188,14 +188,14 @@ const Login: React.FC = () => {
           <div className="absolute right-12 bottom-20 h-40 w-40 rounded-full border border-white/20" />
           {/* Mobile 3D Logo */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <img 
-              src={rajkamalLogo3D} 
-              alt="Rajkamal 3D Logo" 
+            <img
+              src={rajkamalLogo3D}
+              alt="Rajkamal 3D Logo"
               className="h-64 w-64 object-contain opacity-15 drop-shadow-2xl"
             />
           </div>
         </div>
-        
+
         <div className="relative z-10 w-full max-w-md rounded-3xl bg-white/95 p-8 shadow-xl backdrop-blur sm:p-10">
           <RajkamalLogo
             showWordmark={false}
@@ -228,11 +228,10 @@ const Login: React.FC = () => {
                 }}
                 autoComplete="email"
                 required
-                className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 ${
-                  fieldErrors.email 
-                    ? 'border-red-300 bg-red-50/50 focus:border-red-500 focus:ring-red-200' 
+                className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 ${fieldErrors.email
+                    ? 'border-red-300 bg-red-50/50 focus:border-red-500 focus:ring-red-200'
                     : 'border-slate-200 bg-white focus:border-rose-500 focus:ring-rose-200'
-                }`}
+                  }`}
                 placeholder="Enter your work email"
               />
               {fieldErrors.email && (
@@ -271,11 +270,10 @@ const Login: React.FC = () => {
                   }}
                   autoComplete="current-password"
                   required
-                  className={`w-full rounded-2xl border px-4 py-3 pr-12 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 ${
-                    fieldErrors.password 
-                      ? 'border-red-300 bg-red-50/50 focus:border-red-500 focus:ring-red-200' 
+                  className={`w-full rounded-2xl border px-4 py-3 pr-12 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 ${fieldErrors.password
+                      ? 'border-red-300 bg-red-50/50 focus:border-red-500 focus:ring-red-200'
                       : 'border-slate-200 bg-white focus:border-rose-500 focus:ring-rose-200'
-                  }`}
+                    }`}
                   placeholder="Enter your password"
                 />
                 <button

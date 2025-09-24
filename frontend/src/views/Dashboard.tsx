@@ -1,28 +1,69 @@
 import { useAuth } from '../modules/auth/AuthContext';
 import { useLang } from '../modules/lang/LangContext';
+import { useDashboardOverview } from '../services/dashboardService';
 import AppLayout from '../shared/AppLayout';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export default function Dashboard() {
   const { token } = useAuth();
   const { t } = useLang();
+  const { data: dashboardData, isLoading, error } = useDashboardOverview();
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-20">
+          <LoadingSpinner />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error || !dashboardData?.data) {
+    return (
+      <AppLayout>
+        <h1 className="text-3xl font-bold text-gray-900">{t('dashboard_title')}</h1>
+        <div className="mt-6 rounded-lg bg-red-50 border border-red-200 p-4">
+          <p className="text-red-700">Error loading dashboard data</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const { stats } = dashboardData.data;
+
   return (
     <AppLayout>
       <h1 className="text-3xl font-bold text-gray-900">{t('dashboard_title')}</h1>
       <p className="mt-2 text-[#C41E3A]">{t('dashboard_subtitle')}</p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={t('total_sales')} value="$24,320" delta="+8.2%" fromLastWeek={t('from_last_week')} />
-        <StatCard label={t('orders')} value="1,284" delta="+2.1%" fromLastWeek={t('from_last_week')} />
-        <StatCard label={t('customers')} value="842" delta="+4.7%" fromLastWeek={t('from_last_week')} />
-        <StatCard label={t('refunds')} value="12" delta="-0.6%" fromLastWeek={t('from_last_week')} negative />
+        <StatCard 
+          label={t('total_sales')} 
+          value={`₹${(stats.totalSales / 100000).toFixed(1)}L`} 
+          delta={`+${stats.salesGrowth}%`} 
+          fromLastWeek={t('from_last_week')} 
+        />
+        <StatCard 
+          label={t('orders')} 
+          value={stats.orders.toLocaleString()} 
+          delta={`+${stats.ordersGrowth}%`} 
+          fromLastWeek={t('from_last_week')} 
+        />
+        <StatCard 
+          label={t('customers')} 
+          value={stats.customers.toLocaleString()} 
+          delta={`+${stats.customersGrowth}%`} 
+          fromLastWeek={t('from_last_week')} 
+        />
+        <StatCard 
+          label={t('refunds')} 
+          value={stats.refunds.toString()} 
+          delta={`${stats.refundsGrowth}%`} 
+          fromLastWeek={t('from_last_week')} 
+          negative={stats.refundsGrowth < 0}
+        />
       </div>
-
-      {/* {token && (
-        <div className="mt-8">
-          <h2 className="text-sm font-semibold text-gray-700">{t('auth_token')}</h2>
-          <pre className="mt-2 overflow-x-auto rounded bg-gray-900 p-3 text-xs text-green-300">{token}</pre>
-        </div>
-      )} */}
     </AppLayout>
   );
 }

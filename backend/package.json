@@ -15,7 +15,13 @@
     "db:studio": "prisma studio",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:setup": "tsx src/scripts/setupDatabase.ts",
+    "db:seed": "tsx src/scripts/seedDatabase.ts",
+    "db:reset": "npm run db:setup && npm run db:seed",
+    "db:status": "tsx -e \"import {testConnection} from './src/config/database.js'; testConnection().then(() => process.exit(0)).catch(() => process.exit(1))\"",
+    "db:test": "tsx src/scripts/testConnection.ts",
+    "seed": "tsx src/scripts/seed.ts"
   },
   "engines": {
     "node": "20.x"
@@ -30,7 +36,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -44,7 +51,8 @@
     "eslint": "^8.56.0",
     "prisma": "^5.7.1",
     "tsx": "^4.6.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@types/pg": "^8.10.9"
   },
   "keywords": [
     "api",

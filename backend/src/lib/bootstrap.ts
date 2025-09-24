@@ -8,6 +8,10 @@ import { Role } from '@prisma/client';
 export async function ensureAdminExists(): Promise<void> {
   const existingAdmin = await prisma.user.findFirst({ where: { role: Role.ADMIN } });
   if (existingAdmin) {
+    console.log('=== ADMIN USER ALREADY EXISTS ===');
+    console.log(`Email: ${existingAdmin.email}`);
+    console.log(`Name: ${existingAdmin.name}`);
+    console.log('===============================');
     return; // Admin already present
   }
 
@@ -25,6 +29,11 @@ export async function ensureAdminExists(): Promise<void> {
       data: { role: Role.ADMIN, password: hashedPassword, name },
     });
     console.log(`Admin promoted from existing user: ${email}`);
+    console.log('=== ADMIN USER CREDENTIALS ===');
+    console.log(`Email: ${email}`);
+    console.log(`Password: ${password}`);
+    console.log(`Name: ${name}`);
+    console.log('===============================');
     return;
   }
 
@@ -37,5 +46,10 @@ export async function ensureAdminExists(): Promise<void> {
     },
   });
   console.log(`Admin user created: ${email}`);
+  console.log('=== ADMIN USER CREDENTIALS ===');
+  console.log(`Email: ${email}`);
+  console.log(`Password: ${password}`);
+  console.log(`Name: ${name}`);
+  console.log('===============================');
 }
 

@@ -9,13 +9,18 @@ import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import inventoryRoutes from './routes/inventory.js';
 import rankingsRoutes from './routes/rankings.js';
+import socialRoutes from './routes/social.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
+import { testConnection } from './config/database.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+
+// Test database connection on startup
+testConnection();
 
 const sanitizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, '');
 
@@ -132,6 +137,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/rankings', rankingsRoutes);
+app.use('/api/social', socialRoutes);
 
 // Fallback route for any unmatched requests
 app.use('*', (req, res) => {
