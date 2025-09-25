@@ -1,3 +1,4 @@
+import { VercelRequest, VercelResponse } from '@vercel/node';
 import app from '../src/app';
 import { ensureAdminExists } from '../src/lib/bootstrap';
 
@@ -18,5 +19,6 @@ const initializeAdmin = async () => {
 // Initialize admin before handling requests
 await initializeAdmin();
 
-// Export the Express app as the default handler
-export default app;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  return app(req, res);
+}
