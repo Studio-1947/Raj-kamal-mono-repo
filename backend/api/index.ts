@@ -1,5 +1,5 @@
-import app from '../src/app.js';
-import { ensureAdminExists } from '../src/lib/bootstrap.js';
+import app from '../src/app';
+import { ensureAdminExists } from '../src/lib/bootstrap';
 
 // Initialize admin on cold start
 let adminInitialized = false;
