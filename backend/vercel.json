@@ -7,8 +7,7 @@
       "config": {
         "includeFiles": [
           "node_modules/.prisma/client/**",
-          "node_modules/@prisma/engines/**",
-          "src/features/sales/prisma/generated/client/**"
+          "node_modules/@prisma/engines/**"
         ]
       }
     }
