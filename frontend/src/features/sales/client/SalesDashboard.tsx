@@ -27,7 +27,7 @@ const SalesDashboard: React.FC = () => {
 
   const fetchSummary = async (src?: string) => {
     const params = src ? `?source=${encodeURIComponent(src)}` : '';
-    const s = await apiClient.get<SummaryResponse>(`/api/sales/summary${params}`);
+    const s = await apiClient.get<SummaryResponse>(`sales/summary${params}`);
     setSummary(s);
   };
 
@@ -35,7 +35,7 @@ const SalesDashboard: React.FC = () => {
     const q = new URLSearchParams();
     q.set('limit', '200');
     if (cursorId) q.set('cursorId', cursorId);
-    const res = await apiClient.get<ListResponse>(`/api/sales?${q.toString()}`);
+    const res = await apiClient.get<ListResponse>(`sales?${q.toString()}`);
     const mapped: SaleRow[] = res.items.map((it) => ({
       id: it.id,
       source: it.source,
@@ -157,4 +157,3 @@ const SalesDashboard: React.FC = () => {
 };
 
 export default SalesDashboard;
-

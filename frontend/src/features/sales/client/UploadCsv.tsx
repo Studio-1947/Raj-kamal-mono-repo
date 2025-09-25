@@ -22,7 +22,7 @@ const UploadCsv: React.FC = () => {
     setLoading(true);
     setResult(null);
     try {
-      const res = await apiClient.post<ImportResult>('/api/sales/import', {});
+      const res = await apiClient.post<ImportResult>('sales/import', {});
       setResult(res);
     } catch (e: any) {
       setResult({ ok: false, error: e?.message || 'Import failed' });
@@ -56,4 +56,3 @@ const UploadCsv: React.FC = () => {
 };
 
 export default UploadCsv;
-

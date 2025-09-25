@@ -1,6 +1,7 @@
 import { useAuth } from '../modules/auth/AuthContext';
 import { useLang } from '../modules/lang/LangContext';
 import AppLayout from '../shared/AppLayout';
+import OnlineSalesWidget from '../features/sales/client/OnlineSalesWidget';
 
 export default function Dashboard() {
   const { token } = useAuth();
@@ -15,6 +16,11 @@ export default function Dashboard() {
         <StatCard label={t('orders')} value="1,284" delta="+2.1%" fromLastWeek={t('from_last_week')} />
         <StatCard label={t('customers')} value="842" delta="+4.7%" fromLastWeek={t('from_last_week')} />
         <StatCard label={t('refunds')} value="12" delta="-0.6%" fromLastWeek={t('from_last_week')} negative />
+      </div>
+
+      {/* Online Sales widget – compact and themed */}
+      <div className="mt-8">
+        <OnlineSalesWidget />
       </div>
 
       {/* {token && (

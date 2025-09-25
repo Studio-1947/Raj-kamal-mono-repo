@@ -139,8 +139,9 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
 
   const mapped: Common[] = rows.map((r, idx) => {
     try {
-      const rate = toDecimalOrNull(toNumberSafe(pick(r, ['Rate', 'rate', 'Price'])));
-      const amount = toDecimalOrNull(toNumberSafe(pick(r, ['Amount', 'amount', 'Total'])));
+      // Online sheets sometimes use 'Selling Price' for net amount
+      const rate = toDecimalOrNull(toNumberSafe(pick(r, ['Rate', 'rate', 'Price', 'MRP'])));
+      const amount = toDecimalOrNull(toNumberSafe(pick(r, ['Selling Price', 'Amount', 'amount', 'Total'])));
       const discount = toDecimalOrNull(toNumberSafe(pick(r, ['Discount', 'discount'])));
       const tax = toDecimalOrNull(toNumberSafe(pick(r, ['Tax', 'GST', 'tax'])));
       const shipping = toDecimalOrNull(toNumberSafe(pick(r, ['Shipping', 'Freight', 'shipping'])));
@@ -166,7 +167,18 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
         customerName: normalizeString(pick(r, ['Customer Name', 'Customer', 'Name'])),
         mobile: normalizeString(pick(r, ['Mobile', 'Phone', 'Contact'])),
         email: normalizeString(pick(r, ['Email', 'E-mail'])),
-        date: toDateSafe(pick(r, ['Date', 'Txn Date', 'Transaction Date'])),
+        date: ((): Date | null => {
+          const d1 = toDateSafe(pick(r, ['Date', 'Txn Date', 'Transaction Date']));
+          if (d1) return d1;
+          // Fallback: scan for first ISO-like date value in row
+          for (const v of Object.values(r)) {
+            if (typeof v === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
+              const d = new Date(v);
+              if (!isNaN(+d)) return d;
+            }
+          }
+          return null;
+        })(),
         publisherCode: normalizeString(pick(r, ['Publisher Code', 'Pub Code'])),
         rowHash: null,
         rawJson: r as any,

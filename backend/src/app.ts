@@ -10,6 +10,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import inventoryRoutes from './routes/inventory.js';
 import rankingsRoutes from './routes/rankings.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { mountOnlineSales } from './features/sales/server/online.index.js';
 import { notFound } from './middleware/notFound.js';
 
 // Load environment variables
@@ -132,6 +133,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/rankings', rankingsRoutes);
+// Online sales API (feature)
+mountOnlineSales(app, '/api/online-sales');
 
 // Fallback route for any unmatched requests
 app.use('*', (req, res) => {
