@@ -1,5 +1,6 @@
-import app from '../src/app';
-import { ensureAdminExists } from '../src/lib/bootstrap';
+// Use built JS to avoid ESM path/extension quirks in Vercel bundler
+import app from '../dist/app.js';
+import { ensureAdminExists } from '../dist/lib/bootstrap.js';
 
 // Initialize admin on cold start
 let adminInitialized = false;
