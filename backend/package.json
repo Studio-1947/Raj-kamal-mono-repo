@@ -8,7 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "vercel-build": "prisma generate && tsc",
+    "vercel-build": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma && tsc",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
@@ -16,7 +16,7 @@
     "seed:admin": "tsx src/scripts/seed-admin.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma"
   },
   "engines": {
     "node": "20.x"
