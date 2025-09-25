@@ -2,10 +2,11 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/**/*.ts",
+      "src": "api/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "{node_modules/.prisma/client/**,node_modules/@prisma/engines/**,src/features/sales/prisma/generated/client/**}"
+        "includeFiles": ["node_modules/.prisma/client/**", "node_modules/@prisma/engines/**", "src/features/sales/prisma/generated/client/**"],
+        "maxLambdaSize": "50mb"
       }
     }
   ],
@@ -13,5 +14,13 @@
     { "src": "/", "dest": "/api/index.ts" },
     { "src": "/(.*)", "dest": "/api/index.ts" }
   ],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  },
   "buildCommand": "npm run vercel-build"
 }
