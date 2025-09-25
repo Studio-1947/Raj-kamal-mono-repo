@@ -148,12 +148,9 @@ const Login: React.FC = () => {
           {/* <div className="absolute left-[270px] bottom-[370px] h-56 w-56 rounded-full border border-white/20" /> */}
         </div>
         <div className="relative z-10 flex h-full w-full flex-col justify-between p-12">
-          <RajkamalLogo
-            className="gap-4 text-white"
-            wordmarkClassName="h-12"
-            emblemWrapperClassName="h-16 w-16 bg-white/10 text-white ring-white/40"
-            emblemClassName="h-16 w-16"
-          />
+          {/* <RajkamalLogo
+           
+          /> */}
           
           {/* Add 3D Logo in center */}
           <div className="absolute inset-0 flex items-center justify-center">
