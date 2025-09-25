@@ -1,0 +1,37 @@
+// Prisma schema for Sales feature (isolated client output)
+// Uses its own schema path and generated client output to avoid touching the main Prisma setup.
+
+generator client {
+  provider = "prisma-client-js"
+  // Generate into the feature directory to avoid conflicts with the main client
+  output   = "../prisma/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Sale {
+  id            BigInt    @id @default(autoincrement())
+  source        String
+  orderNo       String?
+  isbn          String?
+  title         String?
+  author        String?
+  publisher     String?
+  customerName  String?
+  mobile        String?
+  paymentMode   String?
+  amount        Decimal?  @db.Decimal(12, 2)
+  qty           Int?
+  rate          Decimal?  @db.Decimal(12, 2)
+  date          DateTime?
+  rawJson       Json
+  rowHash       String?   @unique
+  createdAt     DateTime  @default(now())
+
+  @@index([source])
+  @@index([date])
+}
+
