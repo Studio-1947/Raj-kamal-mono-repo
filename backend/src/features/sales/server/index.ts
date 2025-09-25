@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import router from './sales.routes';
+import router from './sales.routes.js';
 
 /**
  * Returns the Sales feature router.

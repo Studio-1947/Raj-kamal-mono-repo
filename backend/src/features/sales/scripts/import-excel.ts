@@ -3,7 +3,7 @@
  * Import script for Sales Excel workbook.
  * Usage: npx tsx backend/src/features/sales/scripts/import-excel.ts [--file "./data/file.xlsx"] [--chunk 500]
  */
-import { importWorkbookFromDisk } from '../server/sales.routes';
+import { importWorkbookFromDisk } from '../server/sales.routes.js';
 
 function parseArgs() {
   const args = process.argv.slice(2);
