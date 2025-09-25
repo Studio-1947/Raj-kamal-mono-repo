@@ -44,7 +44,9 @@ const corsOptions: CorsOptions = {
       console.warn(`Blocked CORS origin: ${origin}`);
     }
 
-    return callback(new Error('Not allowed by CORS'));
+    // Do not error — disable CORS for this request
+    // Returning false lets the request proceed without CORS headers
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

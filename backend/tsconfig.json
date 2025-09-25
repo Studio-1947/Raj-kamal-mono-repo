@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "allowJs": true,
@@ -34,6 +34,7 @@
   "exclude": [
     "node_modules",
     "dist",
+    "src/features/sales/prisma/generated/**",
     "**/*.test.ts",
     "**/*.spec.ts"
   ]

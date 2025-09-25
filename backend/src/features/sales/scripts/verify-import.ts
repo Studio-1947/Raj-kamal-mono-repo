@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Quick verification script for the Sales dataset. */
-import { PrismaClient } from '../prisma/generated/client';
+import { PrismaClient } from '../prisma/generated/client/index.js';
 
 const prisma = new PrismaClient();
 
@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
   const extremes = await prisma.sale.findMany({ orderBy: { amount: 'desc' }, take: 3 });
   const dates = await prisma.sale.findMany({ orderBy: { date: 'asc' }, take: 1 });
   const latest = await prisma.sale.findMany({ orderBy: { date: 'desc' }, take: 1 });
-  console.log('Top 3 amounts:', extremes.map(x => ({ id: x.id.toString(), amount: x.amount?.toString() })));
+  console.log('Top 3 amounts:', extremes.map((x: any) => ({ id: x.id.toString(), amount: x.amount?.toString() })));
   console.log('Earliest date:', dates[0]?.date);
   console.log('Latest date:', latest[0]?.date);
   process.exit(0);

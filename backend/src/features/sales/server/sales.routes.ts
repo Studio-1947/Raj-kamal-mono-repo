@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import XLSX from 'xlsx';
-import { Prisma, PrismaClient } from '../prisma/generated/client';
+import { Prisma, PrismaClient } from '../prisma/generated/client/index.js';
 
 // Subtle: keep a singleton client for this feature to avoid multiple connection pools
 const salesPrisma = new PrismaClient();
@@ -239,7 +239,7 @@ router.get('/', async (req, res) => {
     }
     const items = await salesPrisma.sale.findMany(args);
     // BigInt safe serialization
-    const data = items.map(it => ({ ...it, id: it.id.toString() }));
+    const data = items.map((it: any) => ({ ...it, id: it.id.toString() }));
     const last = (data as any[]).at(-1);
     const nextCursorId = last?.id ?? null;
     return res.json({ ok: true, items: data, nextCursorId });
@@ -303,10 +303,10 @@ router.get('/summary', async (req, res) => {
 
     return res.json({
       ok: true,
-      bySource: bySource.map((x) => ({ source: x.source, total: Number(x._sum.amount?.toString() || '0') })),
-      paymentMode: byPayment.map((x) => ({ paymentMode: x.paymentMode || 'Unknown', total: Number(x._sum.amount?.toString() || '0') })),
+      bySource: bySource.map((x: any) => ({ source: x.source, total: Number(x._sum.amount?.toString() || '0') })),
+      paymentMode: byPayment.map((x: any) => ({ paymentMode: x.paymentMode || 'Unknown', total: Number(x._sum.amount?.toString() || '0') })),
       timeSeries,
-      topItems: topItems.map((x) => ({ title: x.title || 'Unknown', total: Number(x._sum.amount?.toString() || '0'), qty: x._sum.qty || 0 })),
+      topItems: topItems.map((x: any) => ({ title: x.title || 'Unknown', total: Number(x._sum.amount?.toString() || '0'), qty: x._sum.qty || 0 })),
     });
   } catch (e: any) {
     console.error('sales_summary_failed', e);
