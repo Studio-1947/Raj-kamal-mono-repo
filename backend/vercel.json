@@ -1,5 +1,16 @@
 {
   "version": 2,
-  "builds": [{ "src": "src/api.ts", "use": "@vercel/node" }],
-  "routes": [{ "src": "/(.*)", "dest": "/src/api.ts" }]
+  "builds": [
+    {
+      "src": "dist/src/api.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "{node_modules/.prisma/client/**,node_modules/@prisma/engines/**,src/features/sales/prisma/generated/client/**}"
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/dist/src/api.js" }
+  ],
+  "buildCommand": "npm run vercel-build"
 }
