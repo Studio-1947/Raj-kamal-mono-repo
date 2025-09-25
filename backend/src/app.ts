@@ -5,13 +5,13 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
-import authRoutes from './routes/auth.ts';
-import dashboardRoutes from './routes/dashboard.ts';
-import inventoryRoutes from './routes/inventory.ts';
-import rankingsRoutes from './routes/rankings.ts';
-import { errorHandler } from './middleware/errorHandler.ts';
-import { mountOnlineSales } from './features/sales/server/online.index.ts';
-import { notFound } from './middleware/notFound.ts';
+import authRoutes from './routes/auth.js';
+import dashboardRoutes from './routes/dashboard.js';
+import inventoryRoutes from './routes/inventory.js';
+import rankingsRoutes from './routes/rankings.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { mountOnlineSales } from './features/sales/server/online.index.js';
+import { notFound } from './middleware/notFound.js';
 
 // Load environment variables
 dotenv.config();

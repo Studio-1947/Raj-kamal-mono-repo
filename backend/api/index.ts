@@ -1,5 +1,5 @@
-import app from '../src/app.ts';
-import { ensureAdminExists } from '../src/lib/bootstrap.ts';
+import app from '../dist/src/app.js';
+import { ensureAdminExists } from '../dist/src/lib/bootstrap.js';
 import type { Request, Response, NextFunction } from 'express';
 
 // Initialize admin on cold start
