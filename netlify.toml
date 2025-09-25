@@ -1,0 +1,15 @@
+[build]
+  # Point Netlify to the frontend app inside the monorepo
+  base = "frontend"
+  # Install deps and build the Vite app
+  command = "npm ci && npm run build"
+  # Publish directory is relative to the base when base is set
+  publish = "dist"
+  [build.environment]
+    NODE_VERSION = "20"
+
+## SPA routing: serve index.html for all non-file routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
