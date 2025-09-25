@@ -220,12 +220,13 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out: { file?: string; chunk?: number; only?: string } = {};
+  const out: { file?: string; chunk?: number; only?: string; list?: boolean } = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--file' && args[i + 1]) out.file = String(args[++i]);
     else if (a === '--chunk' && args[i + 1]) out.chunk = Number(args[++i]);
     else if (a === '--only' && args[i + 1]) out.only = String(args[++i]);
+    else if (a === '--list' || a === '-l') out.list = true;
   }
   return out;
 }
@@ -250,25 +251,34 @@ async function ensureDataDir(): Promise<string> {
 }
 
 (async () => {
-  const { file, chunk, only } = parseArgs();
+  const { file, chunk, only, list } = parseArgs();
   const dataDir = await ensureDataDir();
   const filePath = await resolveFilePath(file);
   const wb = XLSX.readFile(filePath, { cellDates: true });
+  if (list) {
+    console.log(JSON.stringify({ sheets: wb.SheetNames }, null, 2));
+    await prisma.$disconnect();
+    return;
+  }
   const start = Date.now();
 
   let totalInserted = 0;
   const errorList: Array<{ sheet: string; index: number; error: string }> = [];
 
   const filter = (only || '').toLowerCase();
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const filterNorm = normalize(filter);
   for (const sheetName of wb.SheetNames) {
     if (filter) {
       const s = sheetName.toLowerCase();
+      const sNorm = normalize(s);
       const matches = (
         (filter === 'online' && /online/.test(s)) ||
         (filter === 'offline' && /offline/.test(s)) ||
         (filter === 'raj' && /raj\s*radha/.test(s)) ||
         (filter === 'lok' && /lok/.test(s)) ||
-        s.includes(filter)
+        s.includes(filter) ||
+        (filterNorm && sNorm.includes(filterNorm))
       );
       if (!matches) continue;
     }
