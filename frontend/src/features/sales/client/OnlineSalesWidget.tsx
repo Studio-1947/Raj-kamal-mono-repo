@@ -30,8 +30,12 @@ function computeGrowth(series: { date: string; total: number }[], days: number) 
   return { pct, dir: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat' };
 }
 
-const OnlineSalesWidget: React.FC = () => {
-  const [days, setDays] = useState(90);
+type Props = { days?: number; onDaysChange?: (d: number) => void };
+
+const OnlineSalesWidget: React.FC<Props> = ({ days: daysProp, onDaysChange }) => {
+  const [daysState, setDaysState] = useState(daysProp ?? 90);
+  const days = daysProp ?? daysState;
+  const setDays = onDaysChange ?? setDaysState;
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [counts, setCounts] = useState<CountsResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,7 +62,10 @@ const OnlineSalesWidget: React.FC = () => {
 
   const series = summary?.timeSeries || [];
   const growth = useMemo(() => computeGrowth(series, Math.min(30, days)), [series, days]);
-  const totalAmt = counts?.totalAmount ?? 0;
+  const seriesTotal = useMemo(() => series.reduce((a, b) => a + (b.total || 0), 0), [series]);
+  const totalAmt = (counts?.totalAmount ?? 0) || seriesTotal;
+  const now = new Date();
+  const since = new Date(now.getTime() - days * 86400000);
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -72,6 +79,7 @@ const OnlineSalesWidget: React.FC = () => {
             </span>
             <span className="ml-1">vs previous period</span>
           </div>
+          <div className="mt-1 text-xs text-gray-500">{since.toLocaleDateString()} – {now.toLocaleDateString()}</div>
         </div>
         <div className="flex items-center gap-2">
           <div className="rounded-full bg-gray-100 px-3 py-1 text-xs">Online</div>
