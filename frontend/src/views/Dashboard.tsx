@@ -12,6 +12,9 @@ export default function Dashboard() {
 
   const [days, setDays] = useState(90);
   const [loading, setLoading] = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [fromCache, setFromCache] = useState(false);
+  const isDev = String((import.meta as any).env?.VITE_DEV_MODE ?? '').toLowerCase() === 'true';
   const [metrics, setMetrics] = useState({
     totalAmount: 0,
     totalOrders: 0,
@@ -44,21 +47,39 @@ export default function Dashboard() {
           apiClient.get(`online-sales/counts?${qsPrev}`),
         ] as any);
 
-        setMetrics({
+        const next = {
           totalAmount: cur.totalAmount || 0,
           totalOrders: cur.totalCount || 0,
           uniqueCustomers: cur.uniqueCustomers || 0,
           refundCount: cur.refundCount || 0,
-        });
-        setPrevMetrics({
+        };
+        const prevNext = {
           totalAmount: prev.totalAmount || 0,
           totalOrders: prev.totalCount || 0,
           uniqueCustomers: prev.uniqueCustomers || 0,
           refundCount: prev.refundCount || 0,
-        });
+        };
+        setMetrics(next);
+        setPrevMetrics(prevNext);
+        setLoadErr(null);
+        setFromCache(false);
+        try {
+          localStorage.setItem(`rk_dash_counts_${days}`, JSON.stringify(next));
+          localStorage.setItem(`rk_dash_prev_counts_${days}`, JSON.stringify(prevNext));
+        } catch {}
       } catch (e) {
-        setMetrics({ totalAmount: 0, totalOrders: 0, uniqueCustomers: 0, refundCount: 0 });
-        setPrevMetrics({ totalAmount: 0, totalOrders: 0, uniqueCustomers: 0, refundCount: 0 });
+        try {
+          const m = localStorage.getItem(`rk_dash_counts_${days}`);
+          const p = localStorage.getItem(`rk_dash_prev_counts_${days}`);
+          if (m && p) {
+            setMetrics(JSON.parse(m));
+            setPrevMetrics(JSON.parse(p));
+            setFromCache(true);
+          } else {
+            // Keep previous values to avoid flashing zeros
+          }
+        } catch {}
+        setLoadErr((e as any)?.message || 'Failed to load');
       } finally {
         setLoading(false);
       }
@@ -105,6 +126,13 @@ export default function Dashboard() {
 
       <OnlineSalesList />
 
+      {!loading && isDev && (loadErr || fromCache) && (
+        <div className="mt-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
+          {fromCache ? 'Showing cached tiles. ' : ''}
+          {loadErr ? `Counts fetch error: ${loadErr}` : ''}
+        </div>
+      )}
+
       {/* {token && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold text-gray-700">{t('auth_token')}</h2>
@@ -125,7 +153,7 @@ type StatProps = {
 
 function StatCard({ label, value, delta, fromLastWeek, negative }: StatProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 text-gray-900">
       <p className="text-sm font-medium text-gray-500">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
       <p className={`mt-1 text-xs ${negative ? 'text-red-600' : 'text-green-600'}`}>{delta} {fromLastWeek}</p>

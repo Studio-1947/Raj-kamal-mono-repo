@@ -2,8 +2,8 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { store } from '../store';
 import { logout } from '../store/slices/authSlice';
 
-// const DEFAULT_BASE_URL = 'https://raj-kamal-mono-repo.vercel.app/api';
-const DEFAULT_BASE_URL = 'http://localhost:4000/api';
+const DEFAULT_BASE_URL = 'https://raj-kamal-mono-repo.vercel.app/api';
+// const DEFAULT_BASE_URL = 'http://localhost:4000/api';
 function normalizeBaseUrl(value?: string): string {
   const rawUrl = value?.trim() || DEFAULT_BASE_URL;
 
@@ -27,7 +27,8 @@ class ApiClient {
   constructor() {
     this.client = axios.create({
       baseURL: normalizeBaseUrl((import.meta as any).env?.VITE_API_URL),
-      timeout: 10000,
+      // Slightly higher timeout to play nicer with cold backends
+      timeout: 20000,
       headers: {
         'Content-Type': 'application/json',
       },
