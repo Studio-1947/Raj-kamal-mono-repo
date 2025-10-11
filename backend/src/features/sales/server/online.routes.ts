@@ -92,7 +92,15 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const args: any = { take: limit, orderBy: { id: 'desc' as const }, where };
+    // When date filters are provided, fetch many more rows since we filter by date post-query
+    // (many rows have null dates and we need to parse dates from rawJson)
+    const fetchLimit = (startDate || endDate) ? Math.min(limit * 10, 5000) : limit;
+
+    const args: any = { 
+      take: fetchLimit,
+      orderBy: { id: 'desc' as const }, 
+      where 
+    };
     if (cursorId) {
       args.skip = 1;
       args.cursor = { id: BigInt(cursorId) };
@@ -104,6 +112,8 @@ router.get('/', async (req, res) => {
       amount: it.amount != null ? round2(decToNumber(it.amount)) : null,
       rate: it.rate != null ? round2(decToNumber(it.rate)) : null,
     }));
+    
+    // Post-filter by resolved date (including rawJson fallback)
     const data = (startDate || endDate)
       ? dataAll.filter((r: any) => {
           const d = resolveRowDate(r);
@@ -111,8 +121,9 @@ router.get('/', async (req, res) => {
           if (startDate && d < new Date(startDate)) return false;
           if (endDate && d > new Date(endDate)) return false;
           return true;
-        })
+        }).slice(0, limit) // Limit to requested amount after filtering
       : dataAll;
+    
     const last = (data as any[]).at(-1);
     return res.json({ ok: true, items: data, nextCursorId: last?.id ?? null });
   } catch (e: any) {

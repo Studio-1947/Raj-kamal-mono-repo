@@ -14,8 +14,12 @@ type Item = {
 
 type ListResp = { ok: boolean; items: Item[]; nextCursorId?: string | null };
 
-export default function OnlineSalesList() {
-  const [days, setDays] = useState(90);
+type Props = { days?: number };
+
+export default function OnlineSalesList({ days: daysProp }: Props) {
+  const [daysState, setDaysState] = useState(90);
+  const days = daysProp ?? daysState;
+  const setDays = daysProp !== undefined ? () => {} : setDaysState; // Only allow local control if no prop
   const [q, setQ] = useState('');
   // debounced query to reduce API thrash while typing
   const [qDebounced, setQDebounced] = useState('');
@@ -104,17 +108,20 @@ export default function OnlineSalesList() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select
-            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-          >
-            {[30, 60, 90, 180, 365, 730].map((d) => (
-              <option key={d} value={d}>
-                {d === 30 ? 'This Month' : `${d} days`}
-              </option>
-            ))}
-          </select>
+          {/* Only show days dropdown if not controlled by parent */}
+          {daysProp === undefined && (
+            <select
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+            >
+              {[30, 60, 90, 180, 365, 730].map((d) => (
+                <option key={d} value={d}>
+                  {d === 30 ? 'This Month' : `${d} days`}
+                </option>
+              ))}
+            </select>
+          )}
           {!loading && (
             <button
               className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm hover:bg-gray-50"

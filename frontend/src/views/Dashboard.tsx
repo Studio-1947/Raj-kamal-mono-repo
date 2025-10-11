@@ -124,7 +124,7 @@ export default function Dashboard() {
         <OnlineSalesWidget days={days} onDaysChange={setDays} />
       </div>
 
-      <OnlineSalesList />
+      <OnlineSalesList days={days} />
 
       {!loading && isDev && (loadErr || fromCache) && (
         <div className="mt-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
