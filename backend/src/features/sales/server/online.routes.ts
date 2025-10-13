@@ -177,6 +177,11 @@ router.get('/summary', async (req, res) => {
     const ts = new Map<string, number>();
     const top = new Map<string, { total: number; qty: number; isbn?: string; author?: string; language?: string; sampleRaw?: any }>();
 
+    console.log('🔍 Total rows fetched:', rows.length);
+    
+    let processedCount = 0;
+    let skippedCount = 0;
+    
     for (const r of rows) {
       try {
         // Date resolution
@@ -224,22 +229,27 @@ router.get('/summary', async (req, res) => {
         // Better title extraction - try multiple fields
         const raw = r.rawJson as Record<string, any> | undefined;
         let title = r.title as string | null | undefined;
+        
         if (!title || (typeof title === 'string' && title.trim() === '')) {
-          const rawTitle = pick(raw, ['Title', 'title', 'Book', 'book', 'Product', 'Item', 'Title ']);
-          title = typeof rawTitle === 'string' ? rawTitle : null;
+          const rawTitle = pick(raw, ['Title', 'title', 'Book', 'book', 'Product', 'Item', 'Title ', 'Product Name', 'Item Name']);
+          title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : null;
         }
         
-        // Skip items without a valid title
-        if (!title || typeof title !== 'string') {
-          continue;
+        // If still no title, check if we have any identifying info in rawJson
+        if (!title && raw) {
+          // Try to find ANY field that might be a title
+          for (const key of Object.keys(raw)) {
+            if (key && typeof raw[key] === 'string' && raw[key].trim().length > 3) {
+              // Use first non-empty string field as title
+              title = raw[key];
+              console.log(`Using field "${key}" as title:`, title);
+              break;
+            }
+          }
         }
         
-        const trimmedTitle = title.trim();
-        if (trimmedTitle === '' || trimmedTitle.toLowerCase() === 'unknown') {
-          continue;
-        }
-        
-        const tkey = trimmedTitle;
+        // Use "Untitled Item" as absolute fallback - don't skip the sale!
+        const tkey = (title && typeof title === 'string' && title.trim()) ? title.trim() : 'Untitled Item';
         const cur = top.get(tkey) || { total: 0, qty: 0 };
         cur.total += amt;
         cur.qty += r.qty ?? 0;
@@ -262,12 +272,16 @@ router.get('/summary', async (req, res) => {
         }
         
         top.set(tkey, cur);
+        processedCount++;
       } catch (rowError: any) {
         // Log individual row errors but continue processing
         console.error('Error processing row:', rowError?.message);
+        skippedCount++;
         continue;
       }
     }
+    
+    console.log('✅ Processed:', processedCount, '❌ Skipped:', skippedCount);
 
     const byPayment = Array.from(payment.entries()).map(([paymentMode, total]) => ({ 
       paymentMode: paymentMode || 'Unknown', 
@@ -281,11 +295,19 @@ router.get('/summary', async (req, res) => {
         total: round2(total) 
       }));
     
+    // Log what we have before filtering
+    console.log('📦 Total unique items in top map:', top.size);
+    console.log('📊 Sample items:', Array.from(top.entries()).slice(0, 3));
+    
     const topItems = Array.from(top.entries())
       .filter(([title, v]) => {
         try {
-          // Filter out items with no sales or invalid data
-          return v && v.total > 0 && v.qty > 0 && title && typeof title === 'string' && title.trim() !== '';
+          // Very lenient filter - only exclude completely invalid entries
+          const isValid = v && (v.total > 0 || v.qty > 0);
+          if (!isValid) {
+            console.log('❌ Filtered out:', title, v);
+          }
+          return isValid;
         } catch {
           return false;
         }
@@ -293,7 +315,7 @@ router.get('/summary', async (req, res) => {
       .map(([title, v]) => {
         try {
           return { 
-            title: title || 'Unknown', 
+            title: title || 'Untitled', 
             total: round2(v.total || 0), 
             qty: v.qty || 0,
             isbn: v.isbn || undefined,
@@ -308,6 +330,9 @@ router.get('/summary', async (req, res) => {
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .sort((a, b) => (b.total || 0) - (a.total || 0)) // Sort by revenue (primary)
       .slice(0, 10);
+    
+    console.log('✅ Final topItems count:', topItems.length);
+    console.log('📚 Top items:', topItems);
 
     return res.json({ ok: true, paymentMode: byPayment, timeSeries, topItems });
   } catch (e: any) {
