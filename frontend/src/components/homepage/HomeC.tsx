@@ -411,13 +411,14 @@ function RevenueCard({
 }
 
 function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | null; loading: boolean; counts: CountsResponse | null }) {
-  // Get the top book - only check for basic validity
+  // Get the top book - accept items with revenue OR quantity
   const topBook = useMemo(() => {
+    console.log('📚 All topItems received:', summary?.topItems);
+    
     const validBooks = summary?.topItems?.filter(item => 
       item && // Item exists
       item.title && // Has a title
-      item.qty > 0 && // Has sales
-      item.total > 0 // Has revenue
+      item.total > 0 // Has revenue (qty can be 0)
     ) || [];
     
     console.log('🔍 Filtered valid books:', validBooks);
@@ -479,7 +480,12 @@ function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | 
                 </p>
               )}
               <p className="text-xs text-gray-500">
-                <span className="font-semibold text-[#43547E]">Sold:</span> {topBook.qty} units • <span className="font-semibold text-[#43547E]">Revenue:</span> {formatINR(topBook.total)}
+                {topBook.qty > 0 && (
+                  <>
+                    <span className="font-semibold text-[#43547E]">Sold:</span> {topBook.qty} units • {' '}
+                  </>
+                )}
+                <span className="font-semibold text-[#43547E]">Revenue:</span> {formatINR(topBook.total)}
               </p>
             </div>
           </div>
@@ -509,11 +515,10 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
   const topAuthor = useMemo(() => {
     if (!summary?.topItems || summary.topItems.length === 0) return null;
     
-    // Filter out invalid items - keep it simple
+    // Filter out invalid items - accept items with revenue (qty can be 0)
     const validItems = summary.topItems.filter(item => 
       item && // Item exists
       item.title && // Has a title
-      item.qty > 0 && // Has sales
       item.total > 0 // Has revenue
     );
     
@@ -591,7 +596,9 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
               {topAuthor.contributionPercent}%
               <ArrowUp className="w-4 h-4 text-green-600" />
             </div>
-            <div className="text-[11px] text-gray-500">{topAuthor.totalQty} units sold</div>
+            <div className="text-[11px] text-gray-500">
+              {topAuthor.totalQty > 0 ? `${topAuthor.totalQty} units sold` : 'Top seller'}
+            </div>
           </div>
         </div>
       ) : (
@@ -610,11 +617,10 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
   const inventoryItems = useMemo(() => {
     if (!summary?.topItems || summary.topItems.length === 0) return [];
     
-    // Filter out invalid items - keep it simple
+    // Filter out invalid items - accept items with revenue (qty can be 0)
     const validItems = summary.topItems.filter(item => 
       item && // Item exists
       item.title && // Has a title
-      item.qty > 0 && // Has sales
       item.total > 0 // Has revenue
     );
     
@@ -624,7 +630,7 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
     
     return validItems.slice(0, 2).map((item, idx) => {
       // Estimate days left based on qty sold (simple heuristic: high sales = low days left)
-      const daysLeft = item.qty > 50 ? Math.ceil(30 / (item.qty / 30)) : Math.ceil(Math.random() * 10);
+      const daysLeft = item.qty > 50 ? Math.ceil(30 / (item.qty / 30)) : Math.max(5, Math.ceil(Math.random() * 10));
       const available = Math.max(10, Math.floor(100 - item.qty * 0.5)); // Estimate stock based on sales
       
       return {
@@ -635,6 +641,7 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
         available,
         daysLeft: `${Math.max(0.5, daysLeft).toFixed(1)} days left`,
         qtySold: item.qty,
+        revenue: item.total,
         alert: {
           tone: idx === 0 ? ("red" as const) : ("amber" as const),
           text: "Refill your stock for smooth operation",
@@ -681,7 +688,11 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
                     <div className="text-[10px] text-gray-500 mt-0.5">ISBN: {item.isbn}</div>
                   )}
                   <div className="text-xs text-gray-600 mt-1">
-                    <span className="font-semibold text-[#163060]">Sold:</span> {item.qtySold} units
+                    {item.qtySold > 0 ? (
+                      <span><span className="font-semibold text-[#163060]">Sold:</span> {item.qtySold} units</span>
+                    ) : (
+                      <span><span className="font-semibold text-[#163060]">Revenue:</span> {formatINR(item.revenue)}</span>
+                    )}
                   </div>
                   <div className="mt-2">
                     <div className="text-[11px] text-[#C03548] font-semibold">
