@@ -175,7 +175,7 @@ router.get('/summary', async (req, res) => {
 
     const payment = new Map<string, number>();
     const ts = new Map<string, number>();
-    const top = new Map<string, { total: number; qty: number }>();
+    const top = new Map<string, { total: number; qty: number; isbn?: string; author?: string; language?: string; sampleRaw?: any }>();
 
     for (const r of rows) {
       // Date resolution
@@ -224,12 +224,29 @@ router.get('/summary', async (req, res) => {
       const cur = top.get(tkey) || { total: 0, qty: 0 };
       cur.total += amt;
       cur.qty += r.qty ?? 0;
+      
+      // Extract additional book details from rawJson
+      const raw = r.rawJson as Record<string, any> | undefined;
+      if (raw && !cur.isbn) {
+        cur.isbn = pick(raw, ['ISBN', 'isbn', 'ISBN13', 'Isbn']) || undefined;
+        cur.author = pick(raw, ['Author', 'author', 'Writer', 'writer']) || undefined;
+        cur.language = pick(raw, ['Language', 'language', 'Lang']) || undefined;
+        cur.sampleRaw = raw; // Keep a sample for potential future use
+      }
+      
       top.set(tkey, cur);
     }
 
     const byPayment = Array.from(payment.entries()).map(([paymentMode, total]) => ({ paymentMode, total: round2(total) }));
     const timeSeries = Array.from(ts.entries()).sort(([a], [b]) => (a < b ? -1 : 1)).map(([date, total]) => ({ date, total: round2(total) }));
-    const topItems = Array.from(top.entries()).map(([title, v]) => ({ title, total: round2(v.total), qty: v.qty }))
+    const topItems = Array.from(top.entries()).map(([title, v]) => ({ 
+      title, 
+      total: round2(v.total), 
+      qty: v.qty,
+      isbn: v.isbn,
+      author: v.author,
+      language: v.language,
+    }))
       .sort((a, b) => b.total - a.total).slice(0, 10);
 
     return res.json({ ok: true, paymentMode: byPayment, timeSeries, topItems });
