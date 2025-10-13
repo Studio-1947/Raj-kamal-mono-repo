@@ -820,8 +820,10 @@ export default function HindiBooksSalesDashboard() {
       setSummary(summaryData);
       setCounts(countsData);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load data');
+      const errorMsg = e?.response?.data?.details || e?.response?.data?.error || e?.message || 'Failed to load data';
+      setError(errorMsg);
       console.error('Failed to fetch dashboard data:', e);
+      console.error('Error response:', e?.response?.data);
     } finally {
       setLoading(false);
     }

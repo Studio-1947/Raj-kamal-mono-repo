@@ -223,16 +223,22 @@ router.get('/summary', async (req, res) => {
       // Better title extraction - try multiple fields
       const raw = r.rawJson as Record<string, any> | undefined;
       let title = r.title as string | null | undefined;
-      if (!title || title.trim() === '') {
-        title = pick(raw, ['Title', 'title', 'Book', 'book', 'Product', 'Item', 'Title ']) as string | undefined;
+      if (!title || (typeof title === 'string' && title.trim() === '')) {
+        const rawTitle = pick(raw, ['Title', 'title', 'Book', 'book', 'Product', 'Item', 'Title ']);
+        title = typeof rawTitle === 'string' ? rawTitle : null;
       }
       
       // Skip items without a valid title
-      if (!title || title.trim() === '' || title.toLowerCase() === 'unknown') {
+      if (!title || typeof title !== 'string') {
         continue;
       }
       
-      const tkey = title.trim();
+      const trimmedTitle = title.trim();
+      if (trimmedTitle === '' || trimmedTitle.toLowerCase() === 'unknown') {
+        continue;
+      }
+      
+      const tkey = trimmedTitle;
       const cur = top.get(tkey) || { total: 0, qty: 0 };
       cur.total += amt;
       cur.qty += r.qty ?? 0;
@@ -269,7 +275,9 @@ router.get('/summary', async (req, res) => {
     return res.json({ ok: true, paymentMode: byPayment, timeSeries, topItems });
   } catch (e: any) {
     console.error('online_sales_summary_failed', e);
-    return res.status(500).json({ ok: false, error: 'Failed to compute summary' });
+    console.error('Error stack:', e?.stack);
+    console.error('Error message:', e?.message);
+    return res.status(500).json({ ok: false, error: 'Failed to compute summary', details: process.env.NODE_ENV !== 'production' ? e?.message : undefined });
   }
 });
 
