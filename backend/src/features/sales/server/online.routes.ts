@@ -178,98 +178,135 @@ router.get('/summary', async (req, res) => {
     const top = new Map<string, { total: number; qty: number; isbn?: string; author?: string; language?: string; sampleRaw?: any }>();
 
     for (const r of rows) {
-      // Date resolution
-      let d: Date | null = r.date ? new Date(r.date) : null;
-      if (!d) {
-        const raw = r.rawJson as Record<string, any> | undefined;
-        const d1 = pick(raw, ['Date', 'Txn Date', 'Transaction Date']);
-        if (d1) {
-          const dd = new Date(d1);
-          if (!isNaN(+dd)) d = dd;
-        }
-        if (!d) d = parseIsoInRow(raw);
+      try {
+        // Date resolution
+        let d: Date | null = r.date ? new Date(r.date) : null;
         if (!d) {
-          const mi = monthNameToIndex(r.month);
-          if (mi != null && r.year && r.year > 0) d = new Date(Date.UTC(r.year, mi, 1));
+          const raw = r.rawJson as Record<string, any> | undefined;
+          const d1 = pick(raw, ['Date', 'Txn Date', 'Transaction Date']);
+          if (d1) {
+            const dd = new Date(d1);
+            if (!isNaN(+dd)) d = dd;
+          }
+          if (!d) d = parseIsoInRow(raw);
+          if (!d) {
+            const mi = monthNameToIndex(r.month);
+            if (mi != null && r.year && r.year > 0) d = new Date(Date.UTC(r.year, mi, 1));
+          }
         }
-      }
-      if (d && d < since) continue;
-      if (endDate && d && d > endDate) continue;
+        if (d && d < since) continue;
+        if (endDate && d && d > endDate) continue;
 
-      // Amount resolution
-      let amt = decToNumber(r.amount);
-      if (!amt) {
+        // Amount resolution
+        let amt = decToNumber(r.amount);
+        if (!amt) {
+          const raw = r.rawJson as Record<string, any> | undefined;
+          const v = pick(raw, ['Selling Price', 'Amount', 'Total', 'amount', 'SellingPrice', 'Selling_Price']);
+          const n = numSafe(v);
+          if (n != null) amt = n;
+          else amt = (numSafe(r.rate as any) || 0) * (r.qty ?? 0);
+        }
+
+        let pm = r.paymentMode as any as string | undefined;
+        if (!pm) {
+          const raw = r.rawJson as Record<string, any> | undefined;
+          const v = pick(raw, ['Payment Mode', 'paymentMode', 'Mode', 'Payment']);
+          if (typeof v === 'string' && v.trim()) pm = v.trim();
+        }
+        pm = pm || 'Unknown';
+        payment.set(pm, (payment.get(pm) || 0) + amt);
+
+        if (d) {
+          const key = d.toISOString().slice(0, 10);
+          ts.set(key, (ts.get(key) || 0) + amt);
+        }
+
+        // Better title extraction - try multiple fields
         const raw = r.rawJson as Record<string, any> | undefined;
-        const v = pick(raw, ['Selling Price', 'Amount', 'Total', 'amount', 'SellingPrice', 'Selling_Price']);
-        const n = numSafe(v);
-        if (n != null) amt = n;
-        else amt = (numSafe(r.rate as any) || 0) * (r.qty ?? 0);
-      }
-
-      let pm = r.paymentMode as any as string | undefined;
-      if (!pm) {
-        const raw = r.rawJson as Record<string, any> | undefined;
-        const v = pick(raw, ['Payment Mode', 'paymentMode', 'Mode', 'Payment']);
-        if (typeof v === 'string' && v.trim()) pm = v.trim();
-      }
-      pm = pm || 'Unknown';
-      payment.set(pm, (payment.get(pm) || 0) + amt);
-
-      if (d) {
-        const key = d.toISOString().slice(0, 10);
-        ts.set(key, (ts.get(key) || 0) + amt);
-      }
-
-      // Better title extraction - try multiple fields
-      const raw = r.rawJson as Record<string, any> | undefined;
-      let title = r.title as string | null | undefined;
-      if (!title || (typeof title === 'string' && title.trim() === '')) {
-        const rawTitle = pick(raw, ['Title', 'title', 'Book', 'book', 'Product', 'Item', 'Title ']);
-        title = typeof rawTitle === 'string' ? rawTitle : null;
-      }
-      
-      // Skip items without a valid title
-      if (!title || typeof title !== 'string') {
+        let title = r.title as string | null | undefined;
+        if (!title || (typeof title === 'string' && title.trim() === '')) {
+          const rawTitle = pick(raw, ['Title', 'title', 'Book', 'book', 'Product', 'Item', 'Title ']);
+          title = typeof rawTitle === 'string' ? rawTitle : null;
+        }
+        
+        // Skip items without a valid title
+        if (!title || typeof title !== 'string') {
+          continue;
+        }
+        
+        const trimmedTitle = title.trim();
+        if (trimmedTitle === '' || trimmedTitle.toLowerCase() === 'unknown') {
+          continue;
+        }
+        
+        const tkey = trimmedTitle;
+        const cur = top.get(tkey) || { total: 0, qty: 0 };
+        cur.total += amt;
+        cur.qty += r.qty ?? 0;
+        
+        // Extract additional book details from rawJson - with type safety
+        if (raw && !cur.isbn) {
+          const isbnRaw = pick(raw, ['ISBN', 'isbn', 'ISBN13', 'Isbn']);
+          const authorRaw = pick(raw, ['Author', 'author', 'Writer', 'writer']);
+          const langRaw = pick(raw, ['Language', 'language', 'Lang']);
+          
+          if (typeof isbnRaw === 'string' && isbnRaw.trim()) {
+            cur.isbn = isbnRaw.trim();
+          }
+          if (typeof authorRaw === 'string' && authorRaw.trim()) {
+            cur.author = authorRaw.trim();
+          }
+          if (typeof langRaw === 'string' && langRaw.trim()) {
+            cur.language = langRaw.trim();
+          }
+        }
+        
+        top.set(tkey, cur);
+      } catch (rowError: any) {
+        // Log individual row errors but continue processing
+        console.error('Error processing row:', rowError?.message);
         continue;
       }
-      
-      const trimmedTitle = title.trim();
-      if (trimmedTitle === '' || trimmedTitle.toLowerCase() === 'unknown') {
-        continue;
-      }
-      
-      const tkey = trimmedTitle;
-      const cur = top.get(tkey) || { total: 0, qty: 0 };
-      cur.total += amt;
-      cur.qty += r.qty ?? 0;
-      
-      // Extract additional book details from rawJson
-      if (raw && !cur.isbn) {
-        cur.isbn = pick(raw, ['ISBN', 'isbn', 'ISBN13', 'Isbn']) || undefined;
-        cur.author = pick(raw, ['Author', 'author', 'Writer', 'writer']) || undefined;
-        cur.language = pick(raw, ['Language', 'language', 'Lang']) || undefined;
-        cur.sampleRaw = raw; // Keep a sample for potential future use
-      }
-      
-      top.set(tkey, cur);
     }
 
-    const byPayment = Array.from(payment.entries()).map(([paymentMode, total]) => ({ paymentMode, total: round2(total) }));
-    const timeSeries = Array.from(ts.entries()).sort(([a], [b]) => (a < b ? -1 : 1)).map(([date, total]) => ({ date, total: round2(total) }));
+    const byPayment = Array.from(payment.entries()).map(([paymentMode, total]) => ({ 
+      paymentMode: paymentMode || 'Unknown', 
+      total: round2(total) 
+    }));
+    
+    const timeSeries = Array.from(ts.entries())
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([date, total]) => ({ 
+        date, 
+        total: round2(total) 
+      }));
+    
     const topItems = Array.from(top.entries())
       .filter(([title, v]) => {
-        // Filter out items with no sales or invalid data
-        return v.total > 0 && v.qty > 0 && title && title.trim() !== '';
+        try {
+          // Filter out items with no sales or invalid data
+          return v && v.total > 0 && v.qty > 0 && title && typeof title === 'string' && title.trim() !== '';
+        } catch {
+          return false;
+        }
       })
-      .map(([title, v]) => ({ 
-        title, 
-        total: round2(v.total), 
-        qty: v.qty,
-        isbn: v.isbn,
-        author: v.author,
-        language: v.language,
-      }))
-      .sort((a, b) => b.total - a.total) // Sort by revenue (primary)
+      .map(([title, v]) => {
+        try {
+          return { 
+            title: title || 'Unknown', 
+            total: round2(v.total || 0), 
+            qty: v.qty || 0,
+            isbn: v.isbn || undefined,
+            author: v.author || undefined,
+            language: v.language || undefined,
+          };
+        } catch (e) {
+          console.error('Error mapping top item:', e);
+          return null;
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => (b.total || 0) - (a.total || 0)) // Sort by revenue (primary)
       .slice(0, 10);
 
     return res.json({ ok: true, paymentMode: byPayment, timeSeries, topItems });
