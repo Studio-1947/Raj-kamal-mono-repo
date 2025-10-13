@@ -411,7 +411,17 @@ function RevenueCard({
 }
 
 function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | null; loading: boolean; counts: CountsResponse | null }) {
-  const topBook = summary?.topItems?.[0];
+  // Filter out invalid books and get the top one
+  const topBook = useMemo(() => {
+    const validBooks = summary?.topItems?.filter(item => 
+      item.title && 
+      item.title.trim() !== '' && 
+      item.title.toLowerCase() !== 'unknown' &&
+      item.qty > 0 &&
+      item.total > 0
+    ) || [];
+    return validBooks[0] || null;
+  }, [summary]);
   
   // Calculate growth percentage based on contribution to total revenue
   const growthPercent = useMemo(() => {
@@ -479,7 +489,11 @@ function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | 
           </div>
         </div>
       ) : (
-        <div className="text-center text-gray-500 py-4">No book data available</div>
+        <div className="text-center text-gray-500 py-6">
+          <div className="text-2xl mb-2">📚</div>
+          <div className="text-sm font-medium">No sales data available</div>
+          <div className="text-xs mt-1">Start selling to see your top books!</div>
+        </div>
       )}
     </Card>
   );
@@ -490,11 +504,22 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
   const topAuthor = useMemo(() => {
     if (!summary?.topItems || summary.topItems.length === 0) return null;
     
+    // Filter out invalid items first
+    const validItems = summary.topItems.filter(item => 
+      item.title && 
+      item.title.trim() !== '' && 
+      item.title.toLowerCase() !== 'unknown' &&
+      item.qty > 0 &&
+      item.total > 0
+    );
+    
+    if (validItems.length === 0) return null;
+    
     // Group by author
     const authorSales = new Map<string, { total: number; qty: number; books: number }>();
     
-    summary.topItems.forEach(item => {
-      const author = item.author || 'Unknown Author';
+    validItems.forEach(item => {
+      const author = item.author && item.author.trim() !== '' ? item.author : 'Unknown Author';
       const current = authorSales.get(author) || { total: 0, qty: 0, books: 0 };
       current.total += item.total;
       current.qty += item.qty;
@@ -504,12 +529,13 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
     
     // Get top author
     const topEntry = Array.from(authorSales.entries())
+      .filter(([name]) => name !== 'Unknown Author') // Filter out unknown authors
       .sort((a, b) => b[1].total - a[1].total)[0];
     
     if (!topEntry) return null;
     
     const [name, stats] = topEntry;
-    const totalRevenue = summary.topItems.reduce((sum, item) => sum + item.total, 0);
+    const totalRevenue = validItems.reduce((sum, item) => sum + item.total, 0);
     const contributionPercent = totalRevenue > 0 ? Math.round((stats.total / totalRevenue) * 100) : 0;
     
     return {
@@ -560,7 +586,11 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
           </div>
         </div>
       ) : (
-        <div className="text-center text-gray-500 py-4">No author data available</div>
+        <div className="text-center text-gray-500 py-6">
+          <div className="text-2xl mb-2">✍️</div>
+          <div className="text-sm font-medium">No author data available</div>
+          <div className="text-xs mt-1">Authors will appear as sales data grows</div>
+        </div>
       )}
     </Card>
   );
@@ -570,7 +600,19 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
   // Get top items that might need restocking based on high sales
   const inventoryItems = useMemo(() => {
     if (!summary?.topItems || summary.topItems.length === 0) return [];
-    return summary.topItems.slice(0, 2).map((item, idx) => {
+    
+    // Filter out invalid items
+    const validItems = summary.topItems.filter(item => 
+      item.title && 
+      item.title.trim() !== '' && 
+      item.title.toLowerCase() !== 'unknown' &&
+      item.qty > 0 &&
+      item.total > 0
+    );
+    
+    if (validItems.length === 0) return [];
+    
+    return validItems.slice(0, 2).map((item, idx) => {
       // Estimate days left based on qty sold (simple heuristic: high sales = low days left)
       const daysLeft = item.qty > 50 ? Math.ceil(30 / (item.qty / 30)) : Math.ceil(Math.random() * 10);
       const available = Math.max(10, Math.floor(100 - item.qty * 0.5)); // Estimate stock based on sales
@@ -661,7 +703,11 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
           ))}
         </div>
       ) : (
-        <div className="text-center text-gray-500 py-4">No inventory data available</div>
+        <div className="text-center text-gray-500 py-8">
+          <div className="text-3xl mb-2">📦</div>
+          <div className="text-sm font-medium">No inventory alerts</div>
+          <div className="text-xs mt-1">Your best-selling items will appear here</div>
+        </div>
       )}
     </Card>
   );

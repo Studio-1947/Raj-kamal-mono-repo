@@ -220,13 +220,24 @@ router.get('/summary', async (req, res) => {
         ts.set(key, (ts.get(key) || 0) + amt);
       }
 
-      const tkey = r.title || 'Unknown';
+      // Better title extraction - try multiple fields
+      const raw = r.rawJson as Record<string, any> | undefined;
+      let title = r.title as string | null | undefined;
+      if (!title || title.trim() === '') {
+        title = pick(raw, ['Title', 'title', 'Book', 'book', 'Product', 'Item', 'Title ']) as string | undefined;
+      }
+      
+      // Skip items without a valid title
+      if (!title || title.trim() === '' || title.toLowerCase() === 'unknown') {
+        continue;
+      }
+      
+      const tkey = title.trim();
       const cur = top.get(tkey) || { total: 0, qty: 0 };
       cur.total += amt;
       cur.qty += r.qty ?? 0;
       
       // Extract additional book details from rawJson
-      const raw = r.rawJson as Record<string, any> | undefined;
       if (raw && !cur.isbn) {
         cur.isbn = pick(raw, ['ISBN', 'isbn', 'ISBN13', 'Isbn']) || undefined;
         cur.author = pick(raw, ['Author', 'author', 'Writer', 'writer']) || undefined;
@@ -239,15 +250,21 @@ router.get('/summary', async (req, res) => {
 
     const byPayment = Array.from(payment.entries()).map(([paymentMode, total]) => ({ paymentMode, total: round2(total) }));
     const timeSeries = Array.from(ts.entries()).sort(([a], [b]) => (a < b ? -1 : 1)).map(([date, total]) => ({ date, total: round2(total) }));
-    const topItems = Array.from(top.entries()).map(([title, v]) => ({ 
-      title, 
-      total: round2(v.total), 
-      qty: v.qty,
-      isbn: v.isbn,
-      author: v.author,
-      language: v.language,
-    }))
-      .sort((a, b) => b.total - a.total).slice(0, 10);
+    const topItems = Array.from(top.entries())
+      .filter(([title, v]) => {
+        // Filter out items with no sales or invalid data
+        return v.total > 0 && v.qty > 0 && title && title.trim() !== '';
+      })
+      .map(([title, v]) => ({ 
+        title, 
+        total: round2(v.total), 
+        qty: v.qty,
+        isbn: v.isbn,
+        author: v.author,
+        language: v.language,
+      }))
+      .sort((a, b) => b.total - a.total) // Sort by revenue (primary)
+      .slice(0, 10);
 
     return res.json({ ok: true, paymentMode: byPayment, timeSeries, topItems });
   } catch (e: any) {
