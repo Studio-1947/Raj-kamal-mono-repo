@@ -411,15 +411,16 @@ function RevenueCard({
 }
 
 function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | null; loading: boolean; counts: CountsResponse | null }) {
-  // Filter out invalid books and get the top one
+  // Get the top book - only check for basic validity
   const topBook = useMemo(() => {
     const validBooks = summary?.topItems?.filter(item => 
-      item.title && 
-      item.title.trim() !== '' && 
-      item.title.toLowerCase() !== 'unknown' &&
-      item.qty > 0 &&
-      item.total > 0
+      item && // Item exists
+      item.title && // Has a title
+      item.qty > 0 && // Has sales
+      item.total > 0 // Has revenue
     ) || [];
+    
+    console.log('🔍 Filtered valid books:', validBooks);
     return validBooks[0] || null;
   }, [summary]);
   
@@ -458,25 +459,29 @@ function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | 
           </div>
           <div className="min-w-0 flex-1">
             <div className="font-semibold text-gray-900">{topBook.title}</div>
-            {topBook.author && (
-              <div className="text-sm text-gray-600">{topBook.author}</div>
-            )}
-            <p className="mt-1 text-xs text-gray-500">
-              {topBook.isbn && (
-                <>
-                  <span className="font-semibold text-[#43547E]">ISBN:</span> {topBook.isbn}
-                  {' • '}
-                </>
+            <div className="text-sm text-gray-600">
+              {topBook.author || 'Author not specified'}
+            </div>
+            <div className="mt-1 space-y-1">
+              {(topBook.isbn || topBook.language) && (
+                <p className="text-xs text-gray-500">
+                  {topBook.isbn && (
+                    <>
+                      <span className="font-semibold text-[#43547E]">ISBN:</span> {topBook.isbn}
+                      {topBook.language && ' • '}
+                    </>
+                  )}
+                  {topBook.language && (
+                    <>
+                      <span className="font-semibold text-[#43547E]">Language:</span> {topBook.language}
+                    </>
+                  )}
+                </p>
               )}
-              {topBook.language && (
-                <>
-                  <span className="font-semibold text-[#43547E]">Language:</span> {topBook.language}
-                </>
-              )}
-            </p>
-            <p className="mt-1 text-xs text-gray-500">
-              <span className="font-semibold text-[#43547E]">Sold:</span> {topBook.qty} units
-            </p>
+              <p className="text-xs text-gray-500">
+                <span className="font-semibold text-[#43547E]">Sold:</span> {topBook.qty} units • <span className="font-semibold text-[#43547E]">Revenue:</span> {formatINR(topBook.total)}
+              </p>
+            </div>
           </div>
           <div className="ml-auto text-right">
             <div className="text-3xl font-extrabold text-[#43547E] inline-flex items-center gap-1">
@@ -504,14 +509,15 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
   const topAuthor = useMemo(() => {
     if (!summary?.topItems || summary.topItems.length === 0) return null;
     
-    // Filter out invalid items first
+    // Filter out invalid items - keep it simple
     const validItems = summary.topItems.filter(item => 
-      item.title && 
-      item.title.trim() !== '' && 
-      item.title.toLowerCase() !== 'unknown' &&
-      item.qty > 0 &&
-      item.total > 0
+      item && // Item exists
+      item.title && // Has a title
+      item.qty > 0 && // Has sales
+      item.total > 0 // Has revenue
     );
+    
+    console.log('✍️ Valid items for authors:', validItems);
     
     if (validItems.length === 0) return null;
     
@@ -527,10 +533,13 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
       authorSales.set(author, current);
     });
     
-    // Get top author
-    const topEntry = Array.from(authorSales.entries())
-      .filter(([name]) => name !== 'Unknown Author') // Filter out unknown authors
-      .sort((a, b) => b[1].total - a[1].total)[0];
+    // Get top author - prefer known authors but show Unknown if that's all we have
+    const allAuthors = Array.from(authorSales.entries())
+      .sort((a, b) => b[1].total - a[1].total);
+    
+    // Try to get a known author first
+    const knownAuthor = allAuthors.find(([name]) => name !== 'Unknown Author');
+    const topEntry = knownAuthor || allAuthors[0];
     
     if (!topEntry) return null;
     
@@ -601,14 +610,15 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
   const inventoryItems = useMemo(() => {
     if (!summary?.topItems || summary.topItems.length === 0) return [];
     
-    // Filter out invalid items
+    // Filter out invalid items - keep it simple
     const validItems = summary.topItems.filter(item => 
-      item.title && 
-      item.title.trim() !== '' && 
-      item.title.toLowerCase() !== 'unknown' &&
-      item.qty > 0 &&
-      item.total > 0
+      item && // Item exists
+      item.title && // Has a title
+      item.qty > 0 && // Has sales
+      item.total > 0 // Has revenue
     );
+    
+    console.log('📦 Valid items for inventory:', validItems);
     
     if (validItems.length === 0) return [];
     
@@ -664,9 +674,9 @@ function InventoryCard({ summary, loading }: { summary: SummaryResponse | null; 
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-[#163060] truncate" title={item.title}>{item.title}</div>
-                  {item.author && (
-                    <div className="text-xs text-gray-600 truncate">{item.author}</div>
-                  )}
+                  <div className="text-xs text-gray-600 truncate">
+                    {item.author || 'Author not specified'}
+                  </div>
                   {item.isbn && (
                     <div className="text-[10px] text-gray-500 mt-0.5">ISBN: {item.isbn}</div>
                   )}
@@ -817,6 +827,12 @@ export default function HindiBooksSalesDashboard() {
         apiClient.get<SummaryResponse>(`online-sales/summary?${qs}`),
         apiClient.get<CountsResponse>(`online-sales/counts?${qs}`),
       ]);
+      
+      // Debug: Log what we received
+      console.log('📊 Summary data received:', summaryData);
+      console.log('📈 Counts data received:', countsData);
+      console.log('📚 Top items:', summaryData?.topItems);
+      
       setSummary(summaryData);
       setCounts(countsData);
     } catch (e: any) {
