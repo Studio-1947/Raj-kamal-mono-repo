@@ -215,16 +215,36 @@ const GenericSalesWidget: React.FC<Props> = ({
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
-            <div className="flex items-center gap-3">
-              <span>{loading ? 'Loading…' : 'No time-series data available'}</span>
-              {!loading && (
-                <button
-                  className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 hover:bg-gray-50"
-                  onClick={fetchAll}
-                >
-                  Retry
-                </button>
+          <div className="flex h-full w-full items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50">
+            <div className="text-center px-4">
+              {loading ? (
+                <span className="text-sm text-gray-500">Loading chart data…</span>
+              ) : totalOrders > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-4xl">📊</div>
+                  <div className="text-sm font-medium text-gray-700">Time-series chart unavailable</div>
+                  <div className="text-xs text-gray-500 max-w-md">
+                    Sales data exists but lacks date information for trend visualization.
+                    <br />
+                    Summary metrics are still accurate above.
+                  </div>
+                  <button
+                    className="mt-3 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    onClick={fetchAll}
+                  >
+                    Retry Loading
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-500">No data for selected period</div>
+                  <button
+                    className="mt-2 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 hover:bg-gray-50"
+                    onClick={fetchAll}
+                  >
+                    Retry
+                  </button>
+                </div>
               )}
             </div>
           </div>
