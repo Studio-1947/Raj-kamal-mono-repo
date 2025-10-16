@@ -33,7 +33,7 @@ function resolveRowDate(r: any): Date | null {
   let d: Date | null = r.date ? new Date(r.date) : null;
   if (!d) {
     const raw = r.rawJson as Record<string, any> | undefined;
-    const d1 = pick(raw, ['Date', 'Txn Date', 'Transaction Date']);
+    const d1 = pick(raw, ['Date', 'Txn Date', 'Transaction Date', 'Trnsdocdate']);
     if (d1) {
       const dd = new Date(d1);
       if (!isNaN(+dd)) d = dd;
@@ -71,7 +71,7 @@ router.get('/counts', async (req, res) => {
 
   try {
     const items = await prisma.offlineCashUPICCSale.findMany({
-      select: { amount: true, qty: true, rate: true, rawJson: true, customerName: true, email: true, mobile: true, orderStatus: true, date: true, month: true, year: true },
+      select: { amount: true, qty: true, rate: true, rawJson: true, customerName: true, email: true, mobile: true, orderStatus: true, date: true, month: true, year: true, title: true },
       take: 100000,
     });
 
@@ -85,16 +85,27 @@ router.get('/counts', async (req, res) => {
     
     for (const r of items) {
       const d = resolveRowDate(r);
-      if (start && (!d || d < start)) continue;
-      if (end && (!d || d > end)) continue;
+      
+      // If date filters are provided and we have a date, apply the filter
+      // If no date on record, include it (don't filter out)
+      if (start && d && d < start) continue;
+      if (end && d && d > end) continue;
+      
       count++;
       
-      const v = decToNumber(r.amount);
-      if (v) { totalAmount += v; } else {
+      // Calculate amount from available fields
+      let amt = decToNumber(r.amount);
+      if (!amt) {
         const raw = r.rawJson as Record<string, any> | undefined;
-        const y = numSafe(pick(raw, ['Selling Price', 'Amount', 'Total', 'amount']));
-        if (y != null) totalAmount += y; else totalAmount += (numSafe(r.rate as any) || 0) * (r.qty ?? 0);
+        const v = numSafe(pick(raw, ['Selling Price', 'Amount', 'Total', 'amount', 'BOOKRATE']));
+        if (v != null) amt = v;
+        else {
+          const rate = numSafe(r.rate as any) || numSafe(pick(raw, ['Rate', 'BOOKRATE'])) || 0;
+          const qty = r.qty || numSafe(pick(raw, ['Qty', 'OUT'])) || 0;
+          amt = rate * qty;
+        }
       }
+      totalAmount += amt;
 
       const st = (r.orderStatus as any as string) || String(pick(r.rawJson as any, ['Order Status', 'Status']) || '').toLowerCase();
       if (st && st.toLowerCase() === 'refunded') refundCount++;
