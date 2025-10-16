@@ -46,6 +46,93 @@ function resolveRowDate(r: any): Date | null {
   return d;
 }
 
+// GET /api/lok-event-sales/summary
+router.get('/summary', async (req, res) => {
+  const Q = z.object({
+    days: z.string().regex(/^\d+$/).transform(Number).optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+  });
+  const parsed = Q.safeParse({
+    days: req.query.days,
+    startDate: req.query.startDate,
+    endDate: req.query.endDate,
+  });
+  if (!parsed.success) return res.status(400).json({ ok: false, error: 'Invalid query' });
+  const days = parsed.data.days ?? 90;
+  const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
+  const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
+
+  try {
+    const since = startDate ?? new Date(Date.now() - (days * 86400000));
+
+    const rows = await prisma.lokEventSale.findMany({
+      select: { date: true, amount: true, qty: true, rate: true, title: true, month: true, year: true, rawJson: true },
+      take: 100000,
+    });
+
+    const ts = new Map<string, number>();
+    const top = new Map<string, { total: number; qty: number }>();
+
+    for (const r of rows) {
+      const d = resolveRowDate(r);
+      if (d && d < since) continue;
+      if (endDate && d && d > endDate) continue;
+
+      // Calculate amount
+      let amt = decToNumber(r.amount);
+      if (!amt) {
+        const raw = r.rawJson as Record<string, any> | undefined;
+        const v = numSafe(pick(raw, ['Selling Price', 'Amount', 'Total', 'amount']));
+        if (v != null) amt = v;
+        else {
+          const rate = numSafe(r.rate as any) || numSafe(pick(raw, ['Rate'])) || 0;
+          const qty = r.qty || numSafe(pick(raw, ['Qty'])) || 0;
+          amt = rate * qty;
+        }
+      }
+
+      // Time series - only add if we have a valid date
+      if (d) {
+        const key = d.toISOString().slice(0, 10);
+        ts.set(key, (ts.get(key) || 0) + amt);
+      }
+
+      // Top items
+      const raw = r.rawJson as Record<string, any> | undefined;
+      let title = r.title as string | null | undefined;
+      if (!title || (typeof title === 'string' && title.trim() === '')) {
+        const rawTitle = pick(raw, ['Title', 'title', 'Description', 'Book', 'book', 'Product', 'Item']);
+        title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : null;
+      }
+      const tkey = (title && typeof title === 'string' && title.trim()) ? title.trim() : 'Untitled Item';
+      const cur = top.get(tkey) || { total: 0, qty: 0 };
+      cur.total += amt;
+      cur.qty += r.qty || numSafe(pick(raw, ['Qty'])) || 0;
+      top.set(tkey, cur);
+    }
+
+    const timeSeries = Array.from(ts.entries())
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([date, total]) => ({ date, total: round2(total) }));
+
+    const topItems = Array.from(top.entries())
+      .filter(([_, v]) => v && (v.total > 0 || v.qty > 0))
+      .map(([title, v]) => ({ 
+        title: title || 'Untitled', 
+        total: round2(v.total || 0), 
+        qty: v.qty || 0 
+      }))
+      .sort((a, b) => (b.total || 0) - (a.total || 0))
+      .slice(0, 10);
+
+    return res.json({ ok: true, timeSeries, topItems });
+  } catch (e: any) {
+    console.error('lok_event_sales_summary_failed', e);
+    return res.status(500).json({ ok: false, error: 'Failed to compute summary' });
+  }
+});
+
 // GET /api/lok-event-sales/counts
 router.get('/counts', async (req, res) => {
   const Q = z.object({
