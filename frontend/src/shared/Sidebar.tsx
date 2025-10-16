@@ -128,7 +128,7 @@ export default function Sidebar() {
           onClick={() => setCollapsed((v) => !v)}
           title={collapsed ? t('expand') : t('collapse')}
         >
-          <div className={`transition-transform ${collapsed ? '' : 'rotate-180'}`}>
+          <div className={`transition-transform ${collapsed ? 'rotate-180' : ''}`}>
             <IconChevron className="h-4 w-4" />
           </div>
         </button>
