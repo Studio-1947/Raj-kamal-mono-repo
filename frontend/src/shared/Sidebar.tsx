@@ -75,7 +75,7 @@ export default function Sidebar() {
   const items: Item[] = [
     { label: t("home"), to: "/", icon: <span /> },
     { label: t("sales"), to: "/dashboard", icon: <span /> },
-    { label: t("inventory"), to: "/inventory", icon: <span /> },
+    { label: t("geo_insights"), to: "/inventory", icon: <span /> },
     { label: t("rankings"), to: "/rankings", icon: <span /> },
     { label: t("social_media"), to: "/social", icon: <span /> },
   ];
