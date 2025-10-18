@@ -370,7 +370,7 @@ export default function Dashboard() {
               fromLastWeek={t("from_last_week")}
               negative={ordersDelta.negative}
             />
-            <StatCard
+            {/* <StatCard
               label={t("customers")}
               value={metrics.uniqueCustomers.toLocaleString("en-IN")}
               delta={customersDelta.pct}
@@ -383,7 +383,7 @@ export default function Dashboard() {
               delta={refundsDelta.pct}
               fromLastWeek={t("from_last_week")}
               negative={refundsDelta.negative}
-            />
+            /> */}
           </div>
         )}
       </div>
