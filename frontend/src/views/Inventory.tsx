@@ -1,9 +1,9 @@
 /**
  * Geo Insights Component
- * 
+ *
  * Displays sales data organized by geographical location (pincode/city/state)
  * to identify areas with maximum and minimum sales performance.
- * 
+ *
  * Features:
  * - Aggregated sales by location
  * - Sortable columns
@@ -46,19 +46,22 @@ type SaleItem = {
  */
 type SortConfig = {
   key: keyof LocationSales;
-  direction: 'asc' | 'desc';
+  direction: "asc" | "desc";
 };
 
 export default function Inventory() {
   const { t } = useLang();
-  
+
   // State management
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [locationData, setLocationData] = useState<LocationSales[]>([]);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'totalAmount', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    key: "totalAmount",
+    direction: "desc",
+  });
   const [days, setDays] = useState(90);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
   /**
    * Fetch sales data from all channels and aggregate by location
@@ -67,37 +70,38 @@ export default function Inventory() {
     async function fetchGeoData() {
       setLoading(true);
       setError(null);
-      
+
       try {
         const now = new Date();
         const since = new Date(now.getTime() - days * 86400000);
         const qs = new URLSearchParams({
-          limit: '10000', // Fetch more data for aggregation
+          limit: "10000", // Fetch more data for aggregation
           startDate: since.toISOString(),
           endDate: now.toISOString(),
         }).toString();
 
         // Fetch from all sale channels
-        const [onlineRes, offlineRes, lokRes, rajradhaRes] = await Promise.allSettled([
-          apiClient.get<{ items: SaleItem[] }>(`online-sales?${qs}`),
-          apiClient.get<{ items: SaleItem[] }>(`offline-sales?${qs}`),
-          apiClient.get<{ items: SaleItem[] }>(`lok-event-sales?${qs}`),
-          apiClient.get<{ items: SaleItem[] }>(`rajradha-event-sales?${qs}`),
-        ]);
+        const [onlineRes, offlineRes, lokRes, rajradhaRes] =
+          await Promise.allSettled([
+            apiClient.get<{ items: SaleItem[] }>(`online-sales?${qs}`),
+            apiClient.get<{ items: SaleItem[] }>(`offline-sales?${qs}`),
+            apiClient.get<{ items: SaleItem[] }>(`lok-event-sales?${qs}`),
+            apiClient.get<{ items: SaleItem[] }>(`rajradha-event-sales?${qs}`),
+          ]);
 
         // Combine all sales data
         const allSales: SaleItem[] = [];
-        
-        if (onlineRes.status === 'fulfilled' && onlineRes.value?.items) {
+
+        if (onlineRes.status === "fulfilled" && onlineRes.value?.items) {
           allSales.push(...onlineRes.value.items);
         }
-        if (offlineRes.status === 'fulfilled' && offlineRes.value?.items) {
+        if (offlineRes.status === "fulfilled" && offlineRes.value?.items) {
           allSales.push(...offlineRes.value.items);
         }
-        if (lokRes.status === 'fulfilled' && lokRes.value?.items) {
+        if (lokRes.status === "fulfilled" && lokRes.value?.items) {
           allSales.push(...lokRes.value.items);
         }
-        if (rajradhaRes.status === 'fulfilled' && rajradhaRes.value?.items) {
+        if (rajradhaRes.status === "fulfilled" && rajradhaRes.value?.items) {
           allSales.push(...rajradhaRes.value.items);
         }
 
@@ -106,30 +110,66 @@ export default function Inventory() {
         // Track unique customers per location for correct counts
         const customerSets = new Map<string, Set<string>>();
 
-        allSales.forEach(sale => {
+        allSales.forEach((sale) => {
           // Extract location from rawJson (various possible field names)
           const raw = sale.rawJson || {};
-          const pincode = normalizePincode(
-            extractValueFlexible(raw, [
-              'pincode', 'pin', 'pin code', 'postal_code', 'postal code', 'zip', 'zip code', 'post code', 'postcode',
-              'shipping pincode', 'billing pincode', 'delivery pincode', 'p.o. code'
-            ])
-            || extractPincodeFromText(extractValueFlexible(raw, ['address', 'shipping address', 'billing address', 'delivery address']) || '')
-          ) || 'Unknown';
+          const pincode =
+            normalizePincode(
+              extractValueFlexible(raw, [
+                "pincode",
+                "pin",
+                "pin code",
+                "postal_code",
+                "postal code",
+                "zip",
+                "zip code",
+                "post code",
+                "postcode",
+                "shipping pincode",
+                "billing pincode",
+                "delivery pincode",
+                "p.o. code",
+              ]) ||
+                extractPincodeFromText(
+                  extractValueFlexible(raw, [
+                    "address",
+                    "shipping address",
+                    "billing address",
+                    "delivery address",
+                  ]) || ""
+                )
+            ) || "Unknown";
 
-          const city = normalizeText(
-            extractValueFlexible(raw, [
-              'city', 'town', 'district', 'shipping city', 'billing city', 'delivery city', 'place'
-            ])
-          ) || 'Unknown';
+          const city =
+            normalizeText(
+              extractValueFlexible(raw, [
+                "city",
+                "town",
+                "district",
+                "shipping city",
+                "billing city",
+                "delivery city",
+                "place",
+              ])
+            ) || "Unknown";
 
-          const state = normalizeText(
-            extractValueFlexible(raw, [
-              'state', 'province', 'region', 'state/province', 'shipping state', 'billing state', 'delivery state'
-            ])
-          ) || 'Unknown';
+          const state =
+            normalizeText(
+              extractValueFlexible(raw, [
+                "state",
+                "province",
+                "region",
+                "state/province",
+                "shipping state",
+                "billing state",
+                "delivery state",
+              ])
+            ) || "Unknown";
           const amount = sale.amount ? Number(sale.amount) : 0;
-          const customer = (sale.customerName || sale.mobile || 'unknown').toString().trim().toLowerCase();
+          const customer = (sale.customerName || sale.mobile || "unknown")
+            .toString()
+            .trim()
+            .toLowerCase();
 
           // Create location key
           const locationKey = `${pincode}-${city}-${state}`;
@@ -158,16 +198,19 @@ export default function Inventory() {
         });
 
         // Calculate average order values and convert to array
-        const locationArray: LocationSales[] = Array.from(locationMap.entries()).map(([key, loc]) => ({
+        const locationArray: LocationSales[] = Array.from(
+          locationMap.entries()
+        ).map(([key, loc]) => ({
           ...loc,
-          avgOrderValue: loc.orderCount > 0 ? loc.totalAmount / loc.orderCount : 0,
+          avgOrderValue:
+            loc.orderCount > 0 ? loc.totalAmount / loc.orderCount : 0,
           customerCount: customerSets.get(key)?.size || 0,
         }));
 
         setLocationData(locationArray);
       } catch (e: any) {
-        setError(e?.message || 'Failed to fetch geo insights data');
-        console.error('Geo insights fetch error:', e);
+        setError(e?.message || "Failed to fetch geo insights data");
+        console.error("Geo insights fetch error:", e);
       } finally {
         setLoading(false);
       }
@@ -179,7 +222,10 @@ export default function Inventory() {
   /**
    * Helper function to extract values from rawJson with multiple possible keys
    */
-  function extractValue(obj: Record<string, any>, keys: string[]): string | null {
+  function extractValue(
+    obj: Record<string, any>,
+    keys: string[]
+  ): string | null {
     for (const key of keys) {
       if (obj[key] && String(obj[key]).trim()) {
         return String(obj[key]).trim();
@@ -189,7 +235,10 @@ export default function Inventory() {
   }
 
   // Case-insensitive extractor that also searches shallow nested keys and common variations
-  function extractValueFlexible(obj: Record<string, any>, candidates: string[]): string | null {
+  function extractValueFlexible(
+    obj: Record<string, any>,
+    candidates: string[]
+  ): string | null {
     if (!obj) return null;
     const lowerMap = new Map<string, string | number | null | undefined>();
     for (const [k, v] of Object.entries(obj)) {
@@ -203,8 +252,9 @@ export default function Inventory() {
       }
     }
     // Search inside a shallow nested address object if present
-    const addr = obj.address || obj.Address || obj.shippingAddress || obj.billingAddress;
-    if (addr && typeof addr === 'object') {
+    const addr =
+      obj.address || obj.Address || obj.shippingAddress || obj.billingAddress;
+    if (addr && typeof addr === "object") {
       return extractValueFlexible(addr as Record<string, any>, candidates);
     }
     return null;
@@ -212,7 +262,10 @@ export default function Inventory() {
 
   function normalizePincode(raw?: string | null): string | null {
     if (!raw) return null;
-    const digits = String(raw).match(/\d{3,}/g)?.join('') || '';
+    const digits =
+      String(raw)
+        .match(/\d{3,}/g)
+        ?.join("") || "";
     // Prefer 6-digit Indian PIN; if more, take last 6 which often is the actual PIN in addresses
     if (digits.length >= 6) return digits.slice(-6);
     return digits || null;
@@ -228,7 +281,7 @@ export default function Inventory() {
     if (!raw) return null;
     const s = String(raw).trim();
     if (!s) return null;
-    return s.replace(/\s+/g, ' ');
+    return s.replace(/\s+/g, " ");
   }
 
   /**
@@ -236,13 +289,13 @@ export default function Inventory() {
    */
   const fmtINR = (n: number) => {
     try {
-      return new Intl.NumberFormat('en-IN', { 
-        style: 'currency', 
-        currency: 'INR', 
-        maximumFractionDigits: 0 
+      return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
       }).format(n);
     } catch {
-      return `₹${Math.round(n).toLocaleString('en-IN')}`;
+      return `₹${Math.round(n).toLocaleString("en-IN")}`;
     }
   };
 
@@ -250,9 +303,9 @@ export default function Inventory() {
    * Handle column sorting
    */
   const handleSort = (key: keyof LocationSales) => {
-    setSortConfig(prev => ({
+    setSortConfig((prev) => ({
       key,
-      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc',
+      direction: prev.key === key && prev.direction === "desc" ? "asc" : "desc",
     }));
   };
 
@@ -265,21 +318,22 @@ export default function Inventory() {
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(loc =>
-        loc.pincode.toLowerCase().includes(query) ||
-        loc.city.toLowerCase().includes(query) ||
-        loc.state.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (loc) =>
+          loc.pincode.toLowerCase().includes(query) ||
+          loc.city.toLowerCase().includes(query) ||
+          loc.state.toLowerCase().includes(query)
       );
     }
 
     // Apply sorting
     filtered.sort((a, b) => {
       const key = sortConfig.key;
-      const dir = sortConfig.direction === 'asc' ? 1 : -1;
+      const dir = sortConfig.direction === "asc" ? 1 : -1;
 
-      if (key === 'pincode') {
-        const aNum = parseInt((a.pincode || '').replace(/\D/g, ''), 10);
-        const bNum = parseInt((b.pincode || '').replace(/\D/g, ''), 10);
+      if (key === "pincode") {
+        const aNum = parseInt((a.pincode || "").replace(/\D/g, ""), 10);
+        const bNum = parseInt((b.pincode || "").replace(/\D/g, ""), 10);
         const aValid = Number.isFinite(aNum);
         const bValid = Number.isFinite(bNum);
         if (aValid && bValid) return (aNum - bNum) * dir;
@@ -288,7 +342,7 @@ export default function Inventory() {
 
       const aVal = a[key] as any;
       const bVal = b[key] as any;
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
+      if (typeof aVal === "number" && typeof bVal === "number") {
         return (aVal - bVal) * dir;
       }
       return String(aVal).localeCompare(String(bVal)) * dir;
@@ -300,33 +354,42 @@ export default function Inventory() {
   /**
    * Get top and bottom performers
    */
-  const topPerformers = useMemo(() => 
-    [...locationData].sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 5),
+  const topPerformers = useMemo(
+    () =>
+      [...locationData]
+        .sort((a, b) => b.totalAmount - a.totalAmount)
+        .slice(0, 5),
     [locationData]
   );
 
-  const bottomPerformers = useMemo(() => 
-    [...locationData]
-      .filter(loc => loc.totalAmount > 0) // Exclude zero sales
-      .sort((a, b) => a.totalAmount - b.totalAmount)
-      .slice(0, 5),
+  const bottomPerformers = useMemo(
+    () =>
+      [...locationData]
+        .filter((loc) => loc.totalAmount > 0) // Exclude zero sales
+        .sort((a, b) => a.totalAmount - b.totalAmount)
+        .slice(0, 5),
     [locationData]
   );
 
   /**
    * Calculate total metrics
    */
-  const totalMetrics = useMemo(() => ({
-    totalSales: locationData.reduce((sum, loc) => sum + loc.totalAmount, 0),
-    totalOrders: locationData.reduce((sum, loc) => sum + loc.orderCount, 0),
-    totalLocations: locationData.length,
-  }), [locationData]);
+  const totalMetrics = useMemo(
+    () => ({
+      totalSales: locationData.reduce((sum, loc) => sum + loc.totalAmount, 0),
+      totalOrders: locationData.reduce((sum, loc) => sum + loc.orderCount, 0),
+      totalLocations: locationData.length,
+    }),
+    [locationData]
+  );
 
   return (
     <AppLayout>
       {/* Header Section */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{t("geo_insights")}</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("geo_insights")}
+        </h1>
         <p className="mt-2 text-gray-600">
           Analyze sales performance across different geographical locations
         </p>
@@ -341,12 +404,12 @@ export default function Inventory() {
         />
         <SummaryCard
           label="Total Orders"
-          value={totalMetrics.totalOrders.toLocaleString('en-IN')}
+          value={totalMetrics.totalOrders.toLocaleString("en-IN")}
           loading={loading}
         />
         <SummaryCard
           label="Unique Locations"
-          value={totalMetrics.totalLocations.toLocaleString('en-IN')}
+          value={totalMetrics.totalLocations.toLocaleString("en-IN")}
           loading={loading}
         />
       </div>
@@ -362,12 +425,21 @@ export default function Inventory() {
             </h3>
             <div className="space-y-2">
               {topPerformers.map((loc, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-white rounded p-2">
+                <div
+                  key={idx}
+                  className="flex justify-between items-center bg-white rounded p-2"
+                >
                   <div>
-                    <p className="font-medium text-gray-900">{loc.city}, {loc.state}</p>
-                    <p className="text-xs text-gray-500">Pin: {loc.pincode} • {loc.orderCount} orders</p>
+                    <p className="font-medium text-gray-900">
+                      {loc.city}, {loc.state}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Pin: {loc.pincode} • {loc.orderCount} orders
+                    </p>
                   </div>
-                  <p className="font-bold text-green-700">{fmtINR(loc.totalAmount)}</p>
+                  <p className="font-bold text-green-700">
+                    {fmtINR(loc.totalAmount)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -381,12 +453,21 @@ export default function Inventory() {
             </h3>
             <div className="space-y-2">
               {bottomPerformers.map((loc, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-white rounded p-2">
+                <div
+                  key={idx}
+                  className="flex justify-between items-center bg-white rounded p-2"
+                >
                   <div>
-                    <p className="font-medium text-gray-900">{loc.city}, {loc.state}</p>
-                    <p className="text-xs text-gray-500">Pin: {loc.pincode} • {loc.orderCount} orders</p>
+                    <p className="font-medium text-gray-900">
+                      {loc.city}, {loc.state}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Pin: {loc.pincode} • {loc.orderCount} orders
+                    </p>
                   </div>
-                  <p className="font-bold text-orange-700">{fmtINR(loc.totalAmount)}</p>
+                  <p className="font-bold text-orange-700">
+                    {fmtINR(loc.totalAmount)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -438,7 +519,9 @@ export default function Inventory() {
           <div className="p-8 text-center">
             <p className="text-gray-500">No location data available</p>
             <p className="text-sm text-gray-400 mt-2">
-              {searchQuery ? 'Try adjusting your search query' : 'Sales data may not contain location information'}
+              {searchQuery
+                ? "Try adjusting your search query"
+                : "Sales data may not contain location information"}
             </p>
           </div>
         ) : (
@@ -503,7 +586,7 @@ export default function Inventory() {
                       {fmtINR(loc.totalAmount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                      {loc.orderCount.toLocaleString('en-IN')}
+                      {loc.orderCount.toLocaleString("en-IN")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
                       {fmtINR(loc.avgOrderValue)}
@@ -519,7 +602,8 @@ export default function Inventory() {
       {/* Results Count */}
       {!loading && sortedAndFilteredData.length > 0 && (
         <div className="mt-4 text-sm text-gray-600 text-center">
-          Showing {sortedAndFilteredData.length} {sortedAndFilteredData.length === 1 ? 'location' : 'locations'}
+          Showing {sortedAndFilteredData.length}{" "}
+          {sortedAndFilteredData.length === 1 ? "location" : "locations"}
           {searchQuery && ` matching "${searchQuery}"`}
         </div>
       )}
@@ -531,7 +615,15 @@ export default function Inventory() {
  * Summary Card Component
  * Displays a metric with loading state
  */
-function SummaryCard({ label, value, loading }: { label: string; value: string; loading: boolean }) {
+function SummaryCard({
+  label,
+  value,
+  loading,
+}: {
+  label: string;
+  value: string;
+  loading: boolean;
+}) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">
       <p className="text-sm text-gray-500 mb-1">{label}</p>
@@ -552,28 +644,32 @@ function SortableHeader({
   sortKey,
   currentSort,
   onSort,
-  align = 'left',
+  align = "left",
 }: {
   label: string;
   sortKey: keyof LocationSales;
   currentSort: SortConfig;
   onSort: (key: keyof LocationSales) => void;
-  align?: 'left' | 'right';
+  align?: "left" | "right";
 }) {
   const isActive = currentSort.key === sortKey;
-  const isAsc = isActive && currentSort.direction === 'asc';
+  const isAsc = isActive && currentSort.direction === "asc";
 
   return (
     <th
       className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${
-        align === 'right' ? 'text-right' : 'text-left'
+        align === "right" ? "text-right" : "text-left"
       }`}
       onClick={() => onSort(sortKey)}
     >
-      <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`flex items-center gap-1 ${
+          align === "right" ? "justify-end" : "justify-start"
+        }`}
+      >
         <span>{label}</span>
         <span className="text-gray-400">
-          {isActive ? (isAsc ? '↑' : '↓') : '↕'}
+          {isActive ? (isAsc ? "↑" : "↓") : "↕"}
         </span>
       </div>
     </th>
@@ -589,18 +685,23 @@ function TableSkeleton() {
       {/* Header skeleton */}
       <div className="flex gap-4">
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="h-4 bg-gray-200 rounded flex-1 animate-pulse"></div>
+          <div
+            key={i}
+            className="h-4 bg-gray-200 rounded flex-1 animate-pulse"
+          ></div>
         ))}
       </div>
       {/* Row skeletons */}
       {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
         <div key={i} className="flex gap-4">
           {[1, 2, 3, 4, 5, 6].map((j) => (
-            <div key={j} className="h-6 bg-gray-100 rounded flex-1 animate-pulse"></div>
+            <div
+              key={j}
+              className="h-6 bg-gray-100 rounded flex-1 animate-pulse"
+            ></div>
           ))}
         </div>
       ))}
     </div>
   );
 }
-
