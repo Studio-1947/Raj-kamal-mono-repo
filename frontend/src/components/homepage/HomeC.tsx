@@ -443,7 +443,7 @@ function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | 
       }
       className="lg:col-span-5"
       hoverable
-      footer={<FooterButton>See More</FooterButton>}
+      footer={<FooterButton onClick={() => (window.location.href = '/dashboard')}>See More</FooterButton>}
     >
       {loading ? (
         <div className="animate-pulse flex items-start gap-5">
@@ -511,25 +511,17 @@ function TopBookCard({ summary, loading, counts }: { summary: SummaryResponse | 
 }
 
 function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; loading: boolean }) {
-  // Aggregate sales by author from real data
+  // Aggregate sales by author from real data and pick a single top author
   const topAuthor = useMemo(() => {
     if (!summary?.topItems || summary.topItems.length === 0) return null;
-    
-    // Filter out invalid items - accept items with revenue (qty can be 0)
-    const validItems = summary.topItems.filter(item => 
-      item && // Item exists
-      item.title && // Has a title
-      item.total > 0 // Has revenue
+
+    const validItems = summary.topItems.filter(
+      (item) => item && item.title && item.total > 0
     );
-    
-    console.log('✍️ Valid items for authors:', validItems);
-    
     if (validItems.length === 0) return null;
-    
-    // Group by author
+
     const authorSales = new Map<string, { total: number; qty: number; books: number }>();
-    
-    validItems.forEach(item => {
+    validItems.forEach((item) => {
       const author = item.author && item.author.trim() !== '' ? item.author : 'Unknown Author';
       const current = authorSales.get(author) || { total: 0, qty: 0, books: 0 };
       current.total += item.total;
@@ -537,21 +529,18 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
       current.books += 1;
       authorSales.set(author, current);
     });
-    
-    // Get top author - prefer known authors but show Unknown if that's all we have
-    const allAuthors = Array.from(authorSales.entries())
-      .sort((a, b) => b[1].total - a[1].total);
-    
-    // Try to get a known author first
+
+    const allAuthors = Array.from(authorSales.entries()).sort(
+      (a, b) => b[1].total - a[1].total
+    );
     const knownAuthor = allAuthors.find(([name]) => name !== 'Unknown Author');
     const topEntry = knownAuthor || allAuthors[0];
-    
     if (!topEntry) return null;
-    
+
     const [name, stats] = topEntry;
     const totalRevenue = validItems.reduce((sum, item) => sum + item.total, 0);
     const contributionPercent = totalRevenue > 0 ? Math.round((stats.total / totalRevenue) * 100) : 0;
-    
+
     return {
       name,
       books: stats.books,
@@ -572,7 +561,7 @@ function TopAuthorCard({ summary, loading }: { summary: SummaryResponse | null; 
       }
       className="lg:col-span-5"
       hoverable
-      footer={<FooterButton>See More</FooterButton>}
+      footer={<FooterButton onClick={() => (window.location.href = '/dashboard')}>See More</FooterButton>}
     >
       {loading ? (
         <div className="animate-pulse flex items-start gap-3">
