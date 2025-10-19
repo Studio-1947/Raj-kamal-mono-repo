@@ -56,12 +56,25 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [locationData, setLocationData] = useState<LocationSales[]>([]);
+  type Channel = "all" | "online" | "offline" | "lok" | "rajradha";
+  const [byChannel, setByChannel] = useState<Record<Channel, LocationSales[]>>({
+    all: [],
+    online: [],
+    offline: [],
+    lok: [],
+    rajradha: [],
+  });
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     key: "totalAmount",
     direction: "desc",
   });
   const [days, setDays] = useState(90);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedChannel, setSelectedChannel] = useState<Channel>("all");
+  const [perfFilter, setPerfFilter] = useState<"all" | "top" | "low">("all");
+  const [topN, setTopN] = useState(10);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   /**
    * Fetch sales data from all channels and aggregate by location
@@ -75,7 +88,8 @@ export default function Inventory() {
         const now = new Date();
         const since = new Date(now.getTime() - days * 86400000);
         const qs = new URLSearchParams({
-          limit: "10000", // Fetch more data for aggregation
+          // Backend caps max page size at 1000
+          limit: "1000",
           startDate: since.toISOString(),
           endDate: now.toISOString(),
         }).toString();
@@ -89,21 +103,31 @@ export default function Inventory() {
             apiClient.get<{ items: SaleItem[] }>(`rajradha-event-sales?${qs}`),
           ]);
 
-        // Combine all sales data
-        const allSales: SaleItem[] = [];
+        // Collect per-channel items
+        const onlineItems =
+          onlineRes.status === "fulfilled" && onlineRes.value?.items
+            ? onlineRes.value.items
+            : [];
+        const offlineItems =
+          offlineRes.status === "fulfilled" && offlineRes.value?.items
+            ? offlineRes.value.items
+            : [];
+        const lokItems =
+          lokRes.status === "fulfilled" && lokRes.value?.items
+            ? lokRes.value.items
+            : [];
+        const rajradhaItems =
+          rajradhaRes.status === "fulfilled" && rajradhaRes.value?.items
+            ? rajradhaRes.value.items
+            : [];
 
-        if (onlineRes.status === "fulfilled" && onlineRes.value?.items) {
-          allSales.push(...onlineRes.value.items);
-        }
-        if (offlineRes.status === "fulfilled" && offlineRes.value?.items) {
-          allSales.push(...offlineRes.value.items);
-        }
-        if (lokRes.status === "fulfilled" && lokRes.value?.items) {
-          allSales.push(...lokRes.value.items);
-        }
-        if (rajradhaRes.status === "fulfilled" && rajradhaRes.value?.items) {
-          allSales.push(...rajradhaRes.value.items);
-        }
+        // Combine all sales data
+        const allSales: SaleItem[] = [
+          ...onlineItems,
+          ...offlineItems,
+          ...lokItems,
+          ...rajradhaItems,
+        ];
 
         // Extract and aggregate location data
         const locationMap = new Map<string, LocationSales>();
@@ -208,6 +232,104 @@ export default function Inventory() {
         }));
 
         setLocationData(locationArray);
+
+        // Helper aggregator for per-channel sets (duplicates logic above)
+        const aggregate = (sales: SaleItem[]): LocationSales[] => {
+          const lmap = new Map<string, LocationSales>();
+          const csets = new Map<string, Set<string>>();
+          sales.forEach((sale) => {
+            const raw = sale.rawJson || {};
+            const pincode =
+              normalizePincode(
+                extractValueFlexible(raw, [
+                  "pincode",
+                  "pin",
+                  "pin code",
+                  "postal_code",
+                  "postal code",
+                  "zip",
+                  "zip code",
+                  "post code",
+                  "postcode",
+                  "shipping pincode",
+                  "billing pincode",
+                  "delivery pincode",
+                  "p.o. code",
+                ]) ||
+                  extractPincodeFromText(
+                    extractValueFlexible(raw, [
+                      "address",
+                      "shipping address",
+                      "billing address",
+                      "delivery address",
+                    ]) || ""
+                  )
+              ) || "Unknown";
+            const city =
+              normalizeText(
+                extractValueFlexible(raw, [
+                  "city",
+                  "town",
+                  "district",
+                  "shipping city",
+                  "billing city",
+                  "delivery city",
+                  "place",
+                ])
+              ) || "Unknown";
+            const state =
+              normalizeText(
+                extractValueFlexible(raw, [
+                  "state",
+                  "province",
+                  "region",
+                  "state/province",
+                  "shipping state",
+                  "billing state",
+                  "delivery state",
+                ])
+              ) || "Unknown";
+            const amount = sale.amount ? Number(sale.amount) : 0;
+            const customer = (sale.customerName || sale.mobile || "unknown")
+              .toString()
+              .trim()
+              .toLowerCase();
+            const key = `${pincode}-${city}-${state}`;
+            if (lmap.has(key)) {
+              const ex = lmap.get(key)!;
+              ex.totalAmount += amount;
+              ex.orderCount += 1;
+              const set = csets.get(key) ?? new Set<string>();
+              set.add(customer);
+              csets.set(key, set);
+            } else {
+              lmap.set(key, {
+                pincode,
+                city,
+                state,
+                totalAmount: amount,
+                orderCount: 1,
+                avgOrderValue: amount,
+                customerCount: 1,
+              });
+              csets.set(key, new Set(customer ? [customer] : []));
+            }
+          });
+          return Array.from(lmap.entries()).map(([k, loc]) => ({
+            ...loc,
+            avgOrderValue:
+              loc.orderCount > 0 ? loc.totalAmount / loc.orderCount : 0,
+            customerCount: csets.get(k)?.size || 0,
+          }));
+        };
+
+        setByChannel({
+          all: locationArray,
+          online: aggregate(onlineItems),
+          offline: aggregate(offlineItems),
+          lok: aggregate(lokItems),
+          rajradha: aggregate(rajradhaItems),
+        });
       } catch (e: any) {
         setError(e?.message || "Failed to fetch geo insights data");
         console.error("Geo insights fetch error:", e);
@@ -313,7 +435,9 @@ export default function Inventory() {
    * Sort and filter data
    */
   const sortedAndFilteredData = useMemo(() => {
-    let filtered = [...locationData];
+    const base: LocationSales[] =
+      selectedChannel === "all" ? locationData : byChannel[selectedChannel] || [];
+    let filtered = [...base];
 
     // Apply search filter
     if (searchQuery.trim()) {
@@ -324,6 +448,18 @@ export default function Inventory() {
           loc.city.toLowerCase().includes(query) ||
           loc.state.toLowerCase().includes(query)
       );
+    }
+
+    // Apply performance pill (based on totalAmount)
+    if (perfFilter === "top") {
+      filtered = [...filtered]
+        .sort((a, b) => b.totalAmount - a.totalAmount)
+        .slice(0, topN);
+    } else if (perfFilter === "low") {
+      filtered = [...filtered]
+        .filter((x) => x.totalAmount > 0)
+        .sort((a, b) => a.totalAmount - b.totalAmount)
+        .slice(0, topN);
     }
 
     // Apply sorting
@@ -349,26 +485,40 @@ export default function Inventory() {
     });
 
     return filtered;
-  }, [locationData, sortConfig, searchQuery]);
+  }, [locationData, byChannel, selectedChannel, perfFilter, topN, sortConfig, searchQuery]);
+
+  // Reset to first page when filters/sorts change
+  useEffect(() => {
+    setPage(1);
+  }, [selectedChannel, searchQuery, perfFilter, topN, sortConfig]);
+
+  // Pagination derivations
+  const totalRows = sortedAndFilteredData.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const pagedData = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    return sortedAndFilteredData.slice(start, end);
+  }, [sortedAndFilteredData, page, pageSize]);
 
   /**
    * Get top and bottom performers
    */
   const topPerformers = useMemo(
     () =>
-      [...locationData]
+      [...(selectedChannel === "all" ? locationData : byChannel[selectedChannel] || [])]
         .sort((a, b) => b.totalAmount - a.totalAmount)
         .slice(0, 5),
-    [locationData]
+    [locationData, byChannel, selectedChannel]
   );
 
   const bottomPerformers = useMemo(
     () =>
-      [...locationData]
+      [...(selectedChannel === "all" ? locationData : byChannel[selectedChannel] || [])]
         .filter((loc) => loc.totalAmount > 0) // Exclude zero sales
         .sort((a, b) => a.totalAmount - b.totalAmount)
         .slice(0, 5),
-    [locationData]
+    [locationData, byChannel, selectedChannel]
   );
 
   /**
@@ -476,7 +626,31 @@ export default function Inventory() {
       )}
 
       {/* Filters and Controls */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-3">
+        {/* Channel pills */}
+        <div className="flex flex-wrap gap-2">
+          {([
+            { id: "all", label: "All" },
+            { id: "online", label: "Online" },
+            { id: "offline", label: "Offline" },
+            { id: "lok", label: "Lok Event" },
+            { id: "rajradha", label: "RajRadha" },
+          ] as { id: Channel; label: string }[]).map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedChannel(c.id)}
+              className={
+                "rounded-full px-3 py-1 text-sm border transition-colors " +
+                (selectedChannel === c.id
+                  ? "bg-rose-100 text-rose-700 border-rose-200"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50")
+              }
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           {/* Search */}
           <div className="flex-1 max-w-md">
@@ -487,6 +661,41 @@ export default function Inventory() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+          </div>
+
+          {/* Performance pills + TopN */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Performance:</span>
+            {([
+              { id: "all", label: "All" },
+              { id: "top", label: `Top ${topN}` },
+              { id: "low", label: `Bottom ${topN}` },
+            ] as { id: "all" | "top" | "low"; label: string }[]).map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPerfFilter(p.id)}
+                className={
+                  "rounded-full px-3 py-1 text-sm border transition-colors " +
+                  (perfFilter === p.id
+                    ? "bg-blue-100 text-blue-700 border-blue-200"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50")
+                }
+              >
+                {p.label}
+              </button>
+            ))}
+            {perfFilter !== "all" && (
+              <select
+                value={topN}
+                onChange={(e) => setTopN(Number(e.target.value))}
+                className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            )}
           </div>
 
           {/* Time Range Filter */}
@@ -571,7 +780,7 @@ export default function Inventory() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredData.map((loc, idx) => (
+                {pagedData.map((loc, idx) => (
                   <tr key={idx} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {loc.pincode}
@@ -599,12 +808,68 @@ export default function Inventory() {
         )}
       </div>
 
-      {/* Results Count */}
+      {/* Pagination Controls */}
       {!loading && sortedAndFilteredData.length > 0 && (
-        <div className="mt-4 text-sm text-gray-600 text-center">
-          Showing {sortedAndFilteredData.length}{" "}
-          {sortedAndFilteredData.length === 1 ? "location" : "locations"}
-          {searchQuery && ` matching "${searchQuery}"`}
+        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+          <div className="text-gray-600">
+            Rows per page:{" "}
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="ml-2 rounded-md border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+
+          <div className="text-gray-600 order-first sm:order-none">
+            {(() => {
+              const start = (page - 1) * pageSize + 1;
+              const end = Math.min(page * pageSize, totalRows);
+              return `Showing ${start}-${end} of ${totalRows}`;
+            })()}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+              className="rounded-md border px-2 py-1 disabled:opacity-50"
+              title="First page"
+            >
+              «
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded-md border px-3 py-1 disabled:opacity-50"
+              title="Previous page"
+            >
+              Prev
+            </button>
+            <span className="min-w-[6rem] text-center text-gray-700">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-md border px-3 py-1 disabled:opacity-50"
+              title="Next page"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={page >= totalPages}
+              className="rounded-md border px-2 py-1 disabled:opacity-50"
+              title="Last page"
+            >
+              »
+            </button>
+          </div>
         </div>
       )}
     </AppLayout>
