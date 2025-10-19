@@ -705,7 +705,7 @@ function TitlesPublishersPanel({ days }: { days: number }) {
           const cur = map.get(key) || { title, publisher, qty: 0, total: 0 };
           cur.qty += qty;
           cur.total += amt;
-          map.set(key, cur);
+          map.set(key, { ...cur, publisher: publisher || '' });
         }
 
         let listRows = Array.from(map.values())
