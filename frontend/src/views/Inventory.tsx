@@ -16,6 +16,7 @@ import { useEffect, useState, useMemo } from "react";
 import AppLayout from "../shared/AppLayout";
 import { useLang } from "../modules/lang/LangContext";
 import { apiClient } from "../lib/apiClient";
+import IndiaMap from "../components/geo/IndiaMap";
 
 /**
  * Type definition for location-based sales data
@@ -75,6 +76,25 @@ export default function Inventory() {
   const [topN, setTopN] = useState(10);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [hideUnknown, setHideUnknown] = useState(false);
+  const [mapKind, setMapKind] = useState<'both' | 'top' | 'bottom'>('both');
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [mapChoropleth, setMapChoropleth] = useState(true);
+  const [stateFilter, setStateFilter] = useState<string | null>(null);
+  const [mapOpen, setMapOpen] = useState<boolean>(() => {
+    try {
+      const s = localStorage.getItem('rk_geo_map_open');
+      return s ? s === '1' : true;
+    } catch {
+      return true;
+    }
+  });
+  const toggleMapOpen = () =>
+    setMapOpen((v) => {
+      const n = !v;
+      try { localStorage.setItem('rk_geo_map_open', n ? '1' : '0'); } catch {}
+      return n;
+    });
 
   /**
    * Fetch sales data from all channels and aggregate by location
@@ -454,6 +474,15 @@ export default function Inventory() {
       );
     }
 
+    // Hide Unknown rows
+    if (hideUnknown) {
+      filtered = filtered.filter((x) => x.city !== 'Unknown' && x.state !== 'Unknown');
+    }
+    if (stateFilter) {
+      const key = stateFilter.toLowerCase();
+      filtered = filtered.filter((x) => x.state.toLowerCase() === key);
+    }
+
     // Apply performance pill (based on totalAmount)
     if (perfFilter === "top") {
       filtered = [...filtered]
@@ -489,7 +518,7 @@ export default function Inventory() {
     });
 
     return filtered;
-  }, [locationData, byChannel, selectedChannel, perfFilter, topN, sortConfig, searchQuery]);
+  }, [locationData, byChannel, selectedChannel, perfFilter, topN, sortConfig, searchQuery, hideUnknown, stateFilter]);
 
   // Reset to first page when filters/sorts change
   useEffect(() => {
@@ -582,7 +611,7 @@ export default function Inventory() {
     () =>
       [...(selectedChannel === "all" ? locationData : byChannel[selectedChannel] || [])]
         .sort((a, b) => b.totalAmount - a.totalAmount)
-        .slice(0, 5),
+        .slice(0, Math.max(5, topN)),
     [locationData, byChannel, selectedChannel]
   );
 
@@ -591,9 +620,23 @@ export default function Inventory() {
       [...(selectedChannel === "all" ? locationData : byChannel[selectedChannel] || [])]
         .filter((loc) => loc.totalAmount > 0) // Exclude zero sales
         .sort((a, b) => a.totalAmount - b.totalAmount)
-        .slice(0, 5),
+        .slice(0, Math.max(5, topN)),
     [locationData, byChannel, selectedChannel]
   );
+
+  // Build map points from current top/bottom lists
+  const mapPoints = useMemo(() => {
+    const toPts = (list: LocationSales[], kind: 'top' | 'bottom') =>
+      list.map((r) => ({
+        pincode: r.pincode,
+        city: r.city,
+        state: r.state,
+        orders: r.orderCount,
+        total: r.totalAmount,
+        kind,
+      }));
+    return [...toPts(topPerformers, 'top'), ...toPts(bottomPerformers, 'bottom')];
+  }, [topPerformers, bottomPerformers]);
 
   /**
    * Calculate total metrics
@@ -645,6 +688,59 @@ export default function Inventory() {
           value={totalMetrics.totalLocations.toLocaleString("en-IN")}
           loading={loading}
         />
+      </div>
+
+      {/* India Map visualization (collapsible) */}
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="font-semibold text-gray-900">Geo Map</div>
+          <button
+            onClick={toggleMapOpen}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            title={mapOpen ? 'Collapse' : 'Expand'}
+          >
+            {mapOpen ? 'Hide' : 'Show'}
+            <span className={`transition-transform ${mapOpen ? '' : 'rotate-180'}`}>▲</span>
+          </button>
+        </div>
+        {mapOpen && (
+          <div className="px-4 pb-4">
+            <IndiaMap
+              className="w-full"
+              points={mapPoints}
+              topN={topN}
+              filterKind={mapKind}
+              choropleth={mapChoropleth}
+              onPointClick={(p) => {
+                const key = `${p.pincode}-${p.city}-${p.state}`;
+                const el = document.querySelector(`tr[data-key="${key.replace(/"/g, '\\"')}"]`);
+                if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setSelectedKey(key);
+                setTimeout(() => setSelectedKey((k) => (k === key ? null : k)), 1600);
+              }}
+              onStateClick={(st) => {
+                const s = String(st || '').trim();
+                if (!s) return;
+                setStateFilter(s);
+              }}
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+              <span>Map markers:</span>
+              <button onClick={() => setMapKind('both')} className={`rounded-full px-2 py-1 border ${mapKind==='both'?'bg-gray-100 border-gray-300':'border-gray-200 hover:bg-gray-50'}`}>Both</button>
+              <button onClick={() => setMapKind('top')} className={`rounded-full px-2 py-1 border ${mapKind==='top'?'bg-green-100 border-green-300':'border-gray-200 hover:bg-gray-50'}`}>Top only</button>
+              <button onClick={() => setMapKind('bottom')} className={`rounded-full px-2 py-1 border ${mapKind==='bottom'?'bg-orange-100 border-orange-300':'border-gray-200 hover:bg-gray-50'}`}>Bottom only</button>
+              <span className="ml-3">Fill:</span>
+              <button onClick={() => setMapChoropleth(true)} className={`rounded-full px-2 py-1 border ${mapChoropleth?'bg-blue-100 border-blue-300':'border-gray-200 hover:bg-gray-50'}`}>By Total</button>
+              <button onClick={() => setMapChoropleth(false)} className={`rounded-full px-2 py-1 border ${!mapChoropleth?'bg-gray-100 border-gray-300':'border-gray-200 hover:bg-gray-50'}`}>Plain</button>
+              {stateFilter && (
+                <span className="ml-3 inline-flex items-center gap-2 rounded-full bg-gray-100 px-2 py-1 border border-gray-200">
+                  <span>State: {stateFilter}</span>
+                  <button className="text-gray-600 hover:text-gray-800" onClick={()=>setStateFilter(null)}>×</button>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Top and Bottom Performers */}
@@ -779,6 +875,35 @@ export default function Inventory() {
                 <option value={50}>50</option>
               </select>
             )}
+            <label className="ml-2 inline-flex items-center gap-1 text-sm text-gray-700">
+              <input type="checkbox" checked={hideUnknown} onChange={(e)=>setHideUnknown(e.target.checked)} />
+              Hide Unknown
+            </label>
+            <button
+              onClick={() => {
+                const rows = sortedAndFilteredData;
+                const header = ['Pincode','City','State','Orders','Customers','Total','Avg Order'];
+                const body = rows.map(r=>[
+                  r.pincode,
+                  r.city,
+                  r.state,
+                  String(r.orderCount),
+                  String(r.customerCount),
+                  String(r.totalAmount),
+                  String(Math.round(r.avgOrderValue))
+                ]);
+                const csv = [header, ...body].map(line => line.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'geo-insights.csv';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+              }}
+              className="ml-2 rounded-md border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+              title="Export current rows to CSV"
+            >
+              Export CSV
+            </button>
           </div>
 
           {/* Time Range Filter */}
@@ -864,7 +989,11 @@ export default function Inventory() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {pagedData.map((loc, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={idx}
+                    data-key={`${loc.pincode}-${loc.city}-${loc.state}`}
+                    className={`hover:bg-gray-50 transition-colors ${selectedKey === `${loc.pincode}-${loc.city}-${loc.state}` ? 'ring-2 ring-amber-300' : ''}`}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {loc.pincode}
                     </td>
@@ -1053,5 +1182,7 @@ function TableSkeleton() {
     </div>
   );
 }
+
+
 
 
