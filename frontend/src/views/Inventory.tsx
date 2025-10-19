@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Geo Insights Component
  *
  * Displays sales data organized by geographical location (pincode/city/state)
@@ -323,13 +323,17 @@ export default function Inventory() {
           }));
         };
 
-        setByChannel({
+        // Build per-channel aggregates and then enrich unknown city/state via pincode
+        let nextByChannel: Record<Channel, LocationSales[]> = {
           all: locationArray,
           online: aggregate(onlineItems),
           offline: aggregate(offlineItems),
           lok: aggregate(lokItems),
           rajradha: aggregate(rajradhaItems),
-        });
+        };
+        nextByChannel = await enrichCitiesFromPincode(nextByChannel);
+        setByChannel(nextByChannel);
+        setLocationData(nextByChannel.all);
       } catch (e: any) {
         setError(e?.message || "Failed to fetch geo insights data");
         console.error("Geo insights fetch error:", e);
@@ -417,7 +421,7 @@ export default function Inventory() {
         maximumFractionDigits: 0,
       }).format(n);
     } catch {
-      return `₹${Math.round(n).toLocaleString("en-IN")}`;
+      return `â‚¹${Math.round(n).toLocaleString("en-IN")}`;
     }
   };
 
@@ -495,6 +499,76 @@ export default function Inventory() {
   // Pagination derivations
   const totalRows = sortedAndFilteredData.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
+  // Cache pincode -> city/state for enrichment
+  const getPinCache = (): Record<string, { city?: string; state?: string }> => {
+    try { return JSON.parse(localStorage.getItem("rk_pin_meta") || "{}"); } catch { return {}; }
+  };
+  const setPinCache = (map: Record<string, { city?: string; state?: string }>) => {
+    try { localStorage.setItem("rk_pin_meta", JSON.stringify(map)); } catch {}
+  };
+
+  async function lookupPin(pin: string): Promise<{ city?: string; state?: string } | null> {
+    if (!pin || pin.length !== 6) return null;
+    const cache = getPinCache();
+    if (cache[pin]) return cache[pin];
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 4000);
+      const resp = await fetch(`https://api.postalpincode.in/pincode/${pin}`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!resp.ok) return null;
+      const json: any[] = await resp.json();
+      const first = json?.[0];
+      if (first?.Status === "Success" && Array.isArray(first?.PostOffice) && first.PostOffice.length > 0) {
+        const po = first.PostOffice[0];
+        const city = String(po?.District || po?.Block || po?.Name || "").trim() || undefined;
+        const state = String(po?.State || "").trim() || undefined;
+        const val = { city, state };
+        cache[pin] = val; setPinCache(cache);
+        return val;
+      }
+    } catch {}
+    return null;
+  }
+
+  async function enrichCitiesFromPincode(
+    data: Record<Channel, LocationSales[]>
+  ): Promise<Record<Channel, LocationSales[]>> {
+    const pins = new Set<string>();
+    for (const arr of Object.values(data)) {
+      for (const row of arr) {
+        if ((row.city === "Unknown" || row.state === "Unknown") && /^(\d){6}$/.test(row.pincode)) {
+          pins.add(row.pincode);
+        }
+      }
+    }
+    if (pins.size === 0) return data;
+
+    const pinList = Array.from(pins).slice(0, 200);
+    const results = await Promise.all(pinList.map(async (p) => ({ pin: p, meta: await lookupPin(p) })));
+    const map = new Map<string, { city?: string; state?: string }>();
+    for (const r of results) if (r.meta) map.set(r.pin, r.meta);
+    if (map.size === 0) return data;
+
+    const apply = (arr: LocationSales[]): LocationSales[] => arr.map((row) => {
+      const m = map.get(row.pincode);
+      if (!m) return row;
+      return {
+        ...row,
+        city: row.city === "Unknown" && m.city ? m.city : row.city,
+        state: row.state === "Unknown" && m.state ? m.state : row.state,
+      };
+    });
+
+    return {
+      all: apply(data.all),
+      online: apply(data.online),
+      offline: apply(data.offline),
+      lok: apply(data.lok),
+      rajradha: apply(data.rajradha),
+    };
+  }
   const pagedData = useMemo(() => {
     const start = (page - 1) * pageSize;
     const end = start + pageSize;
@@ -533,6 +607,15 @@ export default function Inventory() {
     [locationData]
   );
 
+  // Safer currency formatter used in UI to avoid mojibake
+  const formatINR = (n: number) => {
+    try {
+      return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+    } catch {
+      return `₹${Math.round(n).toLocaleString("en-IN")}`;
+    }
+  };
+
   return (
     <AppLayout>
       {/* Header Section */}
@@ -549,7 +632,7 @@ export default function Inventory() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
         <SummaryCard
           label="Total Sales"
-          value={fmtINR(totalMetrics.totalSales)}
+          value={formatINR(totalMetrics.totalSales)}
           loading={loading}
         />
         <SummaryCard
@@ -570,7 +653,7 @@ export default function Inventory() {
           {/* Top Performers */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-green-900 mb-3 flex items-center gap-2">
-              <span className="text-2xl">🏆</span>
+              <span className="text-2xl">▲</span>
               Top 5 Performing Locations
             </h3>
             <div className="space-y-2">
@@ -588,7 +671,7 @@ export default function Inventory() {
                     </p>
                   </div>
                   <p className="font-bold text-green-700">
-                    {fmtINR(loc.totalAmount)}
+                    {formatINR(loc.totalAmount)}
                   </p>
                 </div>
               ))}
@@ -598,7 +681,7 @@ export default function Inventory() {
           {/* Bottom Performers */}
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-orange-900 mb-3 flex items-center gap-2">
-              <span className="text-2xl">📊</span>
+              <span className="text-2xl">▼</span>
               Bottom 5 Performing Locations
             </h3>
             <div className="space-y-2">
@@ -616,7 +699,7 @@ export default function Inventory() {
                     </p>
                   </div>
                   <p className="font-bold text-orange-700">
-                    {fmtINR(loc.totalAmount)}
+                    {formatINR(loc.totalAmount)}
                   </p>
                 </div>
               ))}
@@ -792,13 +875,13 @@ export default function Inventory() {
                       {loc.state}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
-                      {fmtINR(loc.totalAmount)}
+                      {formatINR(loc.totalAmount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
                       {loc.orderCount.toLocaleString("en-IN")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                      {fmtINR(loc.avgOrderValue)}
+                      {formatINR(loc.avgOrderValue)}
                     </td>
                   </tr>
                 ))}
@@ -840,7 +923,7 @@ export default function Inventory() {
               className="rounded-md border px-2 py-1 disabled:opacity-50"
               title="First page"
             >
-              «
+              Â«
             </button>
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -867,7 +950,7 @@ export default function Inventory() {
               className="rounded-md border px-2 py-1 disabled:opacity-50"
               title="Last page"
             >
-              »
+              Â»
             </button>
           </div>
         </div>
@@ -934,7 +1017,7 @@ function SortableHeader({
       >
         <span>{label}</span>
         <span className="text-gray-400">
-          {isActive ? (isAsc ? "↑" : "↓") : "↕"}
+          {isActive ? (isAsc ? "▲" : "▼") : "↕"}
         </span>
       </div>
     </th>
@@ -970,3 +1053,5 @@ function TableSkeleton() {
     </div>
   );
 }
+
+
