@@ -1,14 +1,15 @@
-﻿/**
- * Geo Insights Component
+/**
+ * Inventory Component
  *
  * Displays sales data organized by geographical location (pincode/city/state)
  * to identify areas with maximum and minimum sales performance.
  *
  * Features:
  * - Aggregated sales by location
+ * - Toggle between highest and lowest performing pincodes
  * - Sortable columns
- * - Top and bottom performing regions
- * - Multi-channel data (Online, Offline, Events)
+ * - Search filter
+ * - Time range filter
  * - Loading skeletons
  */
 
@@ -151,7 +152,6 @@ export default function Inventory() {
 
         // Extract and aggregate location data
         const locationMap = new Map<string, LocationSales>();
-        // Track unique customers per location for correct counts
         const customerSets = new Map<string, Set<string>>();
 
         allSales.forEach((sale) => {
@@ -356,7 +356,6 @@ export default function Inventory() {
         setLocationData(nextByChannel.all);
       } catch (e: any) {
         setError(e?.message || "Failed to fetch geo insights data");
-        console.error("Geo insights fetch error:", e);
       } finally {
         setLoading(false);
       }
@@ -366,30 +365,15 @@ export default function Inventory() {
   }, [days]);
 
   /**
-   * Helper function to extract values from rawJson with multiple possible keys
+   * Helper extractors and formatters
    */
-  function extractValue(
-    obj: Record<string, any>,
-    keys: string[]
-  ): string | null {
-    for (const key of keys) {
-      if (obj[key] && String(obj[key]).trim()) {
-        return String(obj[key]).trim();
-      }
-    }
-    return null;
-  }
-
-  // Case-insensitive extractor that also searches shallow nested keys and common variations
   function extractValueFlexible(
     obj: Record<string, any>,
     candidates: string[]
   ): string | null {
     if (!obj) return null;
-    const lowerMap = new Map<string, string | number | null | undefined>();
-    for (const [k, v] of Object.entries(obj)) {
-      lowerMap.set(k.toLowerCase(), v as any);
-    }
+    const lowerMap = new Map<string, any>();
+    for (const [k, v] of Object.entries(obj)) lowerMap.set(k.toLowerCase(), v);
     for (const name of candidates) {
       const key = name.toLowerCase();
       if (lowerMap.has(key)) {
@@ -397,7 +381,6 @@ export default function Inventory() {
         if (v != null && String(v).trim()) return String(v).trim();
       }
     }
-    // Search inside a shallow nested address object if present
     const addr =
       obj.address || obj.Address || obj.shippingAddress || obj.billingAddress;
     if (addr && typeof addr === "object") {
@@ -412,7 +395,6 @@ export default function Inventory() {
       String(raw)
         .match(/\d{3,}/g)
         ?.join("") || "";
-    // Prefer 6-digit Indian PIN; if more, take last 6 which often is the actual PIN in addresses
     if (digits.length >= 6) return digits.slice(-6);
     return digits || null;
   }
@@ -445,25 +427,20 @@ export default function Inventory() {
     }
   };
 
-  /**
-   * Handle column sorting
-   */
-  const handleSort = (key: keyof LocationSales) => {
+  const handleSort = (key: keyof LocationSales) =>
     setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === "desc" ? "asc" : "desc",
     }));
-  };
 
   /**
-   * Sort and filter data
+   * Data derivations
    */
   const sortedAndFilteredData = useMemo(() => {
     const base: LocationSales[] =
       selectedChannel === "all" ? locationData : byChannel[selectedChannel] || [];
     let filtered = [...base];
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -661,7 +638,7 @@ export default function Inventory() {
 
   return (
     <AppLayout>
-      {/* Header Section */}
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">
           {t("geo_insights")}
@@ -784,7 +761,7 @@ export default function Inventory() {
               {bottomPerformers.map((loc, idx) => (
                 <div
                   key={idx}
-                  className="flex justify-between items-center bg-white rounded p-2"
+                  className="flex justify-between items-center bg-white rounded p-2 shadow-sm hover:shadow transition-shadow"
                 >
                   <div>
                     <p className="font-medium text-gray-900">
@@ -831,7 +808,6 @@ export default function Inventory() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          {/* Search */}
           <div className="flex-1 max-w-md">
             <input
               type="text"
@@ -923,23 +899,15 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Data Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Table */}
+      <div id="geo-table" className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {loading ? (
           <TableSkeleton />
         ) : error ? (
-          <div className="p-8 text-center">
-            <p className="text-red-600 mb-2">Error loading data</p>
-            <p className="text-sm text-gray-500">{error}</p>
-          </div>
+          <div className="p-8 text-center text-red-600">{error}</div>
         ) : sortedAndFilteredData.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500">No location data available</p>
-            <p className="text-sm text-gray-400 mt-2">
-              {searchQuery
-                ? "Try adjusting your search query"
-                : "Sales data may not contain location information"}
-            </p>
+          <div className="p-8 text-center text-gray-500">
+            No location data available
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -997,16 +965,16 @@ export default function Inventory() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {loc.pincode}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td className="px-6 py-4 text-sm text-gray-700">
                       {loc.city}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td className="px-6 py-4 text-sm text-gray-700">
                       {loc.state}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                       {formatINR(loc.totalAmount)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
+                    <td className="px-6 py-4 text-sm text-gray-700 text-right">
                       {loc.orderCount.toLocaleString("en-IN")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
@@ -1089,8 +1057,7 @@ export default function Inventory() {
 }
 
 /**
- * Summary Card Component
- * Displays a metric with loading state
+ * Supporting UI Components
  */
 function SummaryCard({
   label,
@@ -1113,9 +1080,6 @@ function SummaryCard({
   );
 }
 
-/**
- * Sortable Table Header Component
- */
 function SortableHeader({
   label,
   sortKey,
@@ -1153,13 +1117,9 @@ function SortableHeader({
   );
 }
 
-/**
- * Table Loading Skeleton Component
- */
 function TableSkeleton() {
   return (
     <div className="p-6 space-y-4">
-      {/* Header skeleton */}
       <div className="flex gap-4">
         {[1, 2, 3, 4, 5, 6].map((i) => (
           <div
@@ -1168,10 +1128,9 @@ function TableSkeleton() {
           ></div>
         ))}
       </div>
-      {/* Row skeletons */}
-      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+      {[...Array(8)].map((_, i) => (
         <div key={i} className="flex gap-4">
-          {[1, 2, 3, 4, 5, 6].map((j) => (
+          {[...Array(6)].map((_, j) => (
             <div
               key={j}
               className="h-6 bg-gray-100 rounded flex-1 animate-pulse"

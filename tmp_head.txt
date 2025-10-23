@@ -1,0 +1,250 @@
+import React, { useEffect, useState, useMemo } from "react";
+import { IoMdInformationCircle } from "react-icons/io";
+import {
+  MdOutlineKeyboardArrowUp,
+  MdOutlineKeyboardArrowDown,
+  MdRefresh,
+} from "react-icons/md";
+import { apiClient } from "../../lib/apiClient";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
+
+/**
+ * Interactive Sales Dashboard with Real Data
+ * - Fetches live data from online sales API
+ * - Interactive cards with hover effects
+ * - Animated transitions
+ * - Quick actions and filters
+ */
+
+/*******************************\
+|* Tiny Icon Set (inline SVGs) *|
+\*******************************/
+const ArrowUp = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 20 20" aria-hidden="true" {...props}>
+    <path d="M10 3l5 6h-3v8H8V9H5l5-6z" fill="currentColor" />
+  </svg>
+);
+
+const InfoCircle = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+    <path
+      fill="currentColor"
+      d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 4a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 6zm-1.5 5h3v7h-3v-7z"
+    />
+  </svg>
+);
+
+const CameraIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+    <path
+      fill="currentColor"
+      d="M9 3l1.5 2H14l1.5-2H18a3 3 0 013 3v11a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3h3zM12 8a5 5 0 100 10 5 5 0 000-10z"
+    />
+  </svg>
+);
+
+const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+    <path
+      fill="currentColor"
+      d="M22 12a10 10 0 10-11.6 9.9v-7h-2.3V12h2.3V9.8c0-2.3 1.4-3.6 3.5-3.6 1 0 1.9.08 2.2.11v2.6h-1.5c-1.2 0-1.5.73-1.5 1.5V12h2.7l-.43 2.9h-2.3v7A10 10 0 0022 12z"
+    />
+  </svg>
+);
+
+/*********************\
+|* Basic UI Primitives *|
+\*********************/
+/** Rounded pill with tone */
+function Pill({
+  children,
+  tone = "gray",
+  className = "",
+}: React.PropsWithChildren<{
+  tone?: "blue" | "green" | "red" | "gray" | "amber";
+  className?: string;
+}>) {
+  const tones: Record<string, string> = {
+    blue: "bg-[#E5EEFF] text-[#2B4D9C]",
+    green: "bg-[#E9F7EF] text-[#1E7B4F]",
+    red: "bg-[#FDEBEE] text-[#C03548]",
+    gray: "bg-gray-100 text-gray-700",
+    amber: "bg-[#FFF4DE] text-[#A35C00]",
+  };
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold border border-black/5 ${tones[tone]} ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Understated button used in card footers */
+function FooterButton({
+  children,
+  onClick,
+}: React.PropsWithChildren<{ onClick?: () => void }>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-xl bg-[#F4F7FA] b-1 b-[#E5ECF4] text-[#3856B8] font-semibold py-2.5 text-sm hover:brightness-95 transition-all hover:shadow-md"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Generic soft Card with hover effect */
+function Card({
+  title,
+  children,
+  footer,
+  className = "",
+  hoverable = false,
+  onClick,
+}: React.PropsWithChildren<{
+  title?: React.ReactNode;
+  footer?: React.ReactNode;
+  className?: string;
+  hoverable?: boolean;
+  onClick?: () => void;
+}>) {
+  return (
+    <section
+      onClick={onClick}
+      className={`min-w-0 rounded-[22px] border border-black/10 bg-white shadow-sm transition-all duration-300 ${
+        hoverable ? "hover:shadow-xl hover:scale-[1.02] cursor-pointer" : ""
+      } ${className}`}
+    >
+      {title && (
+        <header className="px-4 sm:px-5 py-3 sm:py-4">
+          {typeof title === "string" ? (
+            <h2 className="text-[15px] sm:text-base font-semibold text-gray-900">
+              {title}
+            </h2>
+          ) : (
+            title
+          )}
+        </header>
+      )}
+
+      <div className="px-4 sm:px-5 pb-4 sm:pb-5">{children}</div>
+
+      {footer && (
+        <footer className="px-4 sm:px-5 py-3 border-t border-black/5">
+          {footer}
+        </footer>
+      )}
+    </section>
+  );
+}
+
+/***********************\
+|* Types & API Fetching *|
+\***********************/
+type SummaryResponse = {
+  ok: boolean;
+  paymentMode: { paymentMode: string; total: number }[];
+  timeSeries: { date: string; total: number }[];
+  topItems: {
+    title: string;
+    total: number;
+    qty: number;
+    isbn?: string;
+    author?: string;
+    language?: string;
+  }[];
+};
+
+type CountsResponse = {
+  ok: boolean;
+  totalCount: number;
+  totalAmount: number;
+  uniqueCustomers?: number;
+  refundCount?: number;
+};
+
+function formatINR(n: number): string {
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    return `₹${Math.round(n).toLocaleString("en-IN")}`;
+  }
+}
+
+function formatIN(tick: number) {
+  try {
+    return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(
+      tick
+    );
+  } catch {
+    return tick.toString();
+  }
+}
+
+// Colors for Online/Offline
+const ONLINE_COLOR = "#2B4D9C";
+const OFFLINE_COLOR = "#7EA6FF";
+
+/**********************\
+|* Section Components *|
+\**********************/
+function RevenueCard({
+  days,
+  setDays,
+  summary,
+  counts,
+  loading,
+  onRefresh,
+}: {
+  days: number;
+  setDays: (d: number) => void;
+  summary: SummaryResponse | null;
+  counts: CountsResponse | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const [activeView, setActiveView] = useState<"total" | "online" | "offline">(
+    "total"
+  );
+
+  const totalAmount = counts?.totalAmount || 0;
+  const totalOrders = counts?.totalCount || 0;
+
+  // Calculate growth
+  const growth = useMemo(() => {
+    const series = summary?.timeSeries || [];
+    if (series.length < 2)
+      return { pct: 0, dir: "flat" as "up" | "down" | "flat" };
+    const recent = series.slice(-Math.ceil(series.length / 2));
+    const prev = series.slice(0, Math.floor(series.length / 2));
+    const sum = (arr: { total: number }[]) =>
+      arr.reduce((a, b) => a + (b.total || 0), 0);
+    const a = sum(recent);
+    const b = sum(prev) || 1;
+    const pct = ((a - b) / b) * 100;
+    return { pct, dir: pct > 0 ? "up" : pct < 0 ? "down" : "flat" };
+  }, [summary]);
+
+  const chartData = useMemo(() => {
+    return (summary?.timeSeries || []).map((d) => ({
+      name: new Date(d.date).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+      }),
+      online: d.total,
+      offline: d.total * 0.3, // Mock offline as 30% of online for demo
