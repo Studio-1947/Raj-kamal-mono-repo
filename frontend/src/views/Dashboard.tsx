@@ -22,6 +22,7 @@ import AppLayout from "../shared/AppLayout";
 import GenericSalesWidget from "../features/sales/client/GenericSalesWidget";
 import OnlineSalesList from "../features/sales/client/OnlineSalesList";
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from 'react';
 import { apiClient } from "../lib/apiClient";
 
 /**
@@ -341,20 +342,14 @@ export default function Dashboard() {
       <p className="mt-2 text-[#C41E3A]">{t("dashboard_subtitle")}</p>
 
       {/* Overall Metrics Section - Shows aggregated data across all channels */}
-      <div className="mt-6">
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">
-          Overall Sales (All Channels)
-        </h2>
-
+      <CollapsibleSection title="Overall Sales (All Channels)" storageKey="rk_dash_sec_overall" className="mt-6">
         {loading ? (
-          // Loading skeleton for overall metrics
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
               <StatCardSkeleton key={i} />
             ))}
           </div>
         ) : (
-          // Actual metric cards with data
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label={t("total_sales")}
@@ -370,39 +365,19 @@ export default function Dashboard() {
               fromLastWeek={t("from_last_week")}
               negative={ordersDelta.negative}
             />
-            {/* <StatCard
-              label={t("customers")}
-              value={metrics.uniqueCustomers.toLocaleString("en-IN")}
-              delta={customersDelta.pct}
-              fromLastWeek={t("from_last_week")}
-              negative={customersDelta.negative}
-            />
-            <StatCard
-              label={t("refunds")}
-              value={metrics.refundCount.toLocaleString("en-IN")}
-              delta={refundsDelta.pct}
-              fromLastWeek={t("from_last_week")}
-              negative={refundsDelta.negative}
-            /> */}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       {/* Sale Type Breakdown Section - Shows individual channel performance */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">
-          Sales by Channel
-        </h2>
-
+      <CollapsibleSection title="Sales by Channel" storageKey="rk_dash_sec_channels" className="mt-8">
         {loading ? (
-          // Loading skeleton for channel breakdown
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {SALE_TYPES.map((saleType) => (
               <ChannelCardSkeleton key={saleType.name} color={saleType.color} />
             ))}
           </div>
         ) : (
-          // Actual channel cards with data
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {SALE_TYPES.map((saleType) => {
               const data = saleTypeMetrics[saleType.name];
@@ -438,37 +413,40 @@ export default function Dashboard() {
             })}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       {/* Individual Sale Type Graphs Section - Detailed analytics for each channel */}
-      <div className="mt-8 space-y-8">
-        <h2 className="text-lg font-semibold text-gray-700">
-          Detailed Sales Analytics
-        </h2>
+      <CollapsibleSection title="Detailed Sales Analytics" storageKey="rk_dash_sec_analytics" className="mt-8">
+        <div className="space-y-8">
+          {SALE_TYPES.map((saleType) => (
+            <div key={saleType.name} className="space-y-4">
+              <GenericSalesWidget
+                title={saleType.displayName}
+                endpoint={saleType.endpoint}
+                color={saleType.chartColor}
+                badgeColor={saleType.badgeColor}
+                days={days}
+                onDaysChange={setDays}
+              />
+            </div>
+          ))}
+        </div>
+      </CollapsibleSection>
 
-        {SALE_TYPES.map((saleType) => (
-          <div key={saleType.name} className="space-y-4">
-            {/* GenericSalesWidget has its own loading states */}
-            <GenericSalesWidget
-              title={saleType.displayName}
-              endpoint={saleType.endpoint}
-              color={saleType.chartColor}
-              badgeColor={saleType.badgeColor}
-              days={days}
-              onDaysChange={setDays}
-            />
-          </div>
-        ))}
-      </div>
+      {/* Authors Section - Top/Bottom authors aggregated from online/offline/events */}
+      <CollapsibleSection title="Authors" storageKey="rk_dash_sec_authors" className="mt-8">
+        <AuthorsPanel days={days} />
+      </CollapsibleSection>
+
+      {/* Titles x Publisher (Offline + Events) */}
+      <CollapsibleSection title="Titles by Publisher (Offline & Events)" storageKey="rk_dash_sec_titles_publishers" className="mt-8">
+        <TitlesPublishersPanel days={days} />
+      </CollapsibleSection>
 
       {/* Online Sales List Section - Detailed list of recent online transactions */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">
-          Recent Online Sales
-        </h2>
-        {/* OnlineSalesList has its own loading states */}
+      <CollapsibleSection title="Recent Online Sales" storageKey="rk_dash_sec_recent" className="mt-8">
         <OnlineSalesList days={days} />
-      </div>
+      </CollapsibleSection>
 
       {/* Development Mode Debug Information */}
       {!loading && isDev && (loadErr || fromCache) && (
@@ -554,6 +532,622 @@ function ChannelCardSkeleton({ color }: { color: string }) {
 
       {/* Delta skeleton */}
       <div className="h-3 bg-gray-300 rounded w-20"></div>
+    </div>
+  );
+}
+
+// Collapsible wrapper used to toggle visibility of sections
+function CollapsibleSection({
+  title,
+  storageKey,
+  className,
+  children,
+}: {
+  title: string;
+  storageKey: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState<boolean>(() => {
+    try {
+      const s = localStorage.getItem(storageKey);
+      if (s === '0') return false;
+      if (s === '1') return true;
+    } catch {}
+    return true;
+  });
+  const toggle = () => {
+    setOpen((v) => {
+      const n = !v;
+      try { localStorage.setItem(storageKey, n ? '1' : '0'); } catch {}
+      return n;
+    });
+  };
+  return (
+    <div className={className}>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-700">{title}</h2>
+        <button
+          onClick={toggle}
+          className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          title={open ? 'Collapse' : 'Expand'}
+        >
+          {open ? 'Hide' : 'Show'}
+          <span className={`transition-transform ${open ? '' : 'rotate-180'}`}>▲</span>
+        </button>
+      </div>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
+// Shows rankings of Title x Publisher for Offline/Lok/RajRadha
+function TitlesPublishersPanel({ days }: { days: number }) {
+  type ListItem = { title?: string | null; publisher?: string | null; qty?: number | null; amount?: number | null; rate?: number | null; date?: string | null; rawJson?: Record<string, any> };
+  type ListResp = { ok: boolean; items: ListItem[] };
+
+  const [channel, setChannel] = useState<'all' | 'offline' | 'lok' | 'rajradha'>('all');
+  const [view, setView] = useState<'top' | 'bottom'>('top');
+  const [topN, setTopN] = useState<number>(25);
+  const [rows, setRows] = useState<Array<{ key: string; title: string; publisher: string; qty: number; total: number }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isDev = String((import.meta as any).env?.VITE_DEV_MODE ?? '').toLowerCase() === 'true';
+  const [debug, setDebug] = useState<{ fetched: Record<string, number>; afterFilter: number } | null>(null);
+
+  const endpoints: Record<'offline'|'lok'|'rajradha', string> = {
+    offline: 'offline-sales',
+    lok: 'lok-event-sales',
+    rajradha: 'rajradha-event-sales',
+  };
+
+  const parseNumber = (v: any): number | null => {
+    if (v == null || v === '') return null;
+    try {
+      const n = typeof v === 'string' ? Number(v.replace(/[\,\s]/g, '')) : Number(v);
+      return Number.isFinite(n) ? n : null;
+    } catch { return null; }
+  };
+
+  const computeAmount = (it: ListItem): number => {
+    const direct = parseNumber(it.amount);
+    if (direct) return direct;
+    const raw = (it.rawJson || {}) as Record<string, any>;
+    const fields = ['Selling Price','Amount','Total','amount','SellingPrice','Selling_Price','AMOUNT','Net Amount','NET AMOUNT','NetAmount','NETAMOUNT','Gross Amount','GROSS AMOUNT'];
+    for (const f of fields) {
+      const n = parseNumber((raw as any)[f]);
+      if (n) return n;
+    }
+    const rate = parseNumber(it.rate) ?? parseNumber((raw as any)['Rate']) ?? parseNumber((raw as any)['BOOKRATE']) ?? 0;
+    const qty = parseNumber(it.qty) ?? parseNumber((raw as any)['Qty']) ?? parseNumber((raw as any)['OUT']) ?? 0;
+    return (rate || 0) * (qty || 0);
+  };
+
+  const extractTitle = (it: ListItem): string | null => {
+    const t0 = (it.title && String(it.title).trim()) || '';
+    if (t0) return t0;
+    const raw = (it.rawJson || {}) as Record<string, any>;
+    const fields = ['Title','title','BookName','Book','book','Product','Item','Description','Product Name','Item Name'];
+    for (const f of fields) {
+      const v = (raw as any)[f];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return null;
+  };
+
+  const extractPublisher = (it: ListItem): string | null => {
+    if (it.publisher && String(it.publisher).trim()) return String(it.publisher).trim();
+    const raw = (it.rawJson || {}) as Record<string, any>;
+    const fields = ['Publisher','publisher','PUBLISHER','Publication','publication','Published By','Publisher Name','Publication Name','Imprint','Brand','Seller','SOLD BY','Sold By','PublisherName'];
+    for (const f of fields) {
+      const v = (raw as any)[f];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return 'Unknown Publisher';
+  };
+
+  useEffect(() => {
+    async function run() {
+      setLoading(true); setError(null);
+      try {
+        const now = new Date();
+        const since = new Date(now.getTime() - days * 86400000);
+        const qs = new URLSearchParams({ limit: '1000', startDate: since.toISOString(), endDate: now.toISOString() }).toString();
+
+        const fetchChannel = async (ch: 'offline'|'lok'|'rajradha'): Promise<ListItem[]> => {
+          let list = await apiClient.get<ListResp>(`${endpoints[ch]}?${qs}`);
+          let items = list.items || [];
+          const fetchedPrimary = items.length;
+          if (!items.length) {
+            try {
+              const fallback = await apiClient.get<ListResp>(`${endpoints[ch]}?limit=5000`);
+              const sinceTs = +since; const endTs = +now;
+              const parseRowDate = (it: ListItem): number | null => {
+                if (it.date) { const d = new Date(it.date); if (!isNaN(+d)) return +d; }
+                const raw = (it.rawJson || {}) as Record<string, any>;
+                const keys = ['Date','Txn Date','Transaction Date','Trnsdocdate'];
+                for (const k of keys) { const v = (raw as any)[k]; if (typeof v === 'string' && v.trim()) { const d = new Date(v); if (!isNaN(+d)) return +d; } }
+                return null;
+              };
+              items = (fallback.items || []).filter(it => {
+                const t = parseRowDate(it);
+                if (t == null) return true;
+                return t >= sinceTs && t <= endTs;
+              });
+            } catch {}
+          }
+          return items;
+        };
+
+        let all: ListItem[] = [];
+        const fetchedCounts: Record<string, number> = {};
+        if (channel === 'all') {
+          const [o1, o2, o3] = await Promise.all([
+            fetchChannel('offline'), fetchChannel('lok'), fetchChannel('rajradha')
+          ]);
+          fetchedCounts['offline'] = o1.length; fetchedCounts['lok'] = o2.length; fetchedCounts['rajradha'] = o3.length;
+          all = [...o1, ...o2, ...o3];
+        } else {
+          const ch = channel === 'offline' ? 'offline' : channel === 'lok' ? 'lok' : 'rajradha';
+          const single = await fetchChannel(ch);
+          fetchedCounts[ch] = single.length;
+          all = single;
+        }
+
+        // Aggregate by (publisher, title)
+        const map = new Map<string, { title: string; publisher: string; qty: number; total: number }>();
+        for (const it of all) {
+          const title = extractTitle(it) || 'Untitled Item';
+          const publisher = extractPublisher(it);
+          const qty = parseNumber(it.qty) ?? 0;
+          const amt = computeAmount(it);
+          const key = `${publisher}__${title}`;
+          const cur = map.get(key) || { title, publisher, qty: 0, total: 0 };
+          cur.qty += qty;
+          cur.total += amt;
+          map.set(key, { ...cur, publisher: publisher || '' });
+        }
+
+        let listRows = Array.from(map.values())
+          .filter(r => r.qty > 0 || r.total > 0)
+          .sort((a, b) => (b.total - a.total) || (b.qty - a.qty));
+        if (view === 'bottom') listRows = listRows.slice(-topN).reverse();
+        else listRows = listRows.slice(0, topN);
+
+        setRows(listRows.map(r => ({ key: `${r.publisher}__${r.title}`, ...r })));
+        setDebug({ fetched: fetchedCounts, afterFilter: listRows.length });
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load');
+      } finally {
+        setLoading(false);
+      }
+    }
+    run();
+  }, [days, channel, view, topN]);
+
+  const fmtINR = (n: number) => {
+    try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n); }
+    catch { return `₹${Math.round(n).toLocaleString('en-IN')}`; }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="mb-3 flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
+          {[
+            { key: 'all', label: 'All' },
+            { key: 'offline', label: 'Offline' },
+            { key: 'lok', label: 'Lok Event' },
+            { key: 'rajradha', label: 'RajRadha' },
+          ].map((tab: any) => (
+            <button key={tab.key} className={`px-2.5 py-1 rounded-full font-semibold ${channel===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setChannel(tab.key)}>{tab.label}</button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs ml-auto">
+          <button className={`px-2.5 py-1 rounded-full font-semibold ${view==='top' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setView('top')}>Top</button>
+          <button className={`px-2.5 py-1 rounded-full font-semibold ${view==='bottom' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setView('bottom')}>Bottom</button>
+        </div>
+        <label className="text-xs text-gray-600">Show</label>
+        <select className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={topN} onChange={(e) => setTopN(Number(e.target.value))}>
+          {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm text-gray-900">
+          <thead>
+            <tr className="border-b bg-gray-100 text-gray-800">
+              <th className="px-2 py-2 font-semibold">Title</th>
+              <th className="px-2 py-2 font-semibold">Publisher</th>
+              <th className="px-2 py-2 font-semibold">Units</th>
+              <th className="px-2 py-2 font-semibold">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={4} className="px-2 py-4 text-sm text-gray-500">Loading…</td></tr>
+            )}
+            {!loading && rows.map(r => (
+              <tr key={r.key} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="px-2 py-2 max-w-[420px] truncate" title={r.title}>{r.title}</td>
+                <td className="px-2 py-2">{r.publisher}</td>
+                <td className="px-2 py-2">{r.qty.toLocaleString('en-IN')}</td>
+                <td className="px-2 py-2">{fmtINR(r.total)}</td>
+              </tr>
+            ))}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={4} className="px-2 py-6 text-center text-gray-500">No data for this period</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {!loading && error && <div className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-800">{error}</div>}
+      {!loading && isDev && debug && (
+        <div className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-700 border border-slate-200">
+          Dev: fetched {JSON.stringify(debug.fetched)}; afterFilter={debug.afterFilter}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Lightweight Authors panel for Top/Bottom author listings
+function AuthorsPanel({ days }: { days: number }) {
+  type SummaryResponse = {
+    ok: boolean;
+    timeSeries: { date: string; total: number }[];
+    paymentMode?: { paymentMode: string; total: number }[];
+    topItems?: { title: string; total: number; qty: number; isbn?: string; author?: string; language?: string }[];
+  };
+
+  const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'top' | 'bottom'>("top");
+  const [topN, setTopN] = useState<number>(10);
+  const [channel, setChannel] = useState<'all' | 'online' | 'offline' | 'lok' | 'rajradha'>('all');
+  const [entity, setEntity] = useState<'author' | 'publisher' | 'title'>("author");
+
+  // Fetch and aggregate authors per channel
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      setLoading(true);
+      setError(null);
+      try {
+        const now = new Date();
+        const since = new Date(now.getTime() - days * 86400000);
+        const qs = new URLSearchParams({
+          limit: '1000',
+          startDate: since.toISOString(),
+          endDate: now.toISOString(),
+        }).toString();
+
+        type ListItem = { title?: string | null; qty?: number | null; amount?: number | null; rate?: number | null; date?: string | null; rawJson?: Record<string, any> };
+        type ListResp = { ok: boolean; items: ListItem[] };
+
+        const endpoints: Record<'online'|'offline'|'lok'|'rajradha', string> = {
+          online: 'online-sales',
+          offline: 'offline-sales',
+          lok: 'lok-event-sales',
+          rajradha: 'rajradha-event-sales',
+        };
+
+        const extractAuthor = (raw?: Record<string, any>, title?: string | null): string | null => {
+          if (raw) {
+            const candidates = [
+              'Author','author','AUTHOR','Author Name','AuthorName','Author(s)',
+              'Writer','writer','Writer Name','WriterName','WRITER',
+              'Book Author','BOOKAUTHOR','AUTH','AUT'
+            ];
+            for (const k of Object.keys(raw)) {
+              if (candidates.some(c => c.toLowerCase() === k.toLowerCase())) {
+                const v = (raw as any)[k];
+                if (typeof v === 'string' && v.trim()) return v.trim();
+              }
+            }
+          }
+          // Heuristic: extract after "by" in title
+          const t = (title || '').toString();
+          const byIdx = t.toLowerCase().lastIndexOf(' by ');
+          if (byIdx > -1) {
+            const guess = t.slice(byIdx + 4).trim();
+            if (guess) return guess;
+          }
+          return null;
+        };
+
+        const extractPublisher = (raw?: Record<string, any>): string | null => {
+          if (!raw) return null;
+          const candidates = [
+            'Publisher','publisher','PUBLISHER','Publication','publication','Published By','Publisher Name','Publication Name','Imprint','Brand','Seller','SOLD BY','Sold By','PublisherName'
+          ];
+          for (const k of Object.keys(raw)) {
+            if (candidates.some(c => c.toLowerCase() === k.toLowerCase())) {
+              const v = (raw as any)[k];
+              if (typeof v === 'string' && v.trim()) return v.trim();
+            }
+          }
+          return null;
+        };
+
+        const parseNumber = (v: any): number | null => {
+          if (v == null || v === '') return null;
+          try {
+            const n = typeof v === 'string' ? Number(v.replace(/[,\s]/g, '')) : Number(v);
+            return Number.isFinite(n) ? n : null;
+          } catch { return null; }
+        };
+
+        const computeAmount = (it: ListItem): number => {
+          const direct = parseNumber(it.amount);
+          if (direct) return direct;
+          const raw = it.rawJson || {} as Record<string, any>;
+          const fields = ['Selling Price','Amount','Total','amount','SellingPrice','Selling_Price','AMOUNT','Net Amount','NET AMOUNT','NetAmount','NETAMOUNT','Gross Amount','GROSS AMOUNT'];
+          for (const f of fields) {
+            const n = parseNumber((raw as any)[f]);
+            if (n) return n;
+          }
+          const rate = parseNumber(it.rate) ?? parseNumber((raw as any)['Rate']) ?? parseNumber((raw as any)['BOOKRATE']) ?? 0;
+          const qty = parseNumber(it.qty) ?? parseNumber((raw as any)['Qty']) ?? parseNumber((raw as any)['OUT']) ?? 0;
+          return (rate || 0) * (qty || 0);
+        };
+
+        const extractTitle = (it: ListItem): string | null => {
+          const t0 = (it.title && String(it.title).trim()) || '';
+          if (t0) return t0;
+          const raw = it.rawJson || {} as Record<string, any>;
+          const fields = ['Title','title','BookName','Book','book','Product','Item','Description','Product Name','Item Name'];
+          for (const f of fields) {
+            const v = (raw as any)[f];
+            if (typeof v === 'string' && v.trim()) return v.trim();
+          }
+          return null;
+        };
+
+        async function fetchChannel(ch: 'online'|'offline'|'lok'|'rajradha'): Promise<ListItem & { author?: string|null; publisher?: string|null }[]> {
+          // Prefer online summary for authors (it carries author field), else fallback to list
+          if (ch === 'online') {
+            try {
+              const s = await apiClient.get<SummaryResponse>(`${endpoints[ch]}/summary?days=${days}`);
+              if (s?.topItems?.length) {
+                return s.topItems.map((ti) => ({ title: ti.title, qty: ti.qty, amount: ti.total, author: ti.author || null, publisher: null }));
+              }
+            } catch {}
+          }
+          // First try with server-side date filter (fast path)
+          let list = await apiClient.get<ListResp>(`${endpoints[ch]}?${qs}`);
+          let arr: (ListItem & { author?: string|null; publisher?: string|null })[] = (list.items || []).map((it: any) => {
+            const title = it.title || null;
+            const raw = it.rawJson as Record<string, any> | undefined;
+            const dbAuthor = (typeof it.author === 'string' && it.author.trim()) ? String(it.author).trim() : null;
+            const dbPublisher = (typeof it.publisher === 'string' && it.publisher.trim()) ? String(it.publisher).trim() : null;
+            const author = dbAuthor || extractAuthor(raw, title);
+            const publisher = dbPublisher || extractPublisher(raw);
+            return { ...it, author, publisher };
+          });
+
+          // If empty (common when dates are missing in DB), fallback to broader fetch and client-side filter
+          if (!arr.length) {
+            try {
+              const fallback = await apiClient.get<ListResp>(`${endpoints[ch]}?limit=5000`);
+              const sinceTs = since.getTime();
+              const endTs = now.getTime();
+              const parseRowDate = (it: ListItem): number | null => {
+                if (it.date) {
+                  const d = new Date(it.date);
+                  if (!isNaN(+d)) return +d;
+                }
+                const raw = it.rawJson || {} as Record<string, any>;
+                const keys = ['Date','Txn Date','Transaction Date','Trnsdocdate'];
+                for (const k of keys) {
+                  const v = (raw as any)[k];
+                  if (typeof v === 'string' && v.trim()) {
+                    const d = new Date(v);
+                    if (!isNaN(+d)) return +d;
+                  }
+                }
+                return null;
+              };
+              arr = (fallback.items || [])
+                .filter((it) => {
+                  const t = parseRowDate(it);
+                  if (t == null) return true; // include undated rows so we don't lose sales
+                  return t >= sinceTs && t <= endTs;
+                })
+                .map((it: any) => {
+                  const title = it.title || null;
+                  const raw = it.rawJson as Record<string, any> | undefined;
+                  const dbAuthor = (typeof it.author === 'string' && it.author.trim()) ? String(it.author).trim() : null;
+                  const dbPublisher = (typeof it.publisher === 'string' && it.publisher.trim()) ? String(it.publisher).trim() : null;
+                  const author = dbAuthor || extractAuthor(raw, title);
+                  const publisher = dbPublisher || extractPublisher(raw);
+                  return { ...it, author, publisher };
+                });
+            } catch {}
+          }
+          return arr;
+        }
+
+        let items: { title?: string|null; qty?: number|null; amount?: number|null; author?: string|null; publisher?: string|null; rate?: number|null; rawJson?: Record<string, any> }[] = [];
+        if (channel === 'all') {
+          const [o, f, l, r] = await Promise.all([
+            fetchChannel('online'),
+            fetchChannel('offline'),
+            fetchChannel('lok'),
+            fetchChannel('rajradha'),
+          ]);
+          items = [...o, ...f, ...l, ...r];
+        } else {
+          const ch = channel === 'online' ? 'online' : channel === 'offline' ? 'offline' : channel === 'lok' ? 'lok' : 'rajradha';
+          items = await fetchChannel(ch);
+        }
+
+        // Build a fake summary object with topItems carrying author info so downstream stays same
+        const map = new Map<string, { total: number; qty: number }>();
+        const authorOfTitle = new Map<string, string>();
+        const publisherOfTitle = new Map<string, string>();
+        for (const it of items) {
+          const title = extractTitle(it) || 'Untitled Item';
+          const amt = computeAmount(it);
+          const qty = parseNumber(it.qty) ?? 0;
+          const prev = map.get(title) || { total: 0, qty: 0 };
+          prev.total += isFinite(amt) ? amt : 0;
+          prev.qty += isFinite(qty) ? qty : 0;
+          map.set(title, prev);
+          const a = (it.author && it.author.trim()) || extractAuthor(it.rawJson, title) || null;
+          if (a && !authorOfTitle.has(title)) authorOfTitle.set(title, a);
+          const p = (it.publisher && it.publisher.trim()) || extractPublisher(it.rawJson) || null;
+          if (p && !publisherOfTitle.has(title)) publisherOfTitle.set(title, p);
+        }
+
+        const topItems = Array.from(map.entries()).map(([title, v]) => ({
+          title,
+          total: v.total,
+          qty: v.qty,
+          author: authorOfTitle.get(title),
+          publisher: publisherOfTitle.get(title),
+        })).filter(it => (it.total ?? 0) > 0 || (it.qty ?? 0) > 0);
+
+        if (cancelled) return;
+        setSummary({ ok: true, timeSeries: [], topItems });
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || 'Failed to load authors');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [days, channel]);
+
+  const authors = useMemo(() => {
+    const items = summary?.topItems || [];
+    if (!items.length) return [] as { name: string; total: number; qty: number; books: number }[];
+    const mapAgg = new Map<string, { total: number; qty: number; books: number }>();
+    for (const it of items) {
+      if (!it || !it.title || ((it.total ?? 0) <= 0 && (it.qty ?? 0) <= 0)) continue;
+      let key = '';
+      if (entity === 'author') key = (it as any).author && String((it as any).author).trim() || 'Unknown Author';
+      else if (entity === 'publisher') key = (it as any).publisher && String((it as any).publisher).trim() || 'Unknown Publisher';
+      else key = String(it.title).trim() || 'Untitled Item';
+      const cur = mapAgg.get(key) || { total: 0, qty: 0, books: 0 };
+      cur.total += it.total || 0;
+      cur.qty += it.qty || 0;
+      // books = unique titles contributing to this key
+      cur.books += 1;
+      mapAgg.set(key, cur);
+    }
+    return Array.from(mapAgg.entries())
+      .map(([name, v]) => ({ name, total: v.total, qty: v.qty, books: v.books }))
+      .sort((a, b) => (b.total - a.total) || (b.qty - a.qty));
+  }, [summary, entity]);
+
+  const rows = useMemo(() => {
+    if (view === 'top') return authors.slice(0, topN);
+    return authors.filter(a => a.total > 0 || a.qty > 0).slice(-topN).reverse();
+  }, [authors, view, topN]);
+
+  const fmtINR = (n: number) => {
+    try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n); }
+    catch { return `₹${Math.round(n).toLocaleString('en-IN')}`; }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="text-sm font-semibold text-gray-900">{entity === 'author' ? 'Author Rankings' : entity === 'publisher' ? 'Publisher Rankings' : 'Title Rankings'}</div>
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
+            {[
+              { key: 'author', label: 'Authors' },
+              { key: 'publisher', label: 'Publishers' },
+              { key: 'title', label: 'Titles' },
+            ].map((tab: any) => (
+              <button
+                key={tab.key}
+                className={`px-2.5 py-1 rounded-full font-semibold ${entity===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+                onClick={() => setEntity(tab.key)}
+              >{tab.label}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'online', label: 'Online' },
+              { key: 'offline', label: 'Offline' },
+              { key: 'lok', label: 'Lok Event' },
+              { key: 'rajradha', label: 'RajRadha' },
+            ].map((tab: any) => (
+              <button
+                key={tab.key}
+                className={`px-2.5 py-1 rounded-full font-semibold ${channel===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+                onClick={() => setChannel(tab.key)}
+              >{tab.label}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
+            <button
+              className={`px-2.5 py-1 rounded-full font-semibold ${view==='top' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+              onClick={() => setView('top')}
+            >Top</button>
+            <button
+              className={`px-2.5 py-1 rounded-full font-semibold ${view==='bottom' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+              onClick={() => setView('bottom')}
+            >Bottom</button>
+          </div>
+          <label className="text-xs text-gray-600">Show</label>
+          <select
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            value={topN}
+            onChange={(e) => setTopN(Number(e.target.value))}
+          >
+            {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm text-gray-900">
+          <thead>
+            <tr className="border-b bg-gray-100 text-gray-800">
+              <th className="px-2 py-2 font-semibold">{entity === 'author' ? 'Author' : entity === 'publisher' ? 'Publisher' : 'Title'}</th>
+              {entity !== 'title' && (
+                <th className="px-2 py-2 font-semibold">Books</th>
+              )}
+              <th className="px-2 py-2 font-semibold">Units</th>
+              <th className="px-2 py-2 font-semibold">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={entity==='title' ? 3 : 4} className="px-2 py-4 text-sm text-gray-500">Loading…</td>
+              </tr>
+            )}
+            {!loading && rows.map((a) => (
+              <tr key={a.name} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="px-2 py-2 max-w-[340px] truncate" title={a.name}>{a.name}</td>
+                {entity !== 'title' && (
+                  <td className="px-2 py-2">{a.books}</td>
+                )}
+                <td className="px-2 py-2">{a.qty.toLocaleString('en-IN')}</td>
+                <td className="px-2 py-2">{fmtINR(a.total)}</td>
+              </tr>
+            ))}
+            {!loading && rows.length === 0 && (
+              <tr>
+                <td colSpan={entity==='title' ? 3 : 4} className="px-2 py-6 text-center text-gray-500">No data for this period</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {!loading && error && (
+        <div className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-800">{error}</div>
+      )}
     </div>
   );
 }

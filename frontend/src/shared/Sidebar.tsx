@@ -60,7 +60,7 @@ export default function Sidebar() {
   const location = useLocation();
   const { t } = useLang();
   const navigate = useNavigate();
-  const { logout: clientLogout } = useAuth();
+  const { logout: clientLogout, user } = useAuth();
   const logoutMutation = useLogout();
 
   function handleLogout() {
@@ -216,7 +216,7 @@ export default function Sidebar() {
           <div ref={amodRef} className="relative">
             <button
               onClick={() => setOpenMenu((v) => (v === "amod" ? null : "amod"))}
-              title={collapsed ? "Account" : undefined}
+              title={collapsed ? (user?.name || "Account") : undefined}
               className={
                 !collapsed
                   ? "flex w-full items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700 hover:bg-rose-100"
@@ -228,7 +228,7 @@ export default function Sidebar() {
               </div>
               {!collapsed && (
                 <>
-                  <span className="text-sm">Amod M.</span>
+                  <span className="text-sm">{user?.name || "Account"}</span>
                   <IconChevronDown
                     className={`ml-auto h-4 w-4 transition-transform ${
                       openMenu === "amod" ? "rotate-180" : ""

@@ -46,6 +46,67 @@ function resolveRowDate(r: any): Date | null {
   return d;
 }
 
+// GET /api/lok-event-sales?limit=200&cursorId=<id>
+router.get('/', async (req, res) => {
+  const Q = z.object({
+    limit: z.string().regex(/^\d+$/).transform(Number).default('200').pipe(z.number().min(1).max(1000)),
+    cursorId: z.string().regex(/^\d+$/).optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    q: z.string().optional(),
+  });
+  const parsed = Q.safeParse({
+    limit: req.query.limit ?? '200',
+    cursorId: req.query.cursorId,
+    startDate: req.query.startDate,
+    endDate: req.query.endDate,
+    q: req.query.q,
+  });
+  if (!parsed.success) return res.status(400).json({ ok: false, error: 'Invalid query' });
+  const { limit, cursorId, startDate, endDate, q } = parsed.data;
+
+  try {
+    const where: any = {};
+    if (q) {
+      const contains = q.toString();
+      where.OR = [
+        { title: { contains, mode: 'insensitive' } },
+        { customerName: { contains, mode: 'insensitive' } },
+      ];
+    }
+
+    const fetchLimit = (startDate || endDate) ? Math.min(limit * 10, 5000) : limit;
+    const args: any = { take: fetchLimit, orderBy: { id: 'desc' as const }, where };
+    if (cursorId) {
+      args.skip = 1;
+      args.cursor = { id: BigInt(cursorId) };
+    }
+    const items = await prisma.lokEventSale.findMany(args);
+    const dataAll = items.map((it: any) => ({
+      ...it,
+      id: it.id?.toString?.() ?? String(it.id),
+      amount: it.amount != null ? round2(decToNumber(it.amount)) : null,
+      rate: it.rate != null ? round2(decToNumber(it.rate)) : null,
+    }));
+
+    const data = (startDate || endDate)
+      ? dataAll.filter((r: any) => {
+          const d = resolveRowDate(r);
+          if (!d) return false;
+          if (startDate && d < new Date(startDate)) return false;
+          if (endDate && d > new Date(endDate)) return false;
+          return true;
+        }).slice(0, limit)
+      : dataAll;
+
+    const last = (data as any[]).at(-1);
+    return res.json({ ok: true, items: data, nextCursorId: last?.id ?? null });
+  } catch (e: any) {
+    console.error('lok_event_sales_list_failed', e);
+    return res.status(500).json({ ok: false, error: 'Failed to fetch lok event sales' });
+  }
+});
+
 // GET /api/lok-event-sales/summary
 router.get('/summary', async (req, res) => {
   const Q = z.object({
