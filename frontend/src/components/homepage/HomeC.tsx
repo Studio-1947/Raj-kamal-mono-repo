@@ -123,14 +123,14 @@ function Card({
   return (
     <section
       onClick={onClick}
-      className={`min-w-0 rounded-[22px] border border-black/10 bg-white shadow-sm transition-all duration-300 ${
-        hoverable ? "hover:shadow-xl hover:scale-[1.02] cursor-pointer" : ""
+      className={`min-w-0 rounded-[22px] border border-black/10 bg-white shadow-sm transition-all duration-300 flex flex-col h-full ${
+        hoverable ? "hover:shadow-xl cursor-pointer" : ""
       } ${className}`}
     >
       {title && (
-        <header className="px-4 sm:px-5 py-3 sm:py-4">
+        <header className="px-4 sm:px-5 py-2 sm:py-3 flex-shrink-0">
           {typeof title === "string" ? (
-            <h2 className="text-[15px] sm:text-base font-semibold text-gray-900">
+            <h2 className="text-sm sm:text-[15px] font-semibold text-gray-900">
               {title}
             </h2>
           ) : (
@@ -139,10 +139,10 @@ function Card({
         </header>
       )}
 
-      <div className="px-4 sm:px-5 pb-4 sm:pb-5">{children}</div>
+      <div className="px-4 sm:px-5 pb-3 sm:pb-4">{children}</div>
 
       {footer && (
-        <footer className="px-4 sm:px-5 py-3 border-t border-black/5">
+        <footer className="px-4 sm:px-5 py-2 border-t border-black/5 flex-shrink-0">
           {footer}
         </footer>
       )}
@@ -306,7 +306,6 @@ function RevenueCard({
           </div>
         </div>
       }
-      className="lg:col-span-7 h-full"
     >
       {/* headline row */}
       <div className="flex flex-wrap items-center gap-3">
@@ -380,34 +379,35 @@ function RevenueCard({
       </div>
 
       {/* chart */}
-      <div className="mt-3 rounded-2xl border border-black/5 bg-white overflow-hidden">
+      <div className="mt-2 rounded-2xl border border-black/5 bg-white overflow-hidden">
         {chartData.length > 0 ? (
-          <div className="h-[180px] w-full">
+          <div className="h-[160px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={chartData}
-                margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                margin={{ top: 5, right: 12, left: 5, bottom: 0 }}
               >
                 <CartesianGrid stroke="#E5E7EB" vertical={false} />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 12, fill: "#6B7280" }}
+                  tick={{ fontSize: 10, fill: "#6B7280" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={formatIN}
-                  width={56}
-                  tick={{ fontSize: 12, fill: "#6B7280" }}
+                  width={48}
+                  tick={{ fontSize: 10, fill: "#6B7280" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <Tooltip
                   formatter={(value: number) => formatINR(value)}
-                  labelClassName="text-sm"
+                  labelClassName="text-xs"
                   contentStyle={{
                     borderRadius: 12,
                     border: "1px solid #e5e7eb",
+                    fontSize: "12px",
                   }}
                 />
                 <Line
@@ -415,24 +415,24 @@ function RevenueCard({
                   dataKey="online"
                   name="Online"
                   stroke={ONLINE_COLOR}
-                  strokeWidth={3}
-                  dot={{ r: 4, strokeWidth: 0, fill: ONLINE_COLOR }}
-                  activeDot={{ r: 6 }}
+                  strokeWidth={2.5}
+                  dot={{ r: 3, strokeWidth: 0, fill: ONLINE_COLOR }}
+                  activeDot={{ r: 5 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="offline"
                   name="Offline"
                   stroke={OFFLINE_COLOR}
-                  strokeWidth={3}
-                  dot={{ r: 4, strokeWidth: 0, fill: OFFLINE_COLOR }}
-                  activeDot={{ r: 6 }}
+                  strokeWidth={2.5}
+                  dot={{ r: 3, strokeWidth: 0, fill: OFFLINE_COLOR }}
+                  activeDot={{ r: 5 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="h-[220px] flex items-center justify-center text-gray-500">
+          <div className="h-[160px] flex items-center justify-center text-gray-500 text-sm">
             {loading ? "Reading chart..." : "No data available"}
           </div>
         )}
@@ -440,11 +440,11 @@ function RevenueCard({
 
       {/* info chip */}
       {summary?.paymentMode && summary.paymentMode.length > 0 && (
-        <div className="mt-3 rounded-2xl bg-gray-100 text-gray-700 px-4 py-3 flex items-center gap-2">
-          <span className="inline-flex items-center justify-center rounded-full bg-[#E5EEFF] text-[#43547E] w-6 h-6">
-            <IoMdInformationCircle className="w-8 h-8" />
+        <div className="mt-2 rounded-xl bg-gray-100 text-gray-700 px-3 py-2 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center rounded-full bg-[#E5EEFF] text-[#43547E] w-5 h-5">
+            <IoMdInformationCircle className="w-6 h-6" />
           </span>
-          <span className="text-sm">
+          <span className="text-xs">
             {summary.paymentMode[0]?.paymentMode || "Online"} contributed{" "}
             {summary.paymentMode[0]
               ? Math.round((summary.paymentMode[0].total / totalAmount) * 100)
@@ -502,7 +502,6 @@ function TopBookCard({
           </div>
         </div>
       }
-      className="lg:col-span-5 h-full"
       hoverable
       footer={
         <FooterButton onClick={() => (window.location.href = "/dashboard")}>
@@ -651,7 +650,6 @@ function TopAuthorCard({
           </div>
         </div>
       }
-      className="lg:col-span-5 h-full"
       hoverable
       footer={
         <FooterButton onClick={() => (window.location.href = "/dashboard")}>
@@ -915,7 +913,10 @@ function TopLocationsCard({ days }: { days: number }) {
 
   function normalizePincode(raw?: string | null): string | null {
     if (!raw) return null;
-    const digits = String(raw).match(/\d{3,}/g)?.join("") || "";
+    const digits =
+      String(raw)
+        .match(/\d{3,}/g)
+        ?.join("") || "";
     if (digits.length >= 6) return digits.slice(-6);
     return digits || null;
   }
@@ -948,8 +949,10 @@ function TopLocationsCard({ days }: { days: number }) {
           ]);
 
         const items: SaleItem[] = [];
-        if (onlineRes.status === "fulfilled") items.push(...onlineRes.value.items);
-        if (offlineRes.status === "fulfilled") items.push(...offlineRes.value.items);
+        if (onlineRes.status === "fulfilled")
+          items.push(...onlineRes.value.items);
+        if (offlineRes.status === "fulfilled")
+          items.push(...offlineRes.value.items);
         if (lokRes.status === "fulfilled") items.push(...lokRes.value.items);
         if (rajradhaRes.status === "fulfilled")
           items.push(...rajradhaRes.value.items);
@@ -1038,8 +1041,12 @@ function TopLocationsCard({ days }: { days: number }) {
 
   return (
     <Card
-      title={<span className="font-semibold text-[#000000]">Top 5 Performing Locations</span>}
-      className="h-full"
+      title={
+        <span className="font-semibold text-[#000000]">
+          Top 5 Performing Locations
+        </span>
+      }
+      className=""
       footer={
         <Link to="/inventory#geo-table">
           <FooterButton>View more</FooterButton>
@@ -1047,35 +1054,42 @@ function TopLocationsCard({ days }: { days: number }) {
       }
     >
       {loading ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+            <div key={i} className="h-6 bg-gray-100 rounded animate-pulse" />
           ))}
         </div>
       ) : error ? (
-        <div className="text-sm text-red-600">{error}</div>
+        <div className="text-xs text-red-600">{error}</div>
       ) : rows.length === 0 ? (
-        <div className="text-sm text-gray-500">No location data available</div>
+        <div className="text-xs text-gray-500">No location data available</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-xs">
             <thead>
               <tr className="text-gray-500">
-                <th className="py-2 pr-3 text-left font-medium">#</th>
-                <th className="py-2 pr-3 text-left font-medium">Pincode</th>
-                <th className="py-2 pr-3 text-left font-medium">City</th>
-                <th className="py-2 pr-3 text-left font-medium">State</th>
-                <th className="py-2 pl-3 text-right font-medium">Sales</th>
+                <th className="py-1 pr-2 text-left font-medium">#</th>
+                <th className="py-1 pr-2 text-left font-medium">Pincode</th>
+                <th className="py-1 pr-2 text-left font-medium">City</th>
+                <th className="py-1 pr-2 text-left font-medium">State</th>
+                <th className="py-1 pl-2 text-right font-medium">Sales</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r, idx) => (
-                <tr key={`${r.pincode}-${r.city}-${r.state}`} className="border-t border-gray-100">
-                  <td className="py-2 pr-3">{idx + 1}</td>
-                  <td className="py-2 pr-3 font-semibold text-gray-900">{r.pincode}</td>
-                  <td className="py-2 pr-3 text-gray-700">{r.city}</td>
-                  <td className="py-2 pr-3 text-gray-700">{r.state}</td>
-                  <td className="py-2 pl-3 text-right font-semibold text-gray-900">{formatINR(r.totalAmount)}</td>
+                <tr
+                  key={`${r.pincode}-${r.city}-${r.state}`}
+                  className="border-t border-gray-100"
+                >
+                  <td className="py-1 pr-2">{idx + 1}</td>
+                  <td className="py-1 pr-2 font-semibold text-gray-900">
+                    {r.pincode}
+                  </td>
+                  <td className="py-1 pr-2 text-gray-700">{r.city}</td>
+                  <td className="py-1 pr-2 text-gray-700">{r.state}</td>
+                  <td className="py-1 pl-2 text-right font-semibold text-gray-900">
+                    {formatINR(r.totalAmount)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1095,74 +1109,63 @@ function SocialMediaCard() {
           <Pill tone="green">All Good</Pill>
         </div>
       }
-      className="h-full"
+      className=""
       hoverable
       footer={<FooterButton>Know More</FooterButton>}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Panel 1 - Instagram */}
-        <div className="rounded-2xl border border-black/10 p-4 hover:shadow-md transition-all">
-          <div className="flex flex-col items-center gap-1 text-sm font-medium text-gray-700">
-            <CameraIcon className="w-5 h-5" /> Instagram
+        <div className="rounded-xl border border-black/10 p-3 hover:shadow-md transition-all">
+          <div className="flex flex-col items-center gap-1 text-xs font-medium text-gray-700 mb-3">
+            <CameraIcon className="w-5 h-5" />
+            <span>Instagram</span>
           </div>
-
-          <div className="mt-4 grid gap-3">
-            <div className="rounded-2xl bg-[#EAF1FF] px-4 py-3">
-              <div className="text-3xl font-extrabold">+835</div>
-              <div className="text-[11px] text-gray-600">
-                Followers from previous month
-              </div>
+          <div className="space-y-2">
+            <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
+              <div className="text-2xl font-extrabold text-gray-900">+835</div>
+              <div className="text-[11px] text-gray-600">Followers</div>
             </div>
-            <div className="rounded-2xl bg-[#EAF1FF] px-4 py-3">
-              <div className="text-3xl font-extrabold">+20%</div>
-              <div className="text-[11px] text-gray-600">
-                Views from previous month
-              </div>
+            <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
+              <div className="text-2xl font-extrabold text-gray-900">+20%</div>
+              <div className="text-[11px] text-gray-600">Views</div>
             </div>
           </div>
         </div>
 
         {/* Panel 2 - Facebook */}
-        <div className="rounded-2xl border border-black/10 p-4 hover:shadow-md transition-all">
-          <div className="flex flex-col items-center gap-1 text-sm font-medium text-gray-700">
-            <FacebookIcon className="w-5 h-5" /> Facebook
+        <div className="rounded-xl border border-black/10 p-3 hover:shadow-md transition-all">
+          <div className="flex flex-col items-center gap-1 text-xs font-medium text-gray-700 mb-3">
+            <FacebookIcon className="w-5 h-5" />
+            <span>Facebook</span>
           </div>
-          <div className="mt-4 grid gap-3">
-            <div className="rounded-2xl bg-[#EAF1FF] px-4 py-3">
-              <div className="text-3xl font-extrabold">+635</div>
-              <div className="text-[11px] text-gray-600">
-                Followers from previous month
-              </div>
+          <div className="space-y-2">
+            <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
+              <div className="text-2xl font-extrabold text-gray-900">+635</div>
+              <div className="text-[11px] text-gray-600">Followers</div>
             </div>
-            <div className="rounded-2xl bg-[#EAF1FF] px-4 py-3">
-              <div className="text-3xl font-extrabold">+15%</div>
-              <div className="text-[11px] text-gray-600">
-                Engagement from previous month
-              </div>
+            <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
+              <div className="text-2xl font-extrabold text-gray-900">+15%</div>
+              <div className="text-[11px] text-gray-600">Engagement</div>
             </div>
           </div>
         </div>
 
         {/* Panel 3 - Twitter/X */}
-        <div className="rounded-2xl border border-black/10 p-4 hover:shadow-md transition-all">
-          <div className="flex flex-col items-center gap-1 text-sm font-medium text-gray-700">
+        <div className="rounded-xl border border-black/10 p-3 hover:shadow-md transition-all">
+          <div className="flex flex-col items-center gap-1 text-xs font-medium text-gray-700 mb-3">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
             </svg>
-            Twitter/X
+            <span>Twitter/X</span>
           </div>
-          <div className="mt-4 grid gap-3">
-            <div className="rounded-2xl bg-[#EAF1FF] px-4 py-3">
-              <div className="text-3xl font-extrabold">+1.2K</div>
-              <div className="text-[11px] text-gray-600">
-                Followers from previous month
-              </div>
+          <div className="space-y-2">
+            <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
+              <div className="text-2xl font-extrabold text-gray-900">+1.2K</div>
+              <div className="text-[11px] text-gray-600">Followers</div>
             </div>
-            <div className="rounded-2xl bg-[#EAF1FF] px-4 py-3">
-              <div className="text-3xl font-extrabold">+25%</div>
-              <div className="text-[11px] text-gray-600">
-                Impressions from previous month
-              </div>
+            <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
+              <div className="text-2xl font-extrabold text-gray-900">+25%</div>
+              <div className="text-[11px] text-gray-600">Impressions</div>
             </div>
           </div>
         </div>
@@ -1217,9 +1220,9 @@ export default function HindiBooksSalesDashboard() {
   }, [days]);
 
   return (
-    <main className="mx-auto w-full py-4 lg:py-2 text-slate-800 dark:text-slate-100">
+    <main className="mx-auto w-full min-h-screen p-4 text-slate-800 dark:text-slate-100">
       {error && (
-        <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-800 flex items-center gap-2">
+        <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 p-3 text-amber-800 flex items-center gap-2 flex-shrink-0">
           <IoMdInformationCircle className="w-5 h-5 flex-shrink-0" />
           <span className="text-sm">
             {error} - Showing cached data if available.
@@ -1227,9 +1230,8 @@ export default function HindiBooksSalesDashboard() {
         </div>
       )}
 
-      {/* Layout grid (2 rows on lg, no overflow) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 auto-rows-fr">
-        {/* Left column row 1 */}
+      {/* Row 1: Revenue + (Top Book, Top Author) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-7">
           <RevenueCard
             days={days}
@@ -1240,27 +1242,26 @@ export default function HindiBooksSalesDashboard() {
             onRefresh={fetchData}
           />
         </div>
-
-        {/* Right column spans 2 rows: stack small cards */}
-        <div className="lg:col-span-5 lg:row-span-2 min-h-0">
-          <div className="grid gap-4 h-full">
-            <TopBookCard
-              summary={summary}
-              loading={loading}
-              counts={counts}
-            />
-            <TopAuthorCard summary={summary} loading={loading} />
-          </div>
+        <div className="lg:col-span-5 grid grid-cols-1 gap-3">
+          <TopBookCard summary={summary} loading={loading} counts={counts} />
+          <TopAuthorCard summary={summary} loading={loading} />
         </div>
+      </div>
 
-        {/* Left column row 2 */}
+      {/* Row 2: Top Performing Locations + Social Media */}
+      <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-7">
           <TopLocationsCard days={days} />
         </div>
-
-        {/* On large screens we hide Social to avoid extra row */}
-        <div className="lg:hidden">
+        <div className="lg:col-span-5">
           <SocialMediaCard />
+        </div>
+      </div>
+
+      {/* Row 3: Inventory full-width last */}
+      <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
+        <div className="lg:col-span-12">
+          <InventoryCard summary={summary} loading={loading} />
         </div>
       </div>
     </main>

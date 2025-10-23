@@ -775,8 +775,8 @@ export default function Inventory() {
                     {formatINR(loc.totalAmount)}
                   </p>
                 </div>
-              )
-            )}
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -900,7 +900,7 @@ export default function Inventory() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div id="geo-table" className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {loading ? (
           <TableSkeleton />
         ) : error ? (

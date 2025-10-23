@@ -76,6 +76,7 @@ export default function Sidebar() {
     { label: t("home"), to: "/", icon: <span /> },
     { label: t("sales"), to: "/dashboard", icon: <span /> },
     { label: t("geo_insights"), to: "/inventory", icon: <span /> },
+    { label: t("inventory"), to: "/stock", icon: <span /> },
     { label: t("rankings"), to: "/rankings", icon: <span /> },
     { label: t("social_media"), to: "/social", icon: <span /> },
   ];
@@ -152,7 +153,7 @@ export default function Sidebar() {
                   ) : (
                     <IconSalesDefault className="h-5 w-5" />
                   )
-                ) : it.to === "/inventory" ? (
+                ) : it.to === "/inventory" || it.to === "/stock" ? (
                   active ? (
                     <IconInventoryActive className="h-5 w-5" />
                   ) : (
@@ -216,7 +217,7 @@ export default function Sidebar() {
           <div ref={amodRef} className="relative">
             <button
               onClick={() => setOpenMenu((v) => (v === "amod" ? null : "amod"))}
-              title={collapsed ? (user?.name || "Account") : undefined}
+              title={collapsed ? user?.name || "Account" : undefined}
               className={
                 !collapsed
                   ? "flex w-full items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700 hover:bg-rose-100"
