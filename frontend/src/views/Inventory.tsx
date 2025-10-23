@@ -1,14 +1,15 @@
 /**
- * Geo Insights Component
+ * Inventory Component
  *
  * Displays sales data organized by geographical location (pincode/city/state)
  * to identify areas with maximum and minimum sales performance.
  *
  * Features:
  * - Aggregated sales by location
+ * - Toggle between highest and lowest performing pincodes
  * - Sortable columns
- * - Top and bottom performing regions
- * - Multi-channel data (Online, Offline, Events)
+ * - Search filter
+ * - Time range filter
  * - Loading skeletons
  */
 
@@ -62,6 +63,7 @@ export default function Inventory() {
   });
   const [days, setDays] = useState(90);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"top" | "bottom">("top");
 
   /**
    * Fetch sales data from all channels and aggregate by location
@@ -75,67 +77,38 @@ export default function Inventory() {
         const now = new Date();
         const since = new Date(now.getTime() - days * 86400000);
         const qs = new URLSearchParams({
-          limit: "10000", // Fetch more data for aggregation
+          limit: "10000",
           startDate: since.toISOString(),
           endDate: now.toISOString(),
         }).toString();
 
-        // Fetch from all sale channels
-        const [onlineRes, offlineRes, lokRes, rajradhaRes] =
-          await Promise.allSettled([
-            apiClient.get<{ items: SaleItem[] }>(`online-sales?${qs}`),
-            apiClient.get<{ items: SaleItem[] }>(`offline-sales?${qs}`),
-            apiClient.get<{ items: SaleItem[] }>(`lok-event-sales?${qs}`),
-            apiClient.get<{ items: SaleItem[] }>(`rajradha-event-sales?${qs}`),
-          ]);
+        // Unified endpoint for all channels
+        const salesRes = await apiClient.get<{ items: SaleItem[] }>(
+          `sales?${qs}`
+        );
+        const allSales: SaleItem[] = salesRes?.items || [];
 
-        // Combine all sales data
-        const allSales: SaleItem[] = [];
-
-        if (onlineRes.status === "fulfilled" && onlineRes.value?.items) {
-          allSales.push(...onlineRes.value.items);
-        }
-        if (offlineRes.status === "fulfilled" && offlineRes.value?.items) {
-          allSales.push(...offlineRes.value.items);
-        }
-        if (lokRes.status === "fulfilled" && lokRes.value?.items) {
-          allSales.push(...lokRes.value.items);
-        }
-        if (rajradhaRes.status === "fulfilled" && rajradhaRes.value?.items) {
-          allSales.push(...rajradhaRes.value.items);
-        }
-
-        // Extract and aggregate location data
         const locationMap = new Map<string, LocationSales>();
-        // Track unique customers per location for correct counts
         const customerSets = new Map<string, Set<string>>();
 
         allSales.forEach((sale) => {
-          // Extract location from rawJson (various possible field names)
           const raw = sale.rawJson || {};
           const pincode =
             normalizePincode(
               extractValueFlexible(raw, [
                 "pincode",
                 "pin",
-                "pin code",
                 "postal_code",
-                "postal code",
                 "zip",
-                "zip code",
-                "post code",
                 "postcode",
-                "shipping pincode",
                 "billing pincode",
-                "delivery pincode",
-                "p.o. code",
+                "shipping pincode",
               ]) ||
                 extractPincodeFromText(
                   extractValueFlexible(raw, [
                     "address",
                     "shipping address",
                     "billing address",
-                    "delivery address",
                   ]) || ""
                 )
             ) || "Unknown";
@@ -144,12 +117,10 @@ export default function Inventory() {
             normalizeText(
               extractValueFlexible(raw, [
                 "city",
-                "town",
                 "district",
-                "shipping city",
+                "town",
                 "billing city",
-                "delivery city",
-                "place",
+                "shipping city",
               ])
             ) || "Unknown";
 
@@ -159,32 +130,28 @@ export default function Inventory() {
                 "state",
                 "province",
                 "region",
-                "state/province",
-                "shipping state",
                 "billing state",
-                "delivery state",
+                "shipping state",
               ])
             ) || "Unknown";
+
           const amount = sale.amount ? Number(sale.amount) : 0;
           const customer = (sale.customerName || sale.mobile || "unknown")
             .toString()
             .trim()
             .toLowerCase();
 
-          // Create location key
-          const locationKey = `${pincode}-${city}-${state}`;
+          const key = `${pincode}-${city}-${state}`;
 
-          // Aggregate data
-          if (locationMap.has(locationKey)) {
-            const existing = locationMap.get(locationKey)!;
+          if (locationMap.has(key)) {
+            const existing = locationMap.get(key)!;
             existing.totalAmount += amount;
             existing.orderCount += 1;
-            // Track unique customers
-            const set = customerSets.get(locationKey) ?? new Set<string>();
+            const set = customerSets.get(key) ?? new Set<string>();
             set.add(customer);
-            customerSets.set(locationKey, set);
+            customerSets.set(key, set);
           } else {
-            locationMap.set(locationKey, {
+            locationMap.set(key, {
               pincode,
               city,
               state,
@@ -193,11 +160,10 @@ export default function Inventory() {
               avgOrderValue: amount,
               customerCount: 1,
             });
-            customerSets.set(locationKey, new Set(customer ? [customer] : []));
+            customerSets.set(key, new Set(customer ? [customer] : []));
           }
         });
 
-        // Calculate average order values and convert to array
         const locationArray: LocationSales[] = Array.from(
           locationMap.entries()
         ).map(([key, loc]) => ({
@@ -210,7 +176,6 @@ export default function Inventory() {
         setLocationData(locationArray);
       } catch (e: any) {
         setError(e?.message || "Failed to fetch geo insights data");
-        console.error("Geo insights fetch error:", e);
       } finally {
         setLoading(false);
       }
@@ -220,30 +185,15 @@ export default function Inventory() {
   }, [days]);
 
   /**
-   * Helper function to extract values from rawJson with multiple possible keys
+   * Helper extractors and formatters
    */
-  function extractValue(
-    obj: Record<string, any>,
-    keys: string[]
-  ): string | null {
-    for (const key of keys) {
-      if (obj[key] && String(obj[key]).trim()) {
-        return String(obj[key]).trim();
-      }
-    }
-    return null;
-  }
-
-  // Case-insensitive extractor that also searches shallow nested keys and common variations
   function extractValueFlexible(
     obj: Record<string, any>,
     candidates: string[]
   ): string | null {
     if (!obj) return null;
-    const lowerMap = new Map<string, string | number | null | undefined>();
-    for (const [k, v] of Object.entries(obj)) {
-      lowerMap.set(k.toLowerCase(), v as any);
-    }
+    const lowerMap = new Map<string, any>();
+    for (const [k, v] of Object.entries(obj)) lowerMap.set(k.toLowerCase(), v);
     for (const name of candidates) {
       const key = name.toLowerCase();
       if (lowerMap.has(key)) {
@@ -251,7 +201,6 @@ export default function Inventory() {
         if (v != null && String(v).trim()) return String(v).trim();
       }
     }
-    // Search inside a shallow nested address object if present
     const addr =
       obj.address || obj.Address || obj.shippingAddress || obj.billingAddress;
     if (addr && typeof addr === "object") {
@@ -266,7 +215,6 @@ export default function Inventory() {
       String(raw)
         .match(/\d{3,}/g)
         ?.join("") || "";
-    // Prefer 6-digit Indian PIN; if more, take last 6 which often is the actual PIN in addresses
     if (digits.length >= 6) return digits.slice(-6);
     return digits || null;
   }
@@ -284,38 +232,25 @@ export default function Inventory() {
     return s.replace(/\s+/g, " ");
   }
 
-  /**
-   * Format currency in Indian Rupees
-   */
-  const fmtINR = (n: number) => {
-    try {
-      return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        maximumFractionDigits: 0,
-      }).format(n);
-    } catch {
-      return `₹${Math.round(n).toLocaleString("en-IN")}`;
-    }
-  };
+  const fmtINR = (n: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(n);
 
-  /**
-   * Handle column sorting
-   */
-  const handleSort = (key: keyof LocationSales) => {
+  const handleSort = (key: keyof LocationSales) =>
     setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === "desc" ? "asc" : "desc",
     }));
-  };
 
   /**
-   * Sort and filter data
+   * Data derivations
    */
   const sortedAndFilteredData = useMemo(() => {
     let filtered = [...locationData];
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -326,20 +261,9 @@ export default function Inventory() {
       );
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       const key = sortConfig.key;
       const dir = sortConfig.direction === "asc" ? 1 : -1;
-
-      if (key === "pincode") {
-        const aNum = parseInt((a.pincode || "").replace(/\D/g, ""), 10);
-        const bNum = parseInt((b.pincode || "").replace(/\D/g, ""), 10);
-        const aValid = Number.isFinite(aNum);
-        const bValid = Number.isFinite(bNum);
-        if (aValid && bValid) return (aNum - bNum) * dir;
-        return String(a.pincode).localeCompare(String(b.pincode)) * dir;
-      }
-
       const aVal = a[key] as any;
       const bVal = b[key] as any;
       if (typeof aVal === "number" && typeof bVal === "number") {
@@ -351,9 +275,6 @@ export default function Inventory() {
     return filtered;
   }, [locationData, sortConfig, searchQuery]);
 
-  /**
-   * Get top and bottom performers
-   */
   const topPerformers = useMemo(
     () =>
       [...locationData]
@@ -365,15 +286,12 @@ export default function Inventory() {
   const bottomPerformers = useMemo(
     () =>
       [...locationData]
-        .filter((loc) => loc.totalAmount > 0) // Exclude zero sales
+        .filter((loc) => loc.totalAmount > 0)
         .sort((a, b) => a.totalAmount - b.totalAmount)
         .slice(0, 5),
     [locationData]
   );
 
-  /**
-   * Calculate total metrics
-   */
   const totalMetrics = useMemo(
     () => ({
       totalSales: locationData.reduce((sum, loc) => sum + loc.totalAmount, 0),
@@ -385,7 +303,7 @@ export default function Inventory() {
 
   return (
     <AppLayout>
-      {/* Header Section */}
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">
           {t("geo_insights")}
@@ -414,48 +332,58 @@ export default function Inventory() {
         />
       </div>
 
-      {/* Top and Bottom Performers */}
-      {!loading && locationData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Top Performers */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-green-900 mb-3 flex items-center gap-2">
-              <span className="text-2xl">🏆</span>
-              Top 5 Performing Locations
-            </h3>
-            <div className="space-y-2">
-              {topPerformers.map((loc, idx) => (
-                <div
-                  key={idx}
-                  className="flex justify-between items-center bg-white rounded p-2"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {loc.city}, {loc.state}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Pin: {loc.pincode} • {loc.orderCount} orders
-                    </p>
-                  </div>
-                  <p className="font-bold text-green-700">
-                    {fmtINR(loc.totalAmount)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Toggle Section */}
+      <div className="flex justify-end mb-4">
+        <div className="inline-flex rounded-md border border-gray-300 bg-white shadow-sm">
+          <button
+            className={`px-4 py-2 text-sm font-medium rounded-l-md ${
+              viewMode === "top"
+                ? "bg-green-600 text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+            onClick={() => setViewMode("top")}
+          >
+            Highest Sales
+          </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium rounded-r-md ${
+              viewMode === "bottom"
+                ? "bg-orange-600 text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+            onClick={() => setViewMode("bottom")}
+          >
+            Lowest Sales
+          </button>
+        </div>
+      </div>
 
-          {/* Bottom Performers */}
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-orange-900 mb-3 flex items-center gap-2">
-              <span className="text-2xl">📊</span>
-              Bottom 5 Performing Locations
-            </h3>
-            <div className="space-y-2">
-              {bottomPerformers.map((loc, idx) => (
+      {/* Toggleable List */}
+      {!loading && locationData.length > 0 && (
+        <div
+          className={`rounded-lg p-4 border mb-6 ${
+            viewMode === "top"
+              ? "bg-green-50 border-green-200"
+              : "bg-orange-50 border-orange-200"
+          }`}
+        >
+          <h3
+            className={`text-lg font-semibold mb-3 flex items-center gap-2 ${
+              viewMode === "top" ? "text-green-900" : "text-orange-900"
+            }`}
+          >
+            <span className="text-2xl">{viewMode === "top" ? "🏆" : "📉"}</span>
+            {viewMode === "top"
+              ? "Top 5 Performing Locations"
+              : "Bottom 5 Performing Locations"}
+          </h3>
+
+          <div className="space-y-2">
+            {(viewMode === "top" ? topPerformers : bottomPerformers).map(
+              (loc, idx) => (
                 <div
                   key={idx}
-                  className="flex justify-between items-center bg-white rounded p-2"
+                  className="flex justify-between items-center bg-white rounded p-2 shadow-sm hover:shadow transition-shadow"
                 >
                   <div>
                     <p className="font-medium text-gray-900">
@@ -465,20 +393,23 @@ export default function Inventory() {
                       Pin: {loc.pincode} • {loc.orderCount} orders
                     </p>
                   </div>
-                  <p className="font-bold text-orange-700">
+                  <p
+                    className={`font-bold ${
+                      viewMode === "top" ? "text-green-700" : "text-orange-700"
+                    }`}
+                  >
                     {fmtINR(loc.totalAmount)}
                   </p>
                 </div>
-              ))}
-            </div>
+              )
+            )}
           </div>
         </div>
       )}
 
-      {/* Filters and Controls */}
+      {/* Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          {/* Search */}
           <div className="flex-1 max-w-md">
             <input
               type="text"
@@ -489,7 +420,6 @@ export default function Inventory() {
             />
           </div>
 
-          {/* Time Range Filter */}
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Time Range:</label>
             <select
@@ -506,23 +436,15 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Data Table */}
+      {/* Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {loading ? (
           <TableSkeleton />
         ) : error ? (
-          <div className="p-8 text-center">
-            <p className="text-red-600 mb-2">Error loading data</p>
-            <p className="text-sm text-gray-500">{error}</p>
-          </div>
+          <div className="p-8 text-center text-red-600">{error}</div>
         ) : sortedAndFilteredData.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500">No location data available</p>
-            <p className="text-sm text-gray-400 mt-2">
-              {searchQuery
-                ? "Try adjusting your search query"
-                : "Sales data may not contain location information"}
-            </p>
+          <div className="p-8 text-center text-gray-500">
+            No location data available
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -573,22 +495,22 @@ export default function Inventory() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedAndFilteredData.map((loc, idx) => (
                   <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       {loc.pincode}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td className="px-6 py-4 text-sm text-gray-700">
                       {loc.city}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td className="px-6 py-4 text-sm text-gray-700">
                       {loc.state}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900 text-right">
                       {fmtINR(loc.totalAmount)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
+                    <td className="px-6 py-4 text-sm text-gray-700 text-right">
                       {loc.orderCount.toLocaleString("en-IN")}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
+                    <td className="px-6 py-4 text-sm text-gray-700 text-right">
                       {fmtINR(loc.avgOrderValue)}
                     </td>
                   </tr>
@@ -612,8 +534,7 @@ export default function Inventory() {
 }
 
 /**
- * Summary Card Component
- * Displays a metric with loading state
+ * Supporting UI Components
  */
 function SummaryCard({
   label,
@@ -636,9 +557,6 @@ function SummaryCard({
   );
 }
 
-/**
- * Sortable Table Header Component
- */
 function SortableHeader({
   label,
   sortKey,
@@ -676,13 +594,9 @@ function SortableHeader({
   );
 }
 
-/**
- * Table Loading Skeleton Component
- */
 function TableSkeleton() {
   return (
     <div className="p-6 space-y-4">
-      {/* Header skeleton */}
       <div className="flex gap-4">
         {[1, 2, 3, 4, 5, 6].map((i) => (
           <div
@@ -691,10 +605,9 @@ function TableSkeleton() {
           ></div>
         ))}
       </div>
-      {/* Row skeletons */}
-      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+      {[...Array(8)].map((_, i) => (
         <div key={i} className="flex gap-4">
-          {[1, 2, 3, 4, 5, 6].map((j) => (
+          {[...Array(6)].map((_, j) => (
             <div
               key={j}
               className="h-6 bg-gray-100 rounded flex-1 animate-pulse"
