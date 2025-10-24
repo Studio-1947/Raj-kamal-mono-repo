@@ -1028,8 +1028,14 @@ function AuthorsPanel({ days }: { days: number }) {
     const mapAgg = new Map<string, { total: number; qty: number; books: number }>();
     for (const it of items) {
       if (!it || !it.title || ((it.total ?? 0) <= 0 && (it.qty ?? 0) <= 0)) continue;
+      // If ranking authors and we still don't know the author, skip this row
+      // to avoid inflating an "Unknown Author" bucket.
       let key = '';
-      if (entity === 'author') key = (it as any).author && String((it as any).author).trim() || 'Unknown Author';
+      if (entity === 'author') {
+        const name = (it as any).author && String((it as any).author).trim();
+        if (!name) continue;
+        key = name;
+      }
       else if (entity === 'publisher') key = (it as any).publisher && String((it as any).publisher).trim() || 'Unknown Publisher';
       else key = String(it.title).trim() || 'Untitled Item';
       const cur = mapAgg.get(key) || { total: 0, qty: 0, books: 0 };
