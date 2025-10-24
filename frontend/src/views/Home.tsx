@@ -6,11 +6,10 @@ export default function Home() {
   const { t } = useLang();
   return (
     <AppLayout>
-      <div className="mx-auto w-full py-6">
-
+      {/* <div className="mx-auto w-full ">
       <h1 className="text-3xl font-bold text-gray-900">{t("welcome")}</h1>
-      <p className=" text-gray-600">{t("welcome_subtitle")}</p>
-      </div>
+      <p className=" text-gray-600">{t("welcome_subtitle")}</p> */}
+      {/* </div> */}
       <div>
         <HindiBooksSalesDashboard />
       </div>

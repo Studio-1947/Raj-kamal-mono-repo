@@ -1,86 +1,98 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import Home from '../views/Home';
-import Dashboard from '../views/Dashboard';
-import NotFound from '../views/NotFound';
-import Inventory from '../views/Inventory';
-import Rankings from '../views/Rankings';
-import Social from '../views/Social';
-import Settings from '../views/Settings';
-import Language from '../views/Language';
-import Login from '../views/Login';
-import ProtectedRoute from '../components/ProtectedRoute';
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import {
+  Home,
+  Dashboard,
+  NotFound,
+  Inventory,
+  Stock,
+  Rankings,
+  Social,
+  Settings,
+  Language,
+  Login,
+} from "../views";
+import ProtectedRoute from "../components/ProtectedRoute";
 
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* Public route - Login page */}
       <Route path="/login" element={<Login />} />
-      
+
       {/* Protected routes */}
-      <Route 
-        path="/" 
+      <Route
+        path="/"
         element={
           <ProtectedRoute>
             <Home />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/dashboard" 
+
+      <Route
+        path="/dashboard"
         element={
           <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/inventory" 
+
+      <Route
+        path="/inventory"
         element={
           <ProtectedRoute>
             <Inventory />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/rankings" 
+
+      <Route
+        path="/stock"
+        element={
+          <ProtectedRoute>
+            <Stock />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/rankings"
         element={
           <ProtectedRoute>
             <Rankings />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/social" 
+
+      <Route
+        path="/social"
         element={
           <ProtectedRoute>
             <Social />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/settings" 
+
+      <Route
+        path="/settings"
         element={
           <ProtectedRoute>
             <Settings />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/language" 
+
+      <Route
+        path="/language"
         element={
           <ProtectedRoute>
             <Language />
           </ProtectedRoute>
-        } 
+        }
       />
-      
+
       <Route path="/404" element={<NotFound />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>

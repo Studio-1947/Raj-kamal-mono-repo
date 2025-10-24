@@ -19,6 +19,7 @@ root.render(
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <LangProvider>
+            
             <BrowserRouter>
               <AppRoutes />
             </BrowserRouter>

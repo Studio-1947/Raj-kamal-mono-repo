@@ -8,14 +8,13 @@ type Props = {
 export default function AppLayout({ children }: Props) {
   return (
     <div className="flex h-screen bg-[var(--app-bg)]">
-      {/* Sidebar wrapper to provide left and vertical padding */}
+      {/* Sidebar wrapper - fixed position on large screens */}
       <div className="shrink-0 h-screen pl-3 py-3">
         <Sidebar />
       </div>
-      <div className="flex-1 min-w-0 overflow-y-auto bg-[var(--app-bg)]">
-        <div className="px-6 py-10">
-          {children}
-        </div>
+      {/* Main content area - scrollable independently */}
+      <div className="flex-1 min-w-0 h-screen overflow-y-auto bg-[var(--app-bg)]">
+        <div className="px-6">{children}</div>
       </div>
     </div>
   );
