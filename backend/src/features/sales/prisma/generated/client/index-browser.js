@@ -142,6 +142,35 @@ exports.Prisma.SaleScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.RkDataScalarFieldEnum = {
+  id: 'id',
+  slNo: 'slNo',
+  date: 'date',
+  orderId: 'orderId',
+  orderStatus: 'orderStatus',
+  isbn: 'isbn',
+  title: 'title',
+  author: 'author',
+  category: 'category',
+  publicationName: 'publicationName',
+  releaseDate: 'releaseDate',
+  noOfPages: 'noOfPages',
+  name: 'name',
+  pincode: 'pincode',
+  gender: 'gender',
+  ageGroup: 'ageGroup',
+  mobile: 'mobile',
+  email: 'email',
+  membershipId: 'membershipId',
+  paymentMode: 'paymentMode',
+  mrp: 'mrp',
+  sellingPrice: 'sellingPrice',
+  discountCouponCode: 'discountCouponCode',
+  rawJson: 'rawJson',
+  rowHash: 'rowHash',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -169,7 +198,8 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
-  Sale: 'Sale'
+  Sale: 'Sale',
+  RkData: 'RkData'
 };
 
 /**

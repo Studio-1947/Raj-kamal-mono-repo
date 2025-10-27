@@ -24,6 +24,16 @@ Commands:
 
 This creates the `Sale` table with indexes and a unique `rowHash` to ensure idempotent imports.
 
+New table added for Rajkamal-datas.xlsx:
+- Model: `RkData` (columns mirror the sheet headers: slNo, date, orderId, orderStatus, isbn, title, author, category, publicationName, releaseDate, noOfPages, name, pincode, gender, ageGroup, mobile, email, membershipId, paymentMode, mrp, sellingPrice, discountCouponCode, plus rawJson, rowHash, createdAt).
+
+Generate client and run migration for the Sales feature schema:
+
+```
+npx prisma generate --schema backend/src/features/sales/prisma/schema.prisma
+npx prisma migrate dev --schema backend/src/features/sales/prisma/schema.prisma --name add_rkdata
+```
+
 ## Importing the Excel workbook
 
 Place your Excel file at `data/RKP offline Sales.xlsx`.

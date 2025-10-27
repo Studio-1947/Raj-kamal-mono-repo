@@ -13,6 +13,7 @@ import {
   Login,
 } from "../views";
 import ProtectedRoute from "../components/ProtectedRoute";
+import RkData from "../views/RkData";
 
 const AppRoutes: React.FC = () => {
   return (
@@ -71,6 +72,15 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <Social />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/rkdata"
+        element={
+          <ProtectedRoute>
+            <RkData />
           </ProtectedRoute>
         }
       />
