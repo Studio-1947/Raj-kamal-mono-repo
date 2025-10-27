@@ -18,6 +18,11 @@ export type PrismaPromise<T> = $Public.PrismaPromise<T>
  * 
  */
 export type Sale = $Result.DefaultSelection<Prisma.$SalePayload>
+/**
+ * Model RkData
+ * 
+ */
+export type RkData = $Result.DefaultSelection<Prisma.$RkDataPayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -151,6 +156,16 @@ export class PrismaClient<
     * ```
     */
   get sale(): Prisma.SaleDelegate<ExtArgs>;
+
+  /**
+   * `prisma.rkData`: Exposes CRUD operations for the **RkData** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more RkData
+    * const rkData = await prisma.rkData.findMany()
+    * ```
+    */
+  get rkData(): Prisma.RkDataDelegate<ExtArgs>;
 }
 
 export namespace Prisma {
@@ -592,7 +607,8 @@ export namespace Prisma {
 
 
   export const ModelName: {
-    Sale: 'Sale'
+    Sale: 'Sale',
+    RkData: 'RkData'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -608,7 +624,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "sale"
+      modelProps: "sale" | "rkData"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -679,6 +695,76 @@ export namespace Prisma {
           count: {
             args: Prisma.SaleCountArgs<ExtArgs>
             result: $Utils.Optional<SaleCountAggregateOutputType> | number
+          }
+        }
+      }
+      RkData: {
+        payload: Prisma.$RkDataPayload<ExtArgs>
+        fields: Prisma.RkDataFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.RkDataFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.RkDataFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>
+          }
+          findFirst: {
+            args: Prisma.RkDataFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.RkDataFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>
+          }
+          findMany: {
+            args: Prisma.RkDataFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>[]
+          }
+          create: {
+            args: Prisma.RkDataCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>
+          }
+          createMany: {
+            args: Prisma.RkDataCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.RkDataCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>[]
+          }
+          delete: {
+            args: Prisma.RkDataDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>
+          }
+          update: {
+            args: Prisma.RkDataUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>
+          }
+          deleteMany: {
+            args: Prisma.RkDataDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.RkDataUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.RkDataUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$RkDataPayload>
+          }
+          aggregate: {
+            args: Prisma.RkDataAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateRkData>
+          }
+          groupBy: {
+            args: Prisma.RkDataGroupByArgs<ExtArgs>
+            result: $Utils.Optional<RkDataGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.RkDataCountArgs<ExtArgs>
+            result: $Utils.Optional<RkDataCountAggregateOutputType> | number
           }
         }
       }
@@ -1908,6 +1994,1182 @@ export namespace Prisma {
 
 
   /**
+   * Model RkData
+   */
+
+  export type AggregateRkData = {
+    _count: RkDataCountAggregateOutputType | null
+    _avg: RkDataAvgAggregateOutputType | null
+    _sum: RkDataSumAggregateOutputType | null
+    _min: RkDataMinAggregateOutputType | null
+    _max: RkDataMaxAggregateOutputType | null
+  }
+
+  export type RkDataAvgAggregateOutputType = {
+    id: number | null
+    slNo: number | null
+    noOfPages: number | null
+    mrp: Decimal | null
+    sellingPrice: Decimal | null
+  }
+
+  export type RkDataSumAggregateOutputType = {
+    id: bigint | null
+    slNo: number | null
+    noOfPages: number | null
+    mrp: Decimal | null
+    sellingPrice: Decimal | null
+  }
+
+  export type RkDataMinAggregateOutputType = {
+    id: bigint | null
+    slNo: number | null
+    date: Date | null
+    orderId: string | null
+    orderStatus: string | null
+    isbn: string | null
+    title: string | null
+    author: string | null
+    category: string | null
+    publicationName: string | null
+    releaseDate: Date | null
+    noOfPages: number | null
+    name: string | null
+    pincode: string | null
+    gender: string | null
+    ageGroup: string | null
+    mobile: string | null
+    email: string | null
+    membershipId: string | null
+    paymentMode: string | null
+    mrp: Decimal | null
+    sellingPrice: Decimal | null
+    discountCouponCode: string | null
+    rowHash: string | null
+    createdAt: Date | null
+  }
+
+  export type RkDataMaxAggregateOutputType = {
+    id: bigint | null
+    slNo: number | null
+    date: Date | null
+    orderId: string | null
+    orderStatus: string | null
+    isbn: string | null
+    title: string | null
+    author: string | null
+    category: string | null
+    publicationName: string | null
+    releaseDate: Date | null
+    noOfPages: number | null
+    name: string | null
+    pincode: string | null
+    gender: string | null
+    ageGroup: string | null
+    mobile: string | null
+    email: string | null
+    membershipId: string | null
+    paymentMode: string | null
+    mrp: Decimal | null
+    sellingPrice: Decimal | null
+    discountCouponCode: string | null
+    rowHash: string | null
+    createdAt: Date | null
+  }
+
+  export type RkDataCountAggregateOutputType = {
+    id: number
+    slNo: number
+    date: number
+    orderId: number
+    orderStatus: number
+    isbn: number
+    title: number
+    author: number
+    category: number
+    publicationName: number
+    releaseDate: number
+    noOfPages: number
+    name: number
+    pincode: number
+    gender: number
+    ageGroup: number
+    mobile: number
+    email: number
+    membershipId: number
+    paymentMode: number
+    mrp: number
+    sellingPrice: number
+    discountCouponCode: number
+    rawJson: number
+    rowHash: number
+    createdAt: number
+    _all: number
+  }
+
+
+  export type RkDataAvgAggregateInputType = {
+    id?: true
+    slNo?: true
+    noOfPages?: true
+    mrp?: true
+    sellingPrice?: true
+  }
+
+  export type RkDataSumAggregateInputType = {
+    id?: true
+    slNo?: true
+    noOfPages?: true
+    mrp?: true
+    sellingPrice?: true
+  }
+
+  export type RkDataMinAggregateInputType = {
+    id?: true
+    slNo?: true
+    date?: true
+    orderId?: true
+    orderStatus?: true
+    isbn?: true
+    title?: true
+    author?: true
+    category?: true
+    publicationName?: true
+    releaseDate?: true
+    noOfPages?: true
+    name?: true
+    pincode?: true
+    gender?: true
+    ageGroup?: true
+    mobile?: true
+    email?: true
+    membershipId?: true
+    paymentMode?: true
+    mrp?: true
+    sellingPrice?: true
+    discountCouponCode?: true
+    rowHash?: true
+    createdAt?: true
+  }
+
+  export type RkDataMaxAggregateInputType = {
+    id?: true
+    slNo?: true
+    date?: true
+    orderId?: true
+    orderStatus?: true
+    isbn?: true
+    title?: true
+    author?: true
+    category?: true
+    publicationName?: true
+    releaseDate?: true
+    noOfPages?: true
+    name?: true
+    pincode?: true
+    gender?: true
+    ageGroup?: true
+    mobile?: true
+    email?: true
+    membershipId?: true
+    paymentMode?: true
+    mrp?: true
+    sellingPrice?: true
+    discountCouponCode?: true
+    rowHash?: true
+    createdAt?: true
+  }
+
+  export type RkDataCountAggregateInputType = {
+    id?: true
+    slNo?: true
+    date?: true
+    orderId?: true
+    orderStatus?: true
+    isbn?: true
+    title?: true
+    author?: true
+    category?: true
+    publicationName?: true
+    releaseDate?: true
+    noOfPages?: true
+    name?: true
+    pincode?: true
+    gender?: true
+    ageGroup?: true
+    mobile?: true
+    email?: true
+    membershipId?: true
+    paymentMode?: true
+    mrp?: true
+    sellingPrice?: true
+    discountCouponCode?: true
+    rawJson?: true
+    rowHash?: true
+    createdAt?: true
+    _all?: true
+  }
+
+  export type RkDataAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which RkData to aggregate.
+     */
+    where?: RkDataWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of RkData to fetch.
+     */
+    orderBy?: RkDataOrderByWithRelationInput | RkDataOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: RkDataWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` RkData from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` RkData.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned RkData
+    **/
+    _count?: true | RkDataCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: RkDataAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: RkDataSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: RkDataMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: RkDataMaxAggregateInputType
+  }
+
+  export type GetRkDataAggregateType<T extends RkDataAggregateArgs> = {
+        [P in keyof T & keyof AggregateRkData]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateRkData[P]>
+      : GetScalarType<T[P], AggregateRkData[P]>
+  }
+
+
+
+
+  export type RkDataGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: RkDataWhereInput
+    orderBy?: RkDataOrderByWithAggregationInput | RkDataOrderByWithAggregationInput[]
+    by: RkDataScalarFieldEnum[] | RkDataScalarFieldEnum
+    having?: RkDataScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: RkDataCountAggregateInputType | true
+    _avg?: RkDataAvgAggregateInputType
+    _sum?: RkDataSumAggregateInputType
+    _min?: RkDataMinAggregateInputType
+    _max?: RkDataMaxAggregateInputType
+  }
+
+  export type RkDataGroupByOutputType = {
+    id: bigint
+    slNo: number | null
+    date: Date | null
+    orderId: string | null
+    orderStatus: string | null
+    isbn: string | null
+    title: string | null
+    author: string | null
+    category: string | null
+    publicationName: string | null
+    releaseDate: Date | null
+    noOfPages: number | null
+    name: string | null
+    pincode: string | null
+    gender: string | null
+    ageGroup: string | null
+    mobile: string | null
+    email: string | null
+    membershipId: string | null
+    paymentMode: string | null
+    mrp: Decimal | null
+    sellingPrice: Decimal | null
+    discountCouponCode: string | null
+    rawJson: JsonValue
+    rowHash: string | null
+    createdAt: Date
+    _count: RkDataCountAggregateOutputType | null
+    _avg: RkDataAvgAggregateOutputType | null
+    _sum: RkDataSumAggregateOutputType | null
+    _min: RkDataMinAggregateOutputType | null
+    _max: RkDataMaxAggregateOutputType | null
+  }
+
+  type GetRkDataGroupByPayload<T extends RkDataGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<RkDataGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof RkDataGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], RkDataGroupByOutputType[P]>
+            : GetScalarType<T[P], RkDataGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type RkDataSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    slNo?: boolean
+    date?: boolean
+    orderId?: boolean
+    orderStatus?: boolean
+    isbn?: boolean
+    title?: boolean
+    author?: boolean
+    category?: boolean
+    publicationName?: boolean
+    releaseDate?: boolean
+    noOfPages?: boolean
+    name?: boolean
+    pincode?: boolean
+    gender?: boolean
+    ageGroup?: boolean
+    mobile?: boolean
+    email?: boolean
+    membershipId?: boolean
+    paymentMode?: boolean
+    mrp?: boolean
+    sellingPrice?: boolean
+    discountCouponCode?: boolean
+    rawJson?: boolean
+    rowHash?: boolean
+    createdAt?: boolean
+  }, ExtArgs["result"]["rkData"]>
+
+  export type RkDataSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    slNo?: boolean
+    date?: boolean
+    orderId?: boolean
+    orderStatus?: boolean
+    isbn?: boolean
+    title?: boolean
+    author?: boolean
+    category?: boolean
+    publicationName?: boolean
+    releaseDate?: boolean
+    noOfPages?: boolean
+    name?: boolean
+    pincode?: boolean
+    gender?: boolean
+    ageGroup?: boolean
+    mobile?: boolean
+    email?: boolean
+    membershipId?: boolean
+    paymentMode?: boolean
+    mrp?: boolean
+    sellingPrice?: boolean
+    discountCouponCode?: boolean
+    rawJson?: boolean
+    rowHash?: boolean
+    createdAt?: boolean
+  }, ExtArgs["result"]["rkData"]>
+
+  export type RkDataSelectScalar = {
+    id?: boolean
+    slNo?: boolean
+    date?: boolean
+    orderId?: boolean
+    orderStatus?: boolean
+    isbn?: boolean
+    title?: boolean
+    author?: boolean
+    category?: boolean
+    publicationName?: boolean
+    releaseDate?: boolean
+    noOfPages?: boolean
+    name?: boolean
+    pincode?: boolean
+    gender?: boolean
+    ageGroup?: boolean
+    mobile?: boolean
+    email?: boolean
+    membershipId?: boolean
+    paymentMode?: boolean
+    mrp?: boolean
+    sellingPrice?: boolean
+    discountCouponCode?: boolean
+    rawJson?: boolean
+    rowHash?: boolean
+    createdAt?: boolean
+  }
+
+
+  export type $RkDataPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "RkData"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: bigint
+      slNo: number | null
+      date: Date | null
+      orderId: string | null
+      orderStatus: string | null
+      isbn: string | null
+      title: string | null
+      author: string | null
+      category: string | null
+      publicationName: string | null
+      releaseDate: Date | null
+      noOfPages: number | null
+      name: string | null
+      pincode: string | null
+      gender: string | null
+      ageGroup: string | null
+      mobile: string | null
+      email: string | null
+      membershipId: string | null
+      paymentMode: string | null
+      mrp: Prisma.Decimal | null
+      sellingPrice: Prisma.Decimal | null
+      discountCouponCode: string | null
+      rawJson: Prisma.JsonValue
+      rowHash: string | null
+      createdAt: Date
+    }, ExtArgs["result"]["rkData"]>
+    composites: {}
+  }
+
+  type RkDataGetPayload<S extends boolean | null | undefined | RkDataDefaultArgs> = $Result.GetResult<Prisma.$RkDataPayload, S>
+
+  type RkDataCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<RkDataFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: RkDataCountAggregateInputType | true
+    }
+
+  export interface RkDataDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['RkData'], meta: { name: 'RkData' } }
+    /**
+     * Find zero or one RkData that matches the filter.
+     * @param {RkDataFindUniqueArgs} args - Arguments to find a RkData
+     * @example
+     * // Get one RkData
+     * const rkData = await prisma.rkData.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends RkDataFindUniqueArgs>(args: SelectSubset<T, RkDataFindUniqueArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one RkData that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {RkDataFindUniqueOrThrowArgs} args - Arguments to find a RkData
+     * @example
+     * // Get one RkData
+     * const rkData = await prisma.rkData.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends RkDataFindUniqueOrThrowArgs>(args: SelectSubset<T, RkDataFindUniqueOrThrowArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first RkData that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {RkDataFindFirstArgs} args - Arguments to find a RkData
+     * @example
+     * // Get one RkData
+     * const rkData = await prisma.rkData.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends RkDataFindFirstArgs>(args?: SelectSubset<T, RkDataFindFirstArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first RkData that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {RkDataFindFirstOrThrowArgs} args - Arguments to find a RkData
+     * @example
+     * // Get one RkData
+     * const rkData = await prisma.rkData.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends RkDataFindFirstOrThrowArgs>(args?: SelectSubset<T, RkDataFindFirstOrThrowArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more RkData that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {RkDataFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all RkData
+     * const rkData = await prisma.rkData.findMany()
+     * 
+     * // Get first 10 RkData
+     * const rkData = await prisma.rkData.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const rkDataWithIdOnly = await prisma.rkData.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends RkDataFindManyArgs>(args?: SelectSubset<T, RkDataFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a RkData.
+     * @param {RkDataCreateArgs} args - Arguments to create a RkData.
+     * @example
+     * // Create one RkData
+     * const RkData = await prisma.rkData.create({
+     *   data: {
+     *     // ... data to create a RkData
+     *   }
+     * })
+     * 
+     */
+    create<T extends RkDataCreateArgs>(args: SelectSubset<T, RkDataCreateArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many RkData.
+     * @param {RkDataCreateManyArgs} args - Arguments to create many RkData.
+     * @example
+     * // Create many RkData
+     * const rkData = await prisma.rkData.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends RkDataCreateManyArgs>(args?: SelectSubset<T, RkDataCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many RkData and returns the data saved in the database.
+     * @param {RkDataCreateManyAndReturnArgs} args - Arguments to create many RkData.
+     * @example
+     * // Create many RkData
+     * const rkData = await prisma.rkData.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many RkData and only return the `id`
+     * const rkDataWithIdOnly = await prisma.rkData.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends RkDataCreateManyAndReturnArgs>(args?: SelectSubset<T, RkDataCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a RkData.
+     * @param {RkDataDeleteArgs} args - Arguments to delete one RkData.
+     * @example
+     * // Delete one RkData
+     * const RkData = await prisma.rkData.delete({
+     *   where: {
+     *     // ... filter to delete one RkData
+     *   }
+     * })
+     * 
+     */
+    delete<T extends RkDataDeleteArgs>(args: SelectSubset<T, RkDataDeleteArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one RkData.
+     * @param {RkDataUpdateArgs} args - Arguments to update one RkData.
+     * @example
+     * // Update one RkData
+     * const rkData = await prisma.rkData.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends RkDataUpdateArgs>(args: SelectSubset<T, RkDataUpdateArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more RkData.
+     * @param {RkDataDeleteManyArgs} args - Arguments to filter RkData to delete.
+     * @example
+     * // Delete a few RkData
+     * const { count } = await prisma.rkData.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends RkDataDeleteManyArgs>(args?: SelectSubset<T, RkDataDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more RkData.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {RkDataUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many RkData
+     * const rkData = await prisma.rkData.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends RkDataUpdateManyArgs>(args: SelectSubset<T, RkDataUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one RkData.
+     * @param {RkDataUpsertArgs} args - Arguments to update or create a RkData.
+     * @example
+     * // Update or create a RkData
+     * const rkData = await prisma.rkData.upsert({
+     *   create: {
+     *     // ... data to create a RkData
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the RkData we want to update
+     *   }
+     * })
+     */
+    upsert<T extends RkDataUpsertArgs>(args: SelectSubset<T, RkDataUpsertArgs<ExtArgs>>): Prisma__RkDataClient<$Result.GetResult<Prisma.$RkDataPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of RkData.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {RkDataCountArgs} args - Arguments to filter RkData to count.
+     * @example
+     * // Count the number of RkData
+     * const count = await prisma.rkData.count({
+     *   where: {
+     *     // ... the filter for the RkData we want to count
+     *   }
+     * })
+    **/
+    count<T extends RkDataCountArgs>(
+      args?: Subset<T, RkDataCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], RkDataCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a RkData.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {RkDataAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends RkDataAggregateArgs>(args: Subset<T, RkDataAggregateArgs>): Prisma.PrismaPromise<GetRkDataAggregateType<T>>
+
+    /**
+     * Group by RkData.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {RkDataGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends RkDataGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: RkDataGroupByArgs['orderBy'] }
+        : { orderBy?: RkDataGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, RkDataGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetRkDataGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the RkData model
+   */
+  readonly fields: RkDataFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for RkData.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__RkDataClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the RkData model
+   */ 
+  interface RkDataFieldRefs {
+    readonly id: FieldRef<"RkData", 'BigInt'>
+    readonly slNo: FieldRef<"RkData", 'Int'>
+    readonly date: FieldRef<"RkData", 'DateTime'>
+    readonly orderId: FieldRef<"RkData", 'String'>
+    readonly orderStatus: FieldRef<"RkData", 'String'>
+    readonly isbn: FieldRef<"RkData", 'String'>
+    readonly title: FieldRef<"RkData", 'String'>
+    readonly author: FieldRef<"RkData", 'String'>
+    readonly category: FieldRef<"RkData", 'String'>
+    readonly publicationName: FieldRef<"RkData", 'String'>
+    readonly releaseDate: FieldRef<"RkData", 'DateTime'>
+    readonly noOfPages: FieldRef<"RkData", 'Int'>
+    readonly name: FieldRef<"RkData", 'String'>
+    readonly pincode: FieldRef<"RkData", 'String'>
+    readonly gender: FieldRef<"RkData", 'String'>
+    readonly ageGroup: FieldRef<"RkData", 'String'>
+    readonly mobile: FieldRef<"RkData", 'String'>
+    readonly email: FieldRef<"RkData", 'String'>
+    readonly membershipId: FieldRef<"RkData", 'String'>
+    readonly paymentMode: FieldRef<"RkData", 'String'>
+    readonly mrp: FieldRef<"RkData", 'Decimal'>
+    readonly sellingPrice: FieldRef<"RkData", 'Decimal'>
+    readonly discountCouponCode: FieldRef<"RkData", 'String'>
+    readonly rawJson: FieldRef<"RkData", 'Json'>
+    readonly rowHash: FieldRef<"RkData", 'String'>
+    readonly createdAt: FieldRef<"RkData", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * RkData findUnique
+   */
+  export type RkDataFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * Filter, which RkData to fetch.
+     */
+    where: RkDataWhereUniqueInput
+  }
+
+  /**
+   * RkData findUniqueOrThrow
+   */
+  export type RkDataFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * Filter, which RkData to fetch.
+     */
+    where: RkDataWhereUniqueInput
+  }
+
+  /**
+   * RkData findFirst
+   */
+  export type RkDataFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * Filter, which RkData to fetch.
+     */
+    where?: RkDataWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of RkData to fetch.
+     */
+    orderBy?: RkDataOrderByWithRelationInput | RkDataOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for RkData.
+     */
+    cursor?: RkDataWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` RkData from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` RkData.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of RkData.
+     */
+    distinct?: RkDataScalarFieldEnum | RkDataScalarFieldEnum[]
+  }
+
+  /**
+   * RkData findFirstOrThrow
+   */
+  export type RkDataFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * Filter, which RkData to fetch.
+     */
+    where?: RkDataWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of RkData to fetch.
+     */
+    orderBy?: RkDataOrderByWithRelationInput | RkDataOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for RkData.
+     */
+    cursor?: RkDataWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` RkData from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` RkData.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of RkData.
+     */
+    distinct?: RkDataScalarFieldEnum | RkDataScalarFieldEnum[]
+  }
+
+  /**
+   * RkData findMany
+   */
+  export type RkDataFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * Filter, which RkData to fetch.
+     */
+    where?: RkDataWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of RkData to fetch.
+     */
+    orderBy?: RkDataOrderByWithRelationInput | RkDataOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing RkData.
+     */
+    cursor?: RkDataWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` RkData from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` RkData.
+     */
+    skip?: number
+    distinct?: RkDataScalarFieldEnum | RkDataScalarFieldEnum[]
+  }
+
+  /**
+   * RkData create
+   */
+  export type RkDataCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * The data needed to create a RkData.
+     */
+    data: XOR<RkDataCreateInput, RkDataUncheckedCreateInput>
+  }
+
+  /**
+   * RkData createMany
+   */
+  export type RkDataCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many RkData.
+     */
+    data: RkDataCreateManyInput | RkDataCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * RkData createManyAndReturn
+   */
+  export type RkDataCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many RkData.
+     */
+    data: RkDataCreateManyInput | RkDataCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * RkData update
+   */
+  export type RkDataUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * The data needed to update a RkData.
+     */
+    data: XOR<RkDataUpdateInput, RkDataUncheckedUpdateInput>
+    /**
+     * Choose, which RkData to update.
+     */
+    where: RkDataWhereUniqueInput
+  }
+
+  /**
+   * RkData updateMany
+   */
+  export type RkDataUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update RkData.
+     */
+    data: XOR<RkDataUpdateManyMutationInput, RkDataUncheckedUpdateManyInput>
+    /**
+     * Filter which RkData to update
+     */
+    where?: RkDataWhereInput
+  }
+
+  /**
+   * RkData upsert
+   */
+  export type RkDataUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * The filter to search for the RkData to update in case it exists.
+     */
+    where: RkDataWhereUniqueInput
+    /**
+     * In case the RkData found by the `where` argument doesn't exist, create a new RkData with this data.
+     */
+    create: XOR<RkDataCreateInput, RkDataUncheckedCreateInput>
+    /**
+     * In case the RkData was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<RkDataUpdateInput, RkDataUncheckedUpdateInput>
+  }
+
+  /**
+   * RkData delete
+   */
+  export type RkDataDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+    /**
+     * Filter which RkData to delete.
+     */
+    where: RkDataWhereUniqueInput
+  }
+
+  /**
+   * RkData deleteMany
+   */
+  export type RkDataDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which RkData to delete
+     */
+    where?: RkDataWhereInput
+  }
+
+  /**
+   * RkData without action
+   */
+  export type RkDataDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the RkData
+     */
+    select?: RkDataSelect<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -1942,6 +3204,38 @@ export namespace Prisma {
   };
 
   export type SaleScalarFieldEnum = (typeof SaleScalarFieldEnum)[keyof typeof SaleScalarFieldEnum]
+
+
+  export const RkDataScalarFieldEnum: {
+    id: 'id',
+    slNo: 'slNo',
+    date: 'date',
+    orderId: 'orderId',
+    orderStatus: 'orderStatus',
+    isbn: 'isbn',
+    title: 'title',
+    author: 'author',
+    category: 'category',
+    publicationName: 'publicationName',
+    releaseDate: 'releaseDate',
+    noOfPages: 'noOfPages',
+    name: 'name',
+    pincode: 'pincode',
+    gender: 'gender',
+    ageGroup: 'ageGroup',
+    mobile: 'mobile',
+    email: 'email',
+    membershipId: 'membershipId',
+    paymentMode: 'paymentMode',
+    mrp: 'mrp',
+    sellingPrice: 'sellingPrice',
+    discountCouponCode: 'discountCouponCode',
+    rawJson: 'rawJson',
+    rowHash: 'rowHash',
+    createdAt: 'createdAt'
+  };
+
+  export type RkDataScalarFieldEnum = (typeof RkDataScalarFieldEnum)[keyof typeof RkDataScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -2197,6 +3491,165 @@ export namespace Prisma {
     createdAt?: DateTimeWithAggregatesFilter<"Sale"> | Date | string
   }
 
+  export type RkDataWhereInput = {
+    AND?: RkDataWhereInput | RkDataWhereInput[]
+    OR?: RkDataWhereInput[]
+    NOT?: RkDataWhereInput | RkDataWhereInput[]
+    id?: BigIntFilter<"RkData"> | bigint | number
+    slNo?: IntNullableFilter<"RkData"> | number | null
+    date?: DateTimeNullableFilter<"RkData"> | Date | string | null
+    orderId?: StringNullableFilter<"RkData"> | string | null
+    orderStatus?: StringNullableFilter<"RkData"> | string | null
+    isbn?: StringNullableFilter<"RkData"> | string | null
+    title?: StringNullableFilter<"RkData"> | string | null
+    author?: StringNullableFilter<"RkData"> | string | null
+    category?: StringNullableFilter<"RkData"> | string | null
+    publicationName?: StringNullableFilter<"RkData"> | string | null
+    releaseDate?: DateTimeNullableFilter<"RkData"> | Date | string | null
+    noOfPages?: IntNullableFilter<"RkData"> | number | null
+    name?: StringNullableFilter<"RkData"> | string | null
+    pincode?: StringNullableFilter<"RkData"> | string | null
+    gender?: StringNullableFilter<"RkData"> | string | null
+    ageGroup?: StringNullableFilter<"RkData"> | string | null
+    mobile?: StringNullableFilter<"RkData"> | string | null
+    email?: StringNullableFilter<"RkData"> | string | null
+    membershipId?: StringNullableFilter<"RkData"> | string | null
+    paymentMode?: StringNullableFilter<"RkData"> | string | null
+    mrp?: DecimalNullableFilter<"RkData"> | Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: DecimalNullableFilter<"RkData"> | Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: StringNullableFilter<"RkData"> | string | null
+    rawJson?: JsonFilter<"RkData">
+    rowHash?: StringNullableFilter<"RkData"> | string | null
+    createdAt?: DateTimeFilter<"RkData"> | Date | string
+  }
+
+  export type RkDataOrderByWithRelationInput = {
+    id?: SortOrder
+    slNo?: SortOrderInput | SortOrder
+    date?: SortOrderInput | SortOrder
+    orderId?: SortOrderInput | SortOrder
+    orderStatus?: SortOrderInput | SortOrder
+    isbn?: SortOrderInput | SortOrder
+    title?: SortOrderInput | SortOrder
+    author?: SortOrderInput | SortOrder
+    category?: SortOrderInput | SortOrder
+    publicationName?: SortOrderInput | SortOrder
+    releaseDate?: SortOrderInput | SortOrder
+    noOfPages?: SortOrderInput | SortOrder
+    name?: SortOrderInput | SortOrder
+    pincode?: SortOrderInput | SortOrder
+    gender?: SortOrderInput | SortOrder
+    ageGroup?: SortOrderInput | SortOrder
+    mobile?: SortOrderInput | SortOrder
+    email?: SortOrderInput | SortOrder
+    membershipId?: SortOrderInput | SortOrder
+    paymentMode?: SortOrderInput | SortOrder
+    mrp?: SortOrderInput | SortOrder
+    sellingPrice?: SortOrderInput | SortOrder
+    discountCouponCode?: SortOrderInput | SortOrder
+    rawJson?: SortOrder
+    rowHash?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type RkDataWhereUniqueInput = Prisma.AtLeast<{
+    id?: bigint | number
+    rowHash?: string
+    AND?: RkDataWhereInput | RkDataWhereInput[]
+    OR?: RkDataWhereInput[]
+    NOT?: RkDataWhereInput | RkDataWhereInput[]
+    slNo?: IntNullableFilter<"RkData"> | number | null
+    date?: DateTimeNullableFilter<"RkData"> | Date | string | null
+    orderId?: StringNullableFilter<"RkData"> | string | null
+    orderStatus?: StringNullableFilter<"RkData"> | string | null
+    isbn?: StringNullableFilter<"RkData"> | string | null
+    title?: StringNullableFilter<"RkData"> | string | null
+    author?: StringNullableFilter<"RkData"> | string | null
+    category?: StringNullableFilter<"RkData"> | string | null
+    publicationName?: StringNullableFilter<"RkData"> | string | null
+    releaseDate?: DateTimeNullableFilter<"RkData"> | Date | string | null
+    noOfPages?: IntNullableFilter<"RkData"> | number | null
+    name?: StringNullableFilter<"RkData"> | string | null
+    pincode?: StringNullableFilter<"RkData"> | string | null
+    gender?: StringNullableFilter<"RkData"> | string | null
+    ageGroup?: StringNullableFilter<"RkData"> | string | null
+    mobile?: StringNullableFilter<"RkData"> | string | null
+    email?: StringNullableFilter<"RkData"> | string | null
+    membershipId?: StringNullableFilter<"RkData"> | string | null
+    paymentMode?: StringNullableFilter<"RkData"> | string | null
+    mrp?: DecimalNullableFilter<"RkData"> | Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: DecimalNullableFilter<"RkData"> | Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: StringNullableFilter<"RkData"> | string | null
+    rawJson?: JsonFilter<"RkData">
+    createdAt?: DateTimeFilter<"RkData"> | Date | string
+  }, "id" | "rowHash">
+
+  export type RkDataOrderByWithAggregationInput = {
+    id?: SortOrder
+    slNo?: SortOrderInput | SortOrder
+    date?: SortOrderInput | SortOrder
+    orderId?: SortOrderInput | SortOrder
+    orderStatus?: SortOrderInput | SortOrder
+    isbn?: SortOrderInput | SortOrder
+    title?: SortOrderInput | SortOrder
+    author?: SortOrderInput | SortOrder
+    category?: SortOrderInput | SortOrder
+    publicationName?: SortOrderInput | SortOrder
+    releaseDate?: SortOrderInput | SortOrder
+    noOfPages?: SortOrderInput | SortOrder
+    name?: SortOrderInput | SortOrder
+    pincode?: SortOrderInput | SortOrder
+    gender?: SortOrderInput | SortOrder
+    ageGroup?: SortOrderInput | SortOrder
+    mobile?: SortOrderInput | SortOrder
+    email?: SortOrderInput | SortOrder
+    membershipId?: SortOrderInput | SortOrder
+    paymentMode?: SortOrderInput | SortOrder
+    mrp?: SortOrderInput | SortOrder
+    sellingPrice?: SortOrderInput | SortOrder
+    discountCouponCode?: SortOrderInput | SortOrder
+    rawJson?: SortOrder
+    rowHash?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    _count?: RkDataCountOrderByAggregateInput
+    _avg?: RkDataAvgOrderByAggregateInput
+    _max?: RkDataMaxOrderByAggregateInput
+    _min?: RkDataMinOrderByAggregateInput
+    _sum?: RkDataSumOrderByAggregateInput
+  }
+
+  export type RkDataScalarWhereWithAggregatesInput = {
+    AND?: RkDataScalarWhereWithAggregatesInput | RkDataScalarWhereWithAggregatesInput[]
+    OR?: RkDataScalarWhereWithAggregatesInput[]
+    NOT?: RkDataScalarWhereWithAggregatesInput | RkDataScalarWhereWithAggregatesInput[]
+    id?: BigIntWithAggregatesFilter<"RkData"> | bigint | number
+    slNo?: IntNullableWithAggregatesFilter<"RkData"> | number | null
+    date?: DateTimeNullableWithAggregatesFilter<"RkData"> | Date | string | null
+    orderId?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    orderStatus?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    isbn?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    title?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    author?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    category?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    publicationName?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    releaseDate?: DateTimeNullableWithAggregatesFilter<"RkData"> | Date | string | null
+    noOfPages?: IntNullableWithAggregatesFilter<"RkData"> | number | null
+    name?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    pincode?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    gender?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    ageGroup?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    mobile?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    email?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    membershipId?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    paymentMode?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    mrp?: DecimalNullableWithAggregatesFilter<"RkData"> | Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: DecimalNullableWithAggregatesFilter<"RkData"> | Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    rawJson?: JsonWithAggregatesFilter<"RkData">
+    rowHash?: StringNullableWithAggregatesFilter<"RkData"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"RkData"> | Date | string
+  }
+
   export type SaleCreateInput = {
     id?: bigint | number
     source: string
@@ -2332,6 +3785,209 @@ export namespace Prisma {
     qty?: NullableIntFieldUpdateOperationsInput | number | null
     rate?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     date?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    rawJson?: JsonNullValueInput | InputJsonValue
+    rowHash?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type RkDataCreateInput = {
+    id?: bigint | number
+    slNo?: number | null
+    date?: Date | string | null
+    orderId?: string | null
+    orderStatus?: string | null
+    isbn?: string | null
+    title?: string | null
+    author?: string | null
+    category?: string | null
+    publicationName?: string | null
+    releaseDate?: Date | string | null
+    noOfPages?: number | null
+    name?: string | null
+    pincode?: string | null
+    gender?: string | null
+    ageGroup?: string | null
+    mobile?: string | null
+    email?: string | null
+    membershipId?: string | null
+    paymentMode?: string | null
+    mrp?: Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: string | null
+    rawJson: JsonNullValueInput | InputJsonValue
+    rowHash?: string | null
+    createdAt?: Date | string
+  }
+
+  export type RkDataUncheckedCreateInput = {
+    id?: bigint | number
+    slNo?: number | null
+    date?: Date | string | null
+    orderId?: string | null
+    orderStatus?: string | null
+    isbn?: string | null
+    title?: string | null
+    author?: string | null
+    category?: string | null
+    publicationName?: string | null
+    releaseDate?: Date | string | null
+    noOfPages?: number | null
+    name?: string | null
+    pincode?: string | null
+    gender?: string | null
+    ageGroup?: string | null
+    mobile?: string | null
+    email?: string | null
+    membershipId?: string | null
+    paymentMode?: string | null
+    mrp?: Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: string | null
+    rawJson: JsonNullValueInput | InputJsonValue
+    rowHash?: string | null
+    createdAt?: Date | string
+  }
+
+  export type RkDataUpdateInput = {
+    id?: BigIntFieldUpdateOperationsInput | bigint | number
+    slNo?: NullableIntFieldUpdateOperationsInput | number | null
+    date?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    orderId?: NullableStringFieldUpdateOperationsInput | string | null
+    orderStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    isbn?: NullableStringFieldUpdateOperationsInput | string | null
+    title?: NullableStringFieldUpdateOperationsInput | string | null
+    author?: NullableStringFieldUpdateOperationsInput | string | null
+    category?: NullableStringFieldUpdateOperationsInput | string | null
+    publicationName?: NullableStringFieldUpdateOperationsInput | string | null
+    releaseDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    noOfPages?: NullableIntFieldUpdateOperationsInput | number | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    pincode?: NullableStringFieldUpdateOperationsInput | string | null
+    gender?: NullableStringFieldUpdateOperationsInput | string | null
+    ageGroup?: NullableStringFieldUpdateOperationsInput | string | null
+    mobile?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    membershipId?: NullableStringFieldUpdateOperationsInput | string | null
+    paymentMode?: NullableStringFieldUpdateOperationsInput | string | null
+    mrp?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: NullableStringFieldUpdateOperationsInput | string | null
+    rawJson?: JsonNullValueInput | InputJsonValue
+    rowHash?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type RkDataUncheckedUpdateInput = {
+    id?: BigIntFieldUpdateOperationsInput | bigint | number
+    slNo?: NullableIntFieldUpdateOperationsInput | number | null
+    date?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    orderId?: NullableStringFieldUpdateOperationsInput | string | null
+    orderStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    isbn?: NullableStringFieldUpdateOperationsInput | string | null
+    title?: NullableStringFieldUpdateOperationsInput | string | null
+    author?: NullableStringFieldUpdateOperationsInput | string | null
+    category?: NullableStringFieldUpdateOperationsInput | string | null
+    publicationName?: NullableStringFieldUpdateOperationsInput | string | null
+    releaseDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    noOfPages?: NullableIntFieldUpdateOperationsInput | number | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    pincode?: NullableStringFieldUpdateOperationsInput | string | null
+    gender?: NullableStringFieldUpdateOperationsInput | string | null
+    ageGroup?: NullableStringFieldUpdateOperationsInput | string | null
+    mobile?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    membershipId?: NullableStringFieldUpdateOperationsInput | string | null
+    paymentMode?: NullableStringFieldUpdateOperationsInput | string | null
+    mrp?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: NullableStringFieldUpdateOperationsInput | string | null
+    rawJson?: JsonNullValueInput | InputJsonValue
+    rowHash?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type RkDataCreateManyInput = {
+    id?: bigint | number
+    slNo?: number | null
+    date?: Date | string | null
+    orderId?: string | null
+    orderStatus?: string | null
+    isbn?: string | null
+    title?: string | null
+    author?: string | null
+    category?: string | null
+    publicationName?: string | null
+    releaseDate?: Date | string | null
+    noOfPages?: number | null
+    name?: string | null
+    pincode?: string | null
+    gender?: string | null
+    ageGroup?: string | null
+    mobile?: string | null
+    email?: string | null
+    membershipId?: string | null
+    paymentMode?: string | null
+    mrp?: Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: string | null
+    rawJson: JsonNullValueInput | InputJsonValue
+    rowHash?: string | null
+    createdAt?: Date | string
+  }
+
+  export type RkDataUpdateManyMutationInput = {
+    id?: BigIntFieldUpdateOperationsInput | bigint | number
+    slNo?: NullableIntFieldUpdateOperationsInput | number | null
+    date?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    orderId?: NullableStringFieldUpdateOperationsInput | string | null
+    orderStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    isbn?: NullableStringFieldUpdateOperationsInput | string | null
+    title?: NullableStringFieldUpdateOperationsInput | string | null
+    author?: NullableStringFieldUpdateOperationsInput | string | null
+    category?: NullableStringFieldUpdateOperationsInput | string | null
+    publicationName?: NullableStringFieldUpdateOperationsInput | string | null
+    releaseDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    noOfPages?: NullableIntFieldUpdateOperationsInput | number | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    pincode?: NullableStringFieldUpdateOperationsInput | string | null
+    gender?: NullableStringFieldUpdateOperationsInput | string | null
+    ageGroup?: NullableStringFieldUpdateOperationsInput | string | null
+    mobile?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    membershipId?: NullableStringFieldUpdateOperationsInput | string | null
+    paymentMode?: NullableStringFieldUpdateOperationsInput | string | null
+    mrp?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: NullableStringFieldUpdateOperationsInput | string | null
+    rawJson?: JsonNullValueInput | InputJsonValue
+    rowHash?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type RkDataUncheckedUpdateManyInput = {
+    id?: BigIntFieldUpdateOperationsInput | bigint | number
+    slNo?: NullableIntFieldUpdateOperationsInput | number | null
+    date?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    orderId?: NullableStringFieldUpdateOperationsInput | string | null
+    orderStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    isbn?: NullableStringFieldUpdateOperationsInput | string | null
+    title?: NullableStringFieldUpdateOperationsInput | string | null
+    author?: NullableStringFieldUpdateOperationsInput | string | null
+    category?: NullableStringFieldUpdateOperationsInput | string | null
+    publicationName?: NullableStringFieldUpdateOperationsInput | string | null
+    releaseDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    noOfPages?: NullableIntFieldUpdateOperationsInput | number | null
+    name?: NullableStringFieldUpdateOperationsInput | string | null
+    pincode?: NullableStringFieldUpdateOperationsInput | string | null
+    gender?: NullableStringFieldUpdateOperationsInput | string | null
+    ageGroup?: NullableStringFieldUpdateOperationsInput | string | null
+    mobile?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: NullableStringFieldUpdateOperationsInput | string | null
+    membershipId?: NullableStringFieldUpdateOperationsInput | string | null
+    paymentMode?: NullableStringFieldUpdateOperationsInput | string | null
+    mrp?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    sellingPrice?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    discountCouponCode?: NullableStringFieldUpdateOperationsInput | string | null
     rawJson?: JsonNullValueInput | InputJsonValue
     rowHash?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -2658,6 +4314,107 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
+  export type RkDataCountOrderByAggregateInput = {
+    id?: SortOrder
+    slNo?: SortOrder
+    date?: SortOrder
+    orderId?: SortOrder
+    orderStatus?: SortOrder
+    isbn?: SortOrder
+    title?: SortOrder
+    author?: SortOrder
+    category?: SortOrder
+    publicationName?: SortOrder
+    releaseDate?: SortOrder
+    noOfPages?: SortOrder
+    name?: SortOrder
+    pincode?: SortOrder
+    gender?: SortOrder
+    ageGroup?: SortOrder
+    mobile?: SortOrder
+    email?: SortOrder
+    membershipId?: SortOrder
+    paymentMode?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
+    discountCouponCode?: SortOrder
+    rawJson?: SortOrder
+    rowHash?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type RkDataAvgOrderByAggregateInput = {
+    id?: SortOrder
+    slNo?: SortOrder
+    noOfPages?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
+  }
+
+  export type RkDataMaxOrderByAggregateInput = {
+    id?: SortOrder
+    slNo?: SortOrder
+    date?: SortOrder
+    orderId?: SortOrder
+    orderStatus?: SortOrder
+    isbn?: SortOrder
+    title?: SortOrder
+    author?: SortOrder
+    category?: SortOrder
+    publicationName?: SortOrder
+    releaseDate?: SortOrder
+    noOfPages?: SortOrder
+    name?: SortOrder
+    pincode?: SortOrder
+    gender?: SortOrder
+    ageGroup?: SortOrder
+    mobile?: SortOrder
+    email?: SortOrder
+    membershipId?: SortOrder
+    paymentMode?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
+    discountCouponCode?: SortOrder
+    rowHash?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type RkDataMinOrderByAggregateInput = {
+    id?: SortOrder
+    slNo?: SortOrder
+    date?: SortOrder
+    orderId?: SortOrder
+    orderStatus?: SortOrder
+    isbn?: SortOrder
+    title?: SortOrder
+    author?: SortOrder
+    category?: SortOrder
+    publicationName?: SortOrder
+    releaseDate?: SortOrder
+    noOfPages?: SortOrder
+    name?: SortOrder
+    pincode?: SortOrder
+    gender?: SortOrder
+    ageGroup?: SortOrder
+    mobile?: SortOrder
+    email?: SortOrder
+    membershipId?: SortOrder
+    paymentMode?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
+    discountCouponCode?: SortOrder
+    rowHash?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type RkDataSumOrderByAggregateInput = {
+    id?: SortOrder
+    slNo?: SortOrder
+    noOfPages?: SortOrder
+    mrp?: SortOrder
+    sellingPrice?: SortOrder
+  }
+
   export type BigIntFieldUpdateOperationsInput = {
     set?: bigint | number
     increment?: bigint | number
@@ -2955,6 +4712,10 @@ export namespace Prisma {
      * @deprecated Use SaleDefaultArgs instead
      */
     export type SaleArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = SaleDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use RkDataDefaultArgs instead
+     */
+    export type RkDataArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = RkDataDefaultArgs<ExtArgs>
 
   /**
    * Batch Payload for updateMany & deleteMany & createMany

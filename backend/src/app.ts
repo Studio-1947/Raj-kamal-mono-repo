@@ -15,6 +15,7 @@ import { mountOfflineSales } from './features/sales/server/offline.index.js';
 import { mountLokEventSales } from './features/sales/server/lok-event.index.js';
 import { mountRajRadhaEventSales } from './features/sales/server/rajradha-event.index.js';
 import { notFound } from './middleware/notFound.js';
+import { mountRkData } from './features/sales/server/rkdata.index.js';
 
 // Load environment variables
 dotenv.config();
@@ -143,6 +144,8 @@ mountOnlineSales(app, '/api/online-sales');
 mountOfflineSales(app, '/api/offline-sales');
 mountLokEventSales(app, '/api/lok-event-sales');
 mountRajRadhaEventSales(app, '/api/rajradha-event-sales');
+// RK Data APIs
+mountRkData(app, '/api/rkdata');
 
 // Fallback route for any unmatched requests
 app.use('*', (req, res) => {

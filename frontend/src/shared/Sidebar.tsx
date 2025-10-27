@@ -79,6 +79,7 @@ export default function Sidebar() {
     { label: t("inventory"), to: "/stock", icon: <span /> },
     { label: t("rankings"), to: "/rankings", icon: <span /> },
     { label: t("social_media"), to: "/social", icon: <span /> },
+    { label: "RK Data", to: "/rkdata", icon: <span /> },
   ];
 
   // Bottom menus handled explicitly (Amod, Settings, Language)

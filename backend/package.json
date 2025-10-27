@@ -16,7 +16,10 @@
     "seed:admin": "tsx src/scripts/seed-admin.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma"
+    "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma",
+    "rkdata:generate": "prisma generate --schema src/features/sales/prisma/schema.prisma",
+    "rkdata:push": "prisma db push --schema src/features/sales/prisma/schema.prisma",
+    "rkdata:studio": "prisma studio --schema src/features/sales/prisma/schema.prisma"
   },
   "engines": {
     "node": "20.x"

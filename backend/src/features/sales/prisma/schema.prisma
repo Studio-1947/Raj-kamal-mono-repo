@@ -35,3 +35,36 @@ model Sale {
   @@index([date])
 }
 
+// New table for Rajkamal-datas.xlsx with columns mirroring the sheet headers
+model RkData {
+  id                 BigInt    @id @default(autoincrement())
+  slNo               Int?
+  date               DateTime?
+  orderId            String?
+  orderStatus        String?
+  isbn               String?
+  title              String?
+  author             String?
+  category           String?
+  publicationName    String?
+  releaseDate        DateTime?
+  noOfPages          Int?
+  name               String?
+  pincode            String?
+  gender             String?
+  ageGroup           String?
+  mobile             String?
+  email              String?
+  membershipId       String?
+  paymentMode        String?
+  mrp                Decimal?  @db.Decimal(12, 2)
+  sellingPrice       Decimal?  @db.Decimal(12, 2)
+  discountCouponCode String?
+  // Preserve original row and a deterministic hash for idempotency
+  rawJson            Json
+  rowHash            String?   @unique
+  createdAt          DateTime  @default(now())
+
+  @@index([date])
+  @@index([orderId])
+}
