@@ -151,7 +151,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\ASUS\\OneDrive\\Desktop\\Raj-kamal-mono-repo\\backend\\src\\features\\sales\\prisma\\generated\\client",
+      "value": "C:\\Users\\soumi\\Desktop\\Raj-kamal-mono-repo\\backend\\src\\features\\sales\\prisma\\generated\\client",
       "fromEnvVar": null
     },
     "config": {
@@ -165,11 +165,12 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\ASUS\\OneDrive\\Desktop\\Raj-kamal-mono-repo\\backend\\src\\features\\sales\\prisma\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\soumi\\Desktop\\Raj-kamal-mono-repo\\backend\\src\\features\\sales\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": null
+    "rootEnvPath": null,
+    "schemaEnvPath": "../../../../../../.env"
   },
   "relativePath": "../..",
   "clientVersion": "5.22.0",

@@ -283,3 +283,44 @@ model LokEventSale {
   @@index([date])
   @@index([orderNo])
 }
+
+// Raw dataset for Rajkamal source (from Rajkamal-datas.xlsx)
+// Mirrors the event sales pattern: optional typed columns + rawJson
+model RajkamalData {
+  id                 BigInt   @id @default(autoincrement())
+  // Spreadsheet columns alignment
+  slNo               Int?               // Sl No
+  date               DateTime?          // Date
+  orderId            String?            // Order Id
+  orderStatus        String?            // Order Status (free-form)
+
+  isbnNo             String?            // ISBN No
+  title              String?
+  author             String?
+  category           String?
+  publicationName    String?            // Publication Name
+  releaseDate        DateTime?          // Release Date
+  noOfPages          Int?               // No of Pages
+
+  name               String?            // Customer Name
+  pincode            String?
+  gender             String?
+  ageGroup           String?
+  mobileNo           String?
+  email              String?
+  membershipId       String?
+  paymentMode        String?            // Keep flexible for import values
+  mrp                Decimal? @db.Decimal(12, 2)
+  sellingPrice       Decimal? @db.Decimal(12, 2)
+  discountCouponCode String?            // Discount/Coupon Code
+
+  // Provenance and dedupe
+  rowHash            String?  @unique
+  rawJson            Json               // original row as JSON
+  createdAt          DateTime @default(now())
+
+  @@index([date])
+  @@index([orderId])
+  @@index([isbnNo])
+  @@map("rajkamal_data")
+}

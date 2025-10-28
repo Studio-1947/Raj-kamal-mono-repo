@@ -14,6 +14,11 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
+    "seed:online": "tsx src/features/sales/scripts/import-excel-events.ts --only online",
+    "seed:online:file": "tsx src/features/sales/scripts/import-excel-events.ts --only online --file",
+    "seed:online:backfill": "tsx src/features/sales/scripts/backfill-online.ts",
+    "seed:events:preview": "tsx src/features/sales/scripts/preview-events.ts",
+    "db:truncate:events": "tsx src/features/sales/scripts/truncate-events.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma"
