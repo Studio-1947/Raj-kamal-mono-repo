@@ -46,6 +46,43 @@ Example output:
 Quick verify:
 - `npx tsx backend/src/features/sales/scripts/verify-import.ts`
 
+## Event Workbook Import (Offline/RAJ/Lok)
+
+Use these scripts to import the 4-sheet event workbook into dedicated tables:
+
+- Import: `backend/src/features/sales/scripts/import-excel-events.ts`
+- Preview: `backend/src/features/sales/scripts/preview-events.ts`
+- Truncate: `backend/src/features/sales/scripts/truncate-events.ts`
+
+Tables in `backend/prisma/schema.prisma`:
+
+- `OnlineSale`
+- `OfflineCashUPICCSale` (offline UPI/CC/Cash)
+- `RajRadhaEventSale`
+- `LokEventSale`
+
+Recommended file location: `data/RKP offline Sales.xlsx`. If your file is elsewhere, pass `--file` explicitly.
+
+Common commands:
+
+- List sheets: `npx tsx backend/src/features/sales/scripts/preview-events.ts --file "./frontend/RKP offline Sales.xlsx" --list`
+- Preview Offline sheet sample + dedupe stats:
+  `npx tsx backend/src/features/sales/scripts/preview-events.ts --file "./frontend/RKP offline Sales.xlsx" --only offline --limit 200`
+- Truncate before re-import (offline only):
+  `npx tsx backend/src/features/sales/scripts/truncate-events.ts --offline`
+- Import Offline only (works with the current workbook naming):
+  `npx tsx backend/src/features/sales/scripts/import-excel-events.ts --file "./frontend/RKP offline Sales.xlsx" --only offline --target offline`
+- Import RajRadha only:
+  `npx tsx backend/src/features/sales/scripts/import-excel-events.ts --file "./frontend/RKP offline Sales.xlsx" --only raj --target raj`
+- Import Lok only:
+  `npx tsx backend/src/features/sales/scripts/import-excel-events.ts --file "./frontend/RKP offline Sales.xlsx" --only lok --target lok`
+
+Notes:
+
+- The importer is idempotent: it computes a `rowHash` per row and uses `createMany({ skipDuplicates: true })`.
+- If inserted count is lower than total rows, duplicates were skipped. For example, if the sheet has 30,173 rows and 29,354 inserted, then 819 were duplicate by `rowHash`.
+- The preview script now mirrors the importer’s mapping and hashing (supports offline aliases like `BookName`, `BOOKRATE`, `OUT`, `Trnsdocdate` and derives `amount = qty * rate` when needed).
+
 ## Mounting the API
 
 The router is provided but not auto‑mounted to avoid changing existing files.

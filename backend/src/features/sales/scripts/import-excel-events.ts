@@ -5,6 +5,8 @@
  *
  * Usage:
  *   npx tsx backend/src/features/sales/scripts/import-excel-events.ts [--file "./data/RKP offline Sales.xlsx"] [--chunk 500]
+ *   Filters: --only online|offline|raj|lok (or any substring of sheet name)
+ *   Override target model: --target online|offline|raj|lok (forces destination table even if sheet name doesn't match)
  */
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -49,11 +51,20 @@ const PaymentModeMap: Record<string, string> = {
   'cash': 'Cash',
   'upi': 'UPI',
   'card': 'Card',
+  'cc': 'Card',
+  'creditcard': 'Card',
+  'credit card': 'Card',
+  'debitcard': 'Card',
+  'debit card': 'Card',
   'netbanking': 'NetBanking',
+  'net banking': 'NetBanking',
   'wallet': 'Wallet',
   'cheque': 'Cheque',
   'banktransfer': 'BankTransfer',
   'bank transfer': 'BankTransfer',
+  'cash/upi': 'UPI',
+  'upi/cash': 'UPI',
+  'cashupi': 'UPI',
 };
 
 function mapPaymentMode(v: any): string | null {
@@ -87,10 +98,15 @@ function canonicalKey(input: Record<string, any>) {
     (input.sheet || '').toString().trim().toLowerCase(),
     (input.orderNo || '').toString().trim().toLowerCase(),
     (input.isbn || '').toString().trim().toLowerCase(),
-    input.date ? new Date(input.date).toISOString().slice(0, 10) : '',
+    input.date
+      ? new Date(input.date).toISOString().slice(0, 10)
+      : `${(input.month || '').toString().trim().toLowerCase()}-${(input.year || '').toString().trim()}`,
     (input.amount || '').toString().trim(),
     (input.customerName || '').toString().trim().toLowerCase(),
     (input.title || '').toString().trim().toLowerCase(),
+    (input.itemCode || '').toString().trim().toLowerCase(),
+    (input.qty || '').toString().trim(),
+    (input.rate || '').toString().trim(),
   ];
   return parts.join('|');
 }
@@ -103,7 +119,17 @@ function pick(row: Record<string, any>, names: string[]): any {
   return undefined;
 }
 
-async function importSheet(sheetName: string, rows: Record<string, any>[]) {
+function normalizeTargetName(input?: string): 'online' | 'offline' | 'raj' | 'lok' | '' {
+  if (!input) return '';
+  const s = String(input).toLowerCase().replace(/[^a-z0-9]+/g, '');
+  if (s === 'online' || s.endsWith('onlinesale')) return 'online';
+  if (s === 'offline' || s.endsWith('offlinecashupiccsale')) return 'offline';
+  if (s === 'raj' || s.endsWith('rajradhaeventsale') || s.includes('rajradha')) return 'raj';
+  if (s === 'lok' || s.endsWith('lokeventsale') || s.includes('lokevent')) return 'lok';
+  return '';
+}
+
+async function importSheet(sheetName: string, rows: Record<string, any>[], opts?: { target?: string }) {
   const chunkSize = DEFAULT_CHUNK_SIZE;
   let inserted = 0;
   const toWriteErrors: Array<{ index: number; error: string }> = [];
@@ -140,8 +166,16 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
   const mapped: Common[] = rows.map((r, idx) => {
     try {
       // Online sheets sometimes use 'Selling Price' for net amount
-      const rate = toDecimalOrNull(toNumberSafe(pick(r, ['Rate', 'rate', 'Price', 'MRP'])));
-      const amount = toDecimalOrNull(toNumberSafe(pick(r, ['Selling Price', 'Amount', 'amount', 'Total'])));
+      const rateNum = toNumberSafe(pick(r, ['Rate', 'rate', 'Price', 'MRP', 'BOOKRATE']));
+      let amountNum = toNumberSafe(pick(r, ['Selling Price', 'Amount', 'amount', 'Total', 'Net Amount', 'Total Amount']));
+      // qty aliases include OUT in legacy offline exports
+      const qtyNum = toNumberSafe(pick(r, ['Qty', 'Quantity', 'OUT']));
+      // If amount missing but we have qty and rate, derive it
+      if ((amountNum == null || amountNum === 0) && (qtyNum != null) && (rateNum != null)) {
+        amountNum = Number((qtyNum * rateNum).toFixed(2));
+      }
+      const rate = toDecimalOrNull(rateNum);
+      const amount = toDecimalOrNull(amountNum);
       const discount = toDecimalOrNull(toNumberSafe(pick(r, ['Discount', 'discount'])));
       const tax = toDecimalOrNull(toNumberSafe(pick(r, ['Tax', 'GST', 'tax'])));
       const shipping = toDecimalOrNull(toNumberSafe(pick(r, ['Shipping', 'Freight', 'shipping'])));
@@ -152,12 +186,12 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
         year: toNumberSafe(pick(r, ['Year'])) ?? null,
         isbn: normalizeString(pick(r, ['ISBN', 'Isbn'])),
         itemCode: normalizeString(pick(r, ['Item Code', 'ItemCode', 'Code'])),
-        title: normalizeString(pick(r, ['Title', 'Book Title'])),
+        title: normalizeString(pick(r, ['Title', 'Book Title', 'BookName', 'Book', 'Product', 'Item', 'Description'])),
         author: normalizeString(pick(r, ['Author'])),
         publisher: normalizeString(pick(r, ['Publisher'])),
         category: normalizeString(pick(r, ['Category'])),
         description: normalizeString(pick(r, ['Description'])),
-        qty: (toNumberSafe(pick(r, ['Qty', 'Quantity'])) ?? null),
+        qty: (qtyNum ?? null),
         rate,
         amount,
         discount,
@@ -168,7 +202,7 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
         mobile: normalizeString(pick(r, ['Mobile', 'Phone', 'Contact'])),
         email: normalizeString(pick(r, ['Email', 'E-mail'])),
         date: ((): Date | null => {
-          const d1 = toDateSafe(pick(r, ['Date', 'Txn Date', 'Transaction Date']));
+          const d1 = toDateSafe(pick(r, ['Date', 'Txn Date', 'Transaction Date', 'Trnsdocdate']));
           if (d1) return d1;
           // Fallback: scan for first ISO-like date value in row
           for (const v of Object.values(r)) {
@@ -188,9 +222,14 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
         orderNo: common.orderNo,
         isbn: common.isbn,
         date: common.date,
+        month: common.month,
+        year: common.year,
         amount: common.amount?.toString() || '',
         customerName: common.customerName,
         title: common.title,
+        itemCode: common.itemCode,
+        qty: common.qty,
+        rate: common.rate?.toString() || '',
       });
       common.rowHash = sha256Hex(key);
       return common;
@@ -204,11 +243,20 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
   const chunks: Common[][] = [];
   for (let i = 0; i < mapped.length; i += chunkSize) chunks.push(mapped.slice(i, i + chunkSize));
 
+  const target = normalizeTargetName(opts?.target);
   for (let ci = 0; ci < chunks.length; ci++) {
     const chunk = chunks[ci];
     try {
       let res: { count: number } = { count: 0 };
-      if (/^online/i.test(sheetName)) {
+      if (target === 'online') {
+        res = await prisma.onlineSale.createMany({ data: chunk as any, skipDuplicates: true });
+      } else if (target === 'offline') {
+        res = await prisma.offlineCashUPICCSale.createMany({ data: chunk as any, skipDuplicates: true });
+      } else if (target === 'raj') {
+        res = await prisma.rajRadhaEventSale.createMany({ data: chunk as any, skipDuplicates: true });
+      } else if (target === 'lok') {
+        res = await prisma.lokEventSale.createMany({ data: chunk as any, skipDuplicates: true });
+      } else if (/^online/i.test(sheetName)) {
         res = await prisma.onlineSale.createMany({ data: chunk as any, skipDuplicates: true });
       } else if (/offline/i.test(sheetName)) {
         res = await prisma.offlineCashUPICCSale.createMany({ data: chunk as any, skipDuplicates: true });
@@ -232,13 +280,14 @@ async function importSheet(sheetName: string, rows: Record<string, any>[]) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out: { file?: string; chunk?: number; only?: string; list?: boolean } = {};
+  const out: { file?: string; chunk?: number; only?: string; list?: boolean; target?: string } = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--file' && args[i + 1]) out.file = String(args[++i]);
     else if (a === '--chunk' && args[i + 1]) out.chunk = Number(args[++i]);
     else if (a === '--only' && args[i + 1]) out.only = String(args[++i]);
     else if (a === '--list' || a === '-l') out.list = true;
+    else if (a === '--target' && args[i + 1]) out.target = String(args[++i]);
   }
   return out;
 }
@@ -263,7 +312,7 @@ async function ensureDataDir(): Promise<string> {
 }
 
 (async () => {
-  const { file, chunk, only, list } = parseArgs();
+  const { file, chunk, only, list, target } = parseArgs();
   const dataDir = await ensureDataDir();
   const filePath = await resolveFilePath(file);
   const wb = XLSX.readFile(filePath, { cellDates: true });
@@ -280,6 +329,8 @@ async function ensureDataDir(): Promise<string> {
   const filter = (only || '').toLowerCase();
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   const filterNorm = normalize(filter);
+  const baseName = path.basename(filePath).toLowerCase();
+  const baseDerivedTarget = normalizeTargetName(baseName);
   for (const sheetName of wb.SheetNames) {
     if (filter) {
       const s = sheetName.toLowerCase();
@@ -297,7 +348,10 @@ async function ensureDataDir(): Promise<string> {
     const ws = wb.Sheets[sheetName];
     if (!ws) continue;
     const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: null });
-    const res = await importSheet(sheetName, rows);
+    // If user didn't pass --target, try to derive from sheet name or file name
+    const sheetDerived = normalizeTargetName(sheetName);
+    const effTarget = normalizeTargetName(target) || sheetDerived || baseDerivedTarget || '';
+    const res = await importSheet(sheetName, rows, { target: effTarget });
     totalInserted += res.inserted;
     for (const e of res.errors) errorList.push({ sheet: sheetName, index: e.index, error: e.error });
   }
