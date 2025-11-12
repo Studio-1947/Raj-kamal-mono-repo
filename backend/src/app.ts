@@ -1,36 +1,40 @@
-import express from 'express';
-import cors, { CorsOptions } from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
+import express from "express";
+import cors, { CorsOptions } from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import dotenv from "dotenv";
 
-import authRoutes from './routes/auth.js';
-import dashboardRoutes from './routes/dashboard.js';
-import inventoryRoutes from './routes/inventory.js';
-import rankingsRoutes from './routes/rankings.js';
-import metricsRoutes from './routes/metrics.js';
-import { errorHandler } from './middleware/errorHandler.js';
-import { mountOnlineSales } from './features/sales/server/online.index.js';
-import { mountOfflineSales } from './features/sales/server/offline.index.js';
-import { mountLokEventSales } from './features/sales/server/lok-event.index.js';
-import { mountRajRadhaEventSales } from './features/sales/server/rajradha-event.index.js';
-import { notFound } from './middleware/notFound.js';
+import authRoutes from "./routes/auth.js";
+import dashboardRoutes from "./routes/dashboard.js";
+import inventoryRoutes from "./routes/inventory.js";
+import rankingsRoutes from "./routes/rankings.js";
+import metricsRoutes from "./routes/metrics.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { mountOnlineSales } from "./features/sales/server/online.index.js";
+import { mountOfflineSales } from "./features/sales/server/offline.index.js";
+import { mountLokEventSales } from "./features/sales/server/lok-event.index.js";
+import { mountRajRadhaEventSales } from "./features/sales/server/rajradha-event.index.js";
+import { notFound } from "./middleware/notFound.js";
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 
-const sanitizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, '');
+const sanitizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, "");
 
-const corsOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
-  .split(',')
+const corsOrigins = (
+  process.env.CORS_ORIGINS ||
+  process.env.FRONTEND_URL ||
+  "http://localhost:5173"
+)
+  .split(",")
   .map((origin) => sanitizeOrigin(origin))
   .filter(Boolean);
 
 if (corsOrigins.length === 0) {
-  corsOrigins.push('http://localhost:5173');
+  corsOrigins.push("http://localhost:5173");
 }
 
 const corsOptions: CorsOptions = {
@@ -44,7 +48,7 @@ const corsOptions: CorsOptions = {
       return callback(null, true);
     }
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== "production") {
       console.warn(`Blocked CORS origin: ${origin}`);
     }
 
@@ -53,8 +57,8 @@ const corsOptions: CorsOptions = {
     return callback(null, false);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   optionsSuccessStatus: 204,
 };
 
@@ -68,32 +72,32 @@ app.use(cors(corsOptions));
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
+  message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use(limiter);
 
 // Logging
-app.use(morgan('combined'));
+app.use(morgan("combined"));
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get("/health", (req, res) => {
   res.status(200).json({
-    status: 'OK',
+    status: "OK",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || "development",
   });
 });
 
 // Root endpoint - Backend status page
-app.get('/', (_req, res) => {
-  res.type('html').send(`
+app.get("/", (_req, res) => {
+  res.type("html").send(`
     <!DOCTYPE html>
     <html lang="en">
       <head>
@@ -119,7 +123,7 @@ app.get('/', (_req, res) => {
       <body>
         <h1>Raj-Kamal Backend API is running</h1>
         <p>Status: <strong>OK</strong></p>
-        <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
+        <p>Environment: ${process.env.NODE_ENV || "development"}</p>
         <p>Timestamp: ${new Date().toISOString()}</p>
         <ul>
           <li><code>/health</code></li>
@@ -135,36 +139,36 @@ app.get('/', (_req, res) => {
 });
 
 // API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/rankings', rankingsRoutes);
-app.use('/api/metrics', metricsRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/inventory", inventoryRoutes);
+app.use("/api/rankings", rankingsRoutes);
+app.use("/api/metrics", metricsRoutes);
 // Sales APIs (features)
-mountOnlineSales(app, '/api/online-sales');
-mountOfflineSales(app, '/api/offline-sales');
-mountLokEventSales(app, '/api/lok-event-sales');
-mountRajRadhaEventSales(app, '/api/rajradha-event-sales');
+mountOnlineSales(app, "/api/online-sales");
+mountOfflineSales(app, "/api/offline-sales");
+mountLokEventSales(app, "/api/lok-event-sales");
+mountRajRadhaEventSales(app, "/api/rajradha-event-sales");
 
 // Fallback route for any unmatched requests
-app.use('*', (req, res) => {
-  console.log('Fallback route hit:', req.method, req.originalUrl);
+app.use("*", (req, res) => {
+  console.log("Fallback route hit:", req.method, req.originalUrl);
   res.status(200).json({
-    message: 'Raj-Kamal Backend API is running!',
-    status: 'OK',
+    message: "Raj-Kamal Backend API is running!",
+    status: "OK",
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
+    version: "1.0.0",
+    environment: process.env.NODE_ENV || "development",
     requestedPath: req.originalUrl,
     method: req.method,
     endpoints: {
-      health: '/health',
-      auth: '/api/auth',
-      dashboard: '/api/dashboard',
-      inventory: '/api/inventory',
-      rankings: '/api/rankings'
+      health: "/health",
+      auth: "/api/auth",
+      dashboard: "/api/dashboard",
+      inventory: "/api/inventory",
+      rankings: "/api/rankings",
     },
-    documentation: 'Visit /api/auth/admin-status to check admin setup'
+    documentation: "Visit /api/auth/admin-status to check admin setup",
   });
 });
 
