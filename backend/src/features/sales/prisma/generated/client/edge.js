@@ -150,7 +150,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\soumi\\Desktop\\Raj-kamal-mono-repo\\backend\\src\\features\\sales\\prisma\\generated\\client",
+      "value": "/media/santam/sda3/workcode/Raj-kamal-mono-repo/backend/src/features/sales/prisma/generated/client",
       "fromEnvVar": null
     },
     "config": {
@@ -159,17 +159,16 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "windows",
+        "value": "debian-openssl-3.0.x",
         "native": true
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\soumi\\Desktop\\Raj-kamal-mono-repo\\backend\\src\\features\\sales\\prisma\\schema.prisma",
+    "sourceFilePath": "/media/santam/sda3/workcode/Raj-kamal-mono-repo/backend/src/features/sales/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": null,
-    "schemaEnvPath": "../../../../../../.env"
+    "rootEnvPath": null
   },
   "relativePath": "../..",
   "clientVersion": "5.22.0",
