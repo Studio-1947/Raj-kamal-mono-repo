@@ -9,6 +9,8 @@ import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import inventoryRoutes from './routes/inventory.js';
 import rankingsRoutes from './routes/rankings.js';
+import socialRoutes from './routes/social.js';
+import metricoolRoutes from './routes/metricool.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { mountOnlineSales } from './features/sales/server/online.index.js';
 import { mountOfflineSales } from './features/sales/server/offline.index.js';
@@ -63,14 +65,25 @@ app.use(helmet());
 // CORS configuration
 app.use(cors(corsOptions));
 
-// Rate limiting
+const rateLimitWindowMs =
+  Number(process.env.API_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
+const rateLimitMaxRequests =
+  Number(process.env.API_RATE_LIMIT_MAX_REQUESTS) || 100;
+
+const rateLimitBypassPaths = ['/health', '/', '/api/auth/me'];
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: rateLimitWindowMs,
+  max: rateLimitMaxRequests,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) =>
+    rateLimitBypassPaths.some(
+      (path) => req.path === path || req.path.startsWith(`${path}/`)
+    ),
 });
+
 app.use(limiter);
 
 // Logging
@@ -138,6 +151,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/rankings', rankingsRoutes);
+app.use('/api/social', socialRoutes);
+app.use('/api/metricool', metricoolRoutes);
 // Sales APIs (features)
 mountOnlineSales(app, '/api/online-sales');
 mountOfflineSales(app, '/api/offline-sales');
