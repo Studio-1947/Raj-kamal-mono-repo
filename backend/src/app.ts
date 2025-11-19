@@ -10,6 +10,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import inventoryRoutes from './routes/inventory.js';
 import rankingsRoutes from './routes/rankings.js';
 import socialRoutes from './routes/social.js';
+import metricoolRoutes from './routes/metricool.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { mountOnlineSales } from './features/sales/server/online.index.js';
 import { mountOfflineSales } from './features/sales/server/offline.index.js';
@@ -140,6 +141,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/rankings', rankingsRoutes);
 app.use('/api/social', socialRoutes);
+app.use('/api/metricool', metricoolRoutes);
 // Sales APIs (features)
 mountOnlineSales(app, '/api/online-sales');
 mountOfflineSales(app, '/api/offline-sales');

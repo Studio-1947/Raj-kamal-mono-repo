@@ -31,6 +31,30 @@ export const METRICOOL_ANALYTICS_TIMELINES_PATH =
 // Admin / profile info (confirmed working from Postman)
 export const METRICOOL_ADMIN_PROFILE_PATH = '/api/admin/profile';
 
+export function buildMetricoolBaseParams(
+  extra?: Record<string, string | number | undefined | null>
+): Record<string, string> {
+  if (!METRICOOL_USER_ID || !METRICOOL_BLOG_ID || !METRICOOL_API_TOKEN) {
+    throw new Error('Missing METRICOOL_USER_ID, METRICOOL_BLOG_ID or METRICOOL_API_TOKEN');
+  }
+
+  const params: Record<string, string> = {
+    userId: METRICOOL_USER_ID,
+    blogId: METRICOOL_BLOG_ID,
+    userToken: METRICOOL_API_TOKEN,
+  };
+
+  if (extra) {
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params[key] = String(value);
+      }
+    });
+  }
+
+  return params;
+}
+
 export type MetricoolMethod = 'GET' | 'POST';
 
 export type MetricoolRequestOptions = {
@@ -54,9 +78,28 @@ function buildUrl(endpoint: string, searchParams?: MetricoolRequestOptions['sear
     throw new Error('Missing METRICOOL_BASE_URL');
   }
 
-  const base = METRICOOL_BASE_URL.replace(/\/+$/, '');
-  const path = endpoint.replace(/^\/+/, '');
-  const url = new URL(`${base}/${path}`);
+  // Metricool's documentation states that the base URL already includes `/api`
+  // (https://app.metricool.com/api). A lot of their sample endpoints, however,
+  // also start with `/api/...`. When users copy the docs literally we end up with
+  // duplicated `/api/api/...` segments and Metricool replies with 404.
+  // Normalise the base and strip duplicated segments so both styles keep working.
+  const normalizedBase = METRICOOL_BASE_URL.endsWith('/')
+    ? METRICOOL_BASE_URL
+    : `${METRICOOL_BASE_URL}/`;
+  const baseUrl = new URL(normalizedBase);
+  const basePath = baseUrl.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+
+  let normalizedEndpoint = endpoint.trim().replace(/^\/+/, '');
+
+  if (basePath) {
+    if (normalizedEndpoint === basePath) {
+      normalizedEndpoint = '';
+    } else if (normalizedEndpoint.startsWith(`${basePath}/`)) {
+      normalizedEndpoint = normalizedEndpoint.slice(basePath.length + 1);
+    }
+  }
+
+  const url = new URL(normalizedEndpoint, baseUrl);
 
   if (searchParams) {
     Object.entries(searchParams).forEach(([key, value]) => {
