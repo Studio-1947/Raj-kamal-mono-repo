@@ -65,14 +65,25 @@ app.use(helmet());
 // CORS configuration
 app.use(cors(corsOptions));
 
-// Rate limiting
+const rateLimitWindowMs =
+  Number(process.env.API_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
+const rateLimitMaxRequests =
+  Number(process.env.API_RATE_LIMIT_MAX_REQUESTS) || 100;
+
+const rateLimitBypassPaths = ['/health', '/', '/api/auth/me'];
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: rateLimitWindowMs,
+  max: rateLimitMaxRequests,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) =>
+    rateLimitBypassPaths.some(
+      (path) => req.path === path || req.path.startsWith(`${path}/`)
+    ),
 });
+
 app.use(limiter);
 
 // Logging
