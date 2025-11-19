@@ -6,6 +6,20 @@ type ApiEnvelope<T> = { success: boolean; data: T; error?: any };
 
 type TimelinePoint = { dateTime?: string; value?: number };
 
+type TimelineMetricAlias = Partial<Record<string, string>>;
+
+const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
+  facebook: {
+    followers: "pageFollows",
+    newFollowers: "page_daily_follows_unique",
+    lostFollowers: "page_daily_unfollows_unique",
+    reach: "page_posts_impressions",
+    clicks: "page_total_actions",
+  },
+  instagram: {},
+  meta_ads: {},
+};
+
 function extractSeriesValues(payload: any): TimelinePoint[] {
   if (!payload) return [];
   if (Array.isArray(payload?.data)) {
@@ -35,13 +49,17 @@ async function getMetricool<T>(
   return envelope.data;
 }
 
+function resolveTimelineMetric(platform: PlatformKey, metric: string): string {
+  return timelineMetricAliases[platform]?.[metric] ?? metric;
+}
+
 async function fetchTimelineSeries(
   platform: PlatformKey,
   metric: string,
   params?: Record<string, unknown>
 ) {
   return getMetricool<any>("/metricool/" + platform + "/timeline", {
-    metric,
+    metric: resolveTimelineMetric(platform, metric),
     ...params,
   });
 }
@@ -136,19 +154,25 @@ export async function fetchPosts(
   return { data };
 }
 
-export async function fetchDemographicsCountries(platform: PlatformKey) {
+export async function fetchDemographicsCountries(
+  platform: PlatformKey,
+  params?: Record<string, unknown>
+) {
   if (platform === "meta_ads") {
     return { data: { data: [] } };
   }
-  const data = await fetchDistributionMetric(platform, "page_follows_country");
+  const data = await fetchDistributionMetric(platform, "page_follows_country", params);
   return { data };
 }
 
-export async function fetchDemographicsCities(platform: PlatformKey) {
+export async function fetchDemographicsCities(
+  platform: PlatformKey,
+  params?: Record<string, unknown>
+) {
   if (platform === "meta_ads") {
     return { data: { data: [] } };
   }
-  const data = await fetchDistributionMetric(platform, "page_follows_city");
+  const data = await fetchDistributionMetric(platform, "page_follows_city", params);
   return { data };
 }
 

@@ -142,8 +142,8 @@ export default function Social() {
             fetchOverview(activeNetwork, { from, to }),
             fetchGrowth(activeNetwork, { from, to }),
             fetchPosts(activeNetwork, { from, to, pageSize: 10 }),
-            fetchDemographicsCountries(activeNetwork),
-            fetchDemographicsCities(activeNetwork),
+            fetchDemographicsCountries(activeNetwork, { from, to }),
+            fetchDemographicsCities(activeNetwork, { from, to }),
             fetchClicks(activeNetwork, { from, to }),
           ]);
 
