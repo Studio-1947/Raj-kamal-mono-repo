@@ -9,6 +9,32 @@ type TimelinePoint = { dateTime?: string; value?: number };
 type TimelineMetricAlias = Partial<Record<string, string>>;
 type DistributionMetricMap = Partial<Record<"country" | "city", string>>;
 
+// Metricool endpoints can take longer than our default axios timeout, so give them more headroom.
+const METRICOOL_TIMEOUT_MS = 60000;
+const METRICOOL_CACHE_TTL_MS = 2 * 60 * 1000;
+
+type CacheEntry<T> = { expiresAt: number; data: T };
+
+const metricoolCache = new Map<string, CacheEntry<any>>();
+const inFlightRequests = new Map<string, Promise<any>>();
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  const entries = Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((key) => `${key}:${stableStringify((value as any)[key])}`);
+  return `{${entries.join(",")}}`;
+}
+
+function buildCacheKey(url: string, params?: Record<string, unknown>) {
+  return `${url}?${stableStringify(params ?? {})}`;
+}
+
 const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
   facebook: {
     followers: "pageFollows",
@@ -67,8 +93,39 @@ async function getMetricool<T>(
   url: string,
   params?: Record<string, unknown>
 ): Promise<T> {
-  const envelope = await apiClient.get<ApiEnvelope<T>>(url, { params });
-  return envelope.data;
+  const key = buildCacheKey(url, params);
+  const now = Date.now();
+
+  const cached = metricoolCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
+  }
+
+  const existing = inFlightRequests.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const request = apiClient
+    .get<ApiEnvelope<T>>(url, {
+      params,
+      timeout: METRICOOL_TIMEOUT_MS,
+    })
+    .then((envelope) => {
+      metricoolCache.set(key, {
+        expiresAt: Date.now() + METRICOOL_CACHE_TTL_MS,
+        data: envelope.data,
+      });
+      inFlightRequests.delete(key);
+      return envelope.data;
+    })
+    .catch((error) => {
+      inFlightRequests.delete(key);
+      throw error;
+    });
+
+  inFlightRequests.set(key, request);
+  return request;
 }
 
 function resolveTimelineMetric(platform: PlatformKey, metric: string): string {
