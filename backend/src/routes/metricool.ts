@@ -4,6 +4,7 @@ import {
   fetchDistribution,
   fetchTimeline,
   fetchPosts,
+  fetchCompetitors,
 } from '../services/metricoolService.js';
 
 const router = express.Router();
@@ -42,6 +43,14 @@ const postsQuerySchema = z.object({
   to: z.string().optional(),
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),
+  subject: z.string().optional(),
+});
+
+const competitorsQuerySchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  timezone: z.string().optional(),
+  limit: z.coerce.number().optional(),
 });
 
 router.get('/:network/distribution', async (req, res, next) => {
@@ -77,6 +86,17 @@ router.get('/:network/posts', async (req, res, next) => {
     const network = networkSchema.parse(req.params.network);
     const query = postsQuerySchema.parse(req.query);
     const data = await fetchPosts(network, query);
+    res.json({ success: true, data, error: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:network/competitors', async (req, res, next) => {
+  try {
+    const network = networkSchema.parse(req.params.network);
+    const query = competitorsQuerySchema.parse(req.query);
+    const data = await fetchCompetitors(network, query);
     res.json({ success: true, data, error: null });
   } catch (error) {
     next(error);

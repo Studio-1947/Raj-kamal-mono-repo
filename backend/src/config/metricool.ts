@@ -1,4 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 15000;
+const REQUEST_INTERVAL_MS = 1000; // 1 second between batches (faster than 2.5s)
+const MAX_PARALLEL_REQUESTS = 2; // Allow 2 requests in parallel per batch
 
 export const METRICOOL_BASE_URL = process.env.METRICOOL_BASE_URL ?? '';
 export const METRICOOL_API_TOKEN = process.env.METRICOOL_API_TOKEN ?? '';
@@ -30,6 +32,63 @@ export const METRICOOL_ANALYTICS_TIMELINES_PATH =
 
 // Admin / profile info (confirmed working from Postman)
 export const METRICOOL_ADMIN_PROFILE_PATH = '/api/admin/profile';
+
+// Optimized queue-based rate limiting with batching
+let requestQueue: Array<() => Promise<any>> = [];
+let isProcessingQueue = false;
+let lastBatchTime = 0;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function processQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) {
+    return;
+  }
+
+  isProcessingQueue = true;
+
+  while (requestQueue.length > 0) {
+    const now = Date.now();
+    const timeSinceLastBatch = now - lastBatchTime;
+    
+    // Wait if needed to maintain interval between batches
+    if (timeSinceLastBatch < REQUEST_INTERVAL_MS) {
+      await sleep(REQUEST_INTERVAL_MS - timeSinceLastBatch);
+    }
+
+    // Process up to MAX_PARALLEL_REQUESTS in parallel
+    const batch = requestQueue.splice(0, MAX_PARALLEL_REQUESTS);
+    
+    try {
+      // Execute batch in parallel
+      await Promise.all(batch.map(task => task()));
+    } catch (error) {
+      console.error('Batch request failed:', error);
+    }
+    
+    lastBatchTime = Date.now();
+  }
+
+  isProcessingQueue = false;
+}
+
+function queueRequest<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const wrappedTask = async () => {
+      try {
+        const result = await task();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    requestQueue.push(wrappedTask);
+    processQueue();
+  });
+}
 
 export function buildMetricoolBaseParams(
   extra?: Record<string, string | number | undefined | null>
@@ -78,11 +137,6 @@ function buildUrl(endpoint: string, searchParams?: MetricoolRequestOptions['sear
     throw new Error('Missing METRICOOL_BASE_URL');
   }
 
-  // Metricool's documentation states that the base URL already includes `/api`
-  // (https://app.metricool.com/api). A lot of their sample endpoints, however,
-  // also start with `/api/...`. When users copy the docs literally we end up with
-  // duplicated `/api/api/...` segments and Metricool replies with 404.
-  // Normalise the base and strip duplicated segments so both styles keep working.
   const normalizedBase = METRICOOL_BASE_URL.endsWith('/')
     ? METRICOOL_BASE_URL
     : `${METRICOOL_BASE_URL}/`;
@@ -118,63 +172,65 @@ export async function metricoolRequest<T = unknown>(
     throw new Error('Missing METRICOOL_API_TOKEN');
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  );
-
-  const url = buildUrl(options.endpoint, options.searchParams);
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Mc-Auth': METRICOOL_API_TOKEN,
-  };
-
-  try {
-    const response = await fetch(
-      url,
-      {
-        method: options.method ?? 'GET',
-        headers,
-        body: options.body ? JSON.stringify(options.body) : null,
-        signal: controller.signal,
-      } as RequestInit
+  return queueRequest(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS
     );
 
-    const contentType = response.headers.get('content-type') ?? '';
-    const isJson = contentType.includes('application/json');
-    const payload = isJson ? await response.json() : await response.text();
+    const url = buildUrl(options.endpoint, options.searchParams);
 
-    if (!response.ok) {
-      const errorShape: MetricoolErrorShape = {
-        ok: false,
-        status: response.status,
-        message:
-          typeof payload === 'string'
-            ? payload
-            : (payload?.message as string) || 'Metricool request failed',
-        code: typeof payload === 'object' ? (payload as any).code : undefined,
-        details: typeof payload === 'object' ? payload : undefined,
-      };
-      const err = new Error(errorShape.message);
-      (err as any).status = errorShape.status;
-      (err as any).code = errorShape.code;
-      (err as any).details = errorShape.details;
-      throw err;
-    }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Mc-Auth': METRICOOL_API_TOKEN,
+    };
 
-    return payload as T;
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      const timeoutError = new Error('Metricool request timed out');
-      (timeoutError as any).status = 504;
-      throw timeoutError;
+    try {
+      const response = await fetch(
+        url,
+        {
+          method: options.method ?? 'GET',
+          headers,
+          body: options.body ? JSON.stringify(options.body) : null,
+          signal: controller.signal,
+        } as RequestInit
+      );
+
+      const contentType = response.headers.get('content-type') ?? '';
+      const isJson = contentType.includes('application/json');
+      const payload = isJson ? await response.json() : await response.text();
+
+      if (!response.ok) {
+        const errorShape: MetricoolErrorShape = {
+          ok: false,
+          status: response.status,
+          message:
+            typeof payload === 'string'
+              ? payload
+              : (payload?.message as string) || 'Metricool request failed',
+          code: typeof payload === 'object' ? (payload as any).code : undefined,
+          details: typeof payload === 'object' ? payload : undefined,
+        };
+        const err = new Error(errorShape.message);
+        (err as any).status = errorShape.status;
+        (err as any).code = errorShape.code;
+        (err as any).details = errorShape.details;
+        throw err;
+      }
+
+      return payload as T;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        const timeoutError = new Error('Metricool request timed out');
+        (timeoutError as any).status = 504;
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  });
 }
 
 export type MetricoolAnalyticsParams = {

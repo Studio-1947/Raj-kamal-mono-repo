@@ -65,26 +65,33 @@ app.use(helmet());
 // CORS configuration
 app.use(cors(corsOptions));
 
+const rateLimitEnabled = process.env.API_RATE_LIMIT_ENABLED !== 'false';
 const rateLimitWindowMs =
   Number(process.env.API_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
 const rateLimitMaxRequests =
   Number(process.env.API_RATE_LIMIT_MAX_REQUESTS) || 100;
+const rateLimitBypassPaths = (
+  process.env.API_RATE_LIMIT_BYPASS || '/health,/,/api/auth,/api/auth/login,/api/auth/me'
+)
+  .split(',')
+  .map((p) => p.trim())
+  .filter(Boolean);
 
-const rateLimitBypassPaths = ['/health', '/', '/api/auth/me'];
+if (rateLimitEnabled) {
+  const limiter = rateLimit({
+    windowMs: rateLimitWindowMs,
+    max: rateLimitMaxRequests,
+    message: 'Too many requests from this IP, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) =>
+      rateLimitBypassPaths.some(
+        (path) => req.path === path || req.path.startsWith(`${path}/`)
+      ),
+  });
 
-const limiter = rateLimit({
-  windowMs: rateLimitWindowMs,
-  max: rateLimitMaxRequests,
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) =>
-    rateLimitBypassPaths.some(
-      (path) => req.path === path || req.path.startsWith(`${path}/`)
-    ),
-});
-
-app.use(limiter);
+  app.use(limiter);
+}
 
 // Logging
 app.use(morgan('combined'));
