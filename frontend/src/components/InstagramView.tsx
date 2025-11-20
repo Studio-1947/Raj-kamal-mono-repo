@@ -152,7 +152,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                             onClick={() => setActiveSection(section.key)}
                             className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeSection === section.key
                                 ? "bg-blue-600 text-white shadow-md"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                : "bg-gray-100 text-gray-900 hover:bg-gray-200"
                                 }`}
                         >
                             {section.label}
@@ -161,7 +161,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                 </div>
 
                 {/* Time Range Selector */}
-                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-700">
+                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-900">
                     {(["7d", "30d", "90d"] as TimeRangeKey[]).map((key) => (
                         <button
                             key={key}
@@ -193,7 +193,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
             )}
 
             {loading && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-900">
                     Loading {activeSection} metrics...
                 </p>
             )}
@@ -204,7 +204,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                     <p className="text-sm font-semibold text-gray-900 capitalize">
                         {activeSection} - Impressions Over Time
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-900">
                         Showing data for the selected time period
                     </p>
                 </header>
@@ -232,7 +232,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                             </LineChart>
                         </ResponsiveContainer>
                     ) : (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-gray-900">
                             No timeline data available for this section.
                         </p>
                     )}
@@ -245,7 +245,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                     <p className="text-sm font-semibold text-gray-900 capitalize">
                         {activeSection} Items
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-900">
                         Recent {activeSection} published in this period
                     </p>
                 </header>
@@ -253,7 +253,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                     {items.length > 0 ? (
                         <table className="min-w-full text-xs">
                             <thead>
-                                <tr className="text-left text-gray-500">
+                                <tr className="text-left text-gray-900">
                                     <th className="py-2 pr-2">Message</th>
                                     <th className="py-2 pr-2">Type</th>
                                     <th className="py-2 pr-2 text-right">Impressions</th>
@@ -269,7 +269,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                         <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
                                             {item.message || item.caption || "—"}
                                         </td>
-                                        <td className="py-2 pr-2 text-gray-700">
+                                        <td className="py-2 pr-2 text-gray-900">
                                             {item.mediaType || item.type || activeSection}
                                         </td>
                                         <td className="py-2 pr-2 text-right">
@@ -292,7 +292,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                             </tbody>
                         </table>
                     ) : (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-gray-900">
                             No {activeSection} items found for this period.
                         </p>
                     )}

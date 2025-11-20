@@ -11,7 +11,7 @@ type DistributionMetricMap = Partial<Record<"country" | "city", string>>;
 
 // Metricool endpoints can take longer than our default axios timeout, so give them more headroom.
 const METRICOOL_TIMEOUT_MS = 60000;
-const METRICOOL_CACHE_TTL_MS = 2 * 60 * 1000;
+const METRICOOL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes - increased from 2 minutes for better performance
 const METRICOOL_DEFAULT_TIMEZONE = "Asia/Kolkata";
 
 type CacheEntry<T> = { expiresAt: number; data: T };
@@ -59,12 +59,12 @@ const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
 
 const distributionMetricAliases: Record<PlatformKey, DistributionMetricMap> = {
   facebook: {
-    country: "country", // Metricool API uses simple 'country' for distribution
-    city: "city", // Metricool API uses simple 'city' for distribution
+    country: "followersByCountry", // Facebook uses 'followersByCountry' for distribution
+    city: "followersByCity", // Facebook uses 'followersByCity' for distribution
   },
   instagram: {
-    country: "country", // Metricool API uses simple 'country' for distribution
-    city: "city", // Metricool API uses simple 'city' for distribution
+    country: "country", // Instagram uses simple 'country' for distribution
+    city: "city", // Instagram uses simple 'city' for distribution
   },
   meta_ads: {},
 };

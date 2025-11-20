@@ -243,7 +243,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             onClick={() => setActiveSection(section.key)}
                             className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeSection === section.key
                                 ? "bg-blue-600 text-white shadow-md"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                : "bg-gray-100 text-gray-900 hover:bg-gray-200"
                                 }`}
                         >
                             {section.label}
@@ -252,7 +252,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 </div>
 
                 {/* Time Range Selector */}
-                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-700">
+                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-900">
                     {(["7d", "30d", "90d"] as TimeRangeKey[]).map((key) => (
                         <button
                             key={key}
@@ -274,7 +274,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             )}
 
             {loading && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-900">
                     Loading {activeSection.replace(/_/g, " ")} metrics...
                 </p>
             )}
@@ -286,12 +286,12 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p className="text-sm font-semibold text-gray-900">Page Overview</p>
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-gray-900">
                                     {networkFrom} → {networkTo}
                                 </p>
                             </div>
                             {overview?.profileName && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <div className="flex items-center gap-2 text-sm text-gray-900">
                                     <img
                                         src={
                                             overview?.profilePictureUrl ||
@@ -319,7 +319,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     key={card.label}
                                     className="rounded-2xl bg-sky-50 px-4 py-3 text-center shadow-inner border border-sky-100"
                                 >
-                                    <p className="text-xs font-semibold text-gray-500">
+                                    <p className="text-xs font-semibold text-gray-900">
                                         {card.label}
                                     </p>
                                     <p className="text-xl font-bold text-gray-900">
@@ -364,7 +364,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                         </LineChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-gray-900">
                                         No growth data for this period.
                                     </p>
                                 )}
@@ -378,7 +378,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 <p className="text-sm font-semibold text-gray-900">
                                     Balance of Followers
                                 </p>
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-gray-900">
                                     {networkFrom} → {networkTo}
                                 </p>
                             </div>
@@ -422,7 +422,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     </LineChart>
                                 </ResponsiveContainer>
                             ) : (
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-gray-900">
                                     No follower balance data.
                                 </p>
                             )}
@@ -439,7 +439,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             <p className="text-sm font-semibold text-gray-900">
                                 Followers by Country
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-900">
                                 Geographic distribution of your audience
                             </p>
                         </header>
@@ -468,7 +468,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </ResponsiveContainer>
                             ) : (
                                 <div className="text-center">
-                                    <p className="text-sm text-gray-500 mb-2">No demographic data available</p>
+                                    <p className="text-sm text-gray-900 mb-2">No demographic data available</p>
                                     <p className="text-xs text-gray-400">
                                         Note: Facebook requires at least 100 followers for demographic data.
                                         Age and gender demographics were deprecated by Facebook in Sept 2024.
@@ -483,7 +483,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             <p className="text-sm font-semibold text-gray-900">
                                 Top Cities
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-900">
                                 Cities with the most followers
                             </p>
                         </header>
@@ -491,7 +491,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             {demographicsCityTable.length > 0 ? (
                                 <table className="min-w-full text-xs">
                                     <thead>
-                                        <tr className="text-left text-gray-500">
+                                        <tr className="text-left text-gray-900">
                                             <th className="py-2 pr-2">City</th>
                                             <th className="py-2 pr-2 text-right">Followers</th>
                                         </tr>
@@ -511,7 +511,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </table>
                             ) : (
                                 <div className="text-center py-4">
-                                    <p className="text-sm text-gray-500">No city breakdown available</p>
+                                    <p className="text-sm text-gray-900">No city breakdown available</p>
                                     <p className="text-xs text-gray-400 mt-1">
                                         Requires at least 100 followers
                                     </p>
@@ -529,7 +529,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         <p className="text-sm font-semibold text-gray-900">
                             Clicks on Page
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-900">
                             {networkFrom} → {networkTo}
                         </p>
                     </header>
@@ -557,7 +557,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </LineChart>
                             </ResponsiveContainer>
                         ) : (
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-gray-900">
                                 No clicks data for this period.
                             </p>
                         )}
@@ -570,7 +570,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
                         <p className="text-sm font-semibold text-gray-900">Recent Posts</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-900">
                             Top performing posts in this period
                         </p>
                     </header>
@@ -578,7 +578,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         {postsRows.length > 0 ? (
                             <table className="min-w-full text-xs">
                                 <thead>
-                                    <tr className="text-left text-gray-500">
+                                    <tr className="text-left text-gray-900">
                                         <th className="py-2 pr-2">Message</th>
                                         <th className="py-2 pr-2">Type</th>
                                         <th className="py-2 pr-2 text-right">Impressions</th>
@@ -594,7 +594,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                             <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
                                                 {item.message || "—"}
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-700">
+                                            <td className="py-2 pr-2 text-gray-900">
                                                 {item.mediaType || "—"}
                                             </td>
                                             <td className="py-2 pr-2 text-right">
@@ -617,7 +617,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-500">No posts found for this period.</p>
+                            <p className="text-sm text-gray-900">No posts found for this period.</p>
                         )}
                     </div>
                 </section>
@@ -629,7 +629,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
                         <p className="text-sm font-semibold text-gray-900">Facebook Reels</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-900">
                             Performance metrics for your Reels content
                         </p>
                         {reelsData?.error && (
@@ -642,7 +642,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         {reelsData?.items && reelsData.items.length > 0 ? (
                             <table className="min-w-full text-xs">
                                 <thead>
-                                    <tr className="text-left text-gray-500">
+                                    <tr className="text-left text-gray-900">
                                         <th className="py-2 pr-2">Message</th>
                                         <th className="py-2 pr-2">Type</th>
                                         <th className="py-2 pr-2 text-right">Impressions</th>
@@ -658,7 +658,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                             <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
                                                 {item.message || "—"}
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-700">
+                                            <td className="py-2 pr-2 text-gray-900">
                                                 {item.mediaType || "Reel"}
                                             </td>
                                             <td className="py-2 pr-2 text-right">
@@ -681,7 +681,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-gray-900">
                                 {reelsData?.error
                                     ? "Unable to load Reels data. This may require additional permissions or Facebook connection."
                                     : "No Reels found for this period."}
@@ -696,7 +696,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
                         <p className="text-sm font-semibold text-gray-900">Facebook Stories</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-900">
                             Performance metrics for your Stories content
                         </p>
                         {storiesData?.error && (
@@ -709,7 +709,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         {storiesData?.items && storiesData.items.length > 0 ? (
                             <table className="min-w-full text-xs">
                                 <thead>
-                                    <tr className="text-left text-gray-500">
+                                    <tr className="text-left text-gray-900">
                                         <th className="py-2 pr-2">Message</th>
                                         <th className="py-2 pr-2">Type</th>
                                         <th className="py-2 pr-2 text-right">Impressions</th>
@@ -725,7 +725,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                             <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
                                                 {item.message || "—"}
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-700">
+                                            <td className="py-2 pr-2 text-gray-900">
                                                 {item.mediaType || "Story"}
                                             </td>
                                             <td className="py-2 pr-2 text-right">
@@ -748,7 +748,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-gray-900">
                                 {storiesData?.error
                                     ? "Unable to load Stories data. This may require additional permissions or Facebook connection."
                                     : "No Stories found for this period."}
@@ -763,7 +763,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
                         <p className="text-sm font-semibold text-gray-900">Competitors Analysis</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-900">
                             Compare your performance with competitors
                         </p>
                         {competitorsData?.error && (
@@ -776,7 +776,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         {competitorsData?.items && competitorsData.items.length > 0 ? (
                             <table className="min-w-full text-xs">
                                 <thead>
-                                    <tr className="text-left text-gray-500">
+                                    <tr className="text-left text-gray-900">
                                         <th className="py-2 pr-2">Competitor</th>
                                         <th className="py-2 pr-2 text-right">Followers</th>
                                         <th className="py-2 pr-2 text-right">Posts</th>
@@ -803,7 +803,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-gray-900">
                                 {competitorsData?.error
                                     ? "Unable to load Competitors data. This feature may require additional setup in Metricool."
                                     : "No competitor data available. Add competitors in Metricool to see comparisons."}

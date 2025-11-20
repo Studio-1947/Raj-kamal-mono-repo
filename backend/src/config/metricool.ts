@@ -1,5 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 15000;
-const REQUEST_INTERVAL_MS = 1500; // 1.5 seconds between requests - prevents 429 errors
+const REQUEST_INTERVAL_MS = 1000; // 1 second between batches (faster than 2.5s)
+const MAX_PARALLEL_REQUESTS = 2; // Allow 2 requests in parallel per batch
 
 export const METRICOOL_BASE_URL = process.env.METRICOOL_BASE_URL ?? '';
 export const METRICOOL_API_TOKEN = process.env.METRICOOL_API_TOKEN ?? '';
@@ -32,10 +33,10 @@ export const METRICOOL_ANALYTICS_TIMELINES_PATH =
 // Admin / profile info (confirmed working from Postman)
 export const METRICOOL_ADMIN_PROFILE_PATH = '/api/admin/profile';
 
-// Simple queue-based rate limiting - prevents 429 errors
+// Optimized queue-based rate limiting with batching
 let requestQueue: Array<() => Promise<any>> = [];
 let isProcessingQueue = false;
-let lastRequestTime = 0;
+let lastBatchTime = 0;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,22 +51,24 @@ async function processQueue() {
 
   while (requestQueue.length > 0) {
     const now = Date.now();
-    const timeSinceLastRequest = now - lastRequestTime;
+    const timeSinceLastBatch = now - lastBatchTime;
     
-    // Wait if needed to maintain interval
-    if (timeSinceLastRequest < REQUEST_INTERVAL_MS) {
-      await sleep(REQUEST_INTERVAL_MS - timeSinceLastRequest);
+    // Wait if needed to maintain interval between batches
+    if (timeSinceLastBatch < REQUEST_INTERVAL_MS) {
+      await sleep(REQUEST_INTERVAL_MS - timeSinceLastBatch);
     }
 
-    const task = requestQueue.shift();
-    if (task) {
-      try {
-        await task();
-      } catch (error) {
-        console.error('Metricool request failed:', error);
-      }
-      lastRequestTime = Date.now();
+    // Process up to MAX_PARALLEL_REQUESTS in parallel
+    const batch = requestQueue.splice(0, MAX_PARALLEL_REQUESTS);
+    
+    try {
+      // Execute batch in parallel
+      await Promise.all(batch.map(task => task()));
+    } catch (error) {
+      console.error('Batch request failed:', error);
     }
+    
+    lastBatchTime = Date.now();
   }
 
   isProcessingQueue = false;
