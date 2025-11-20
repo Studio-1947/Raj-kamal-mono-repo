@@ -1,4 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_RATE_LIMIT_INTERVAL_MS = 400;
+const DEFAULT_RATE_LIMIT_MAX_INTERVAL_MS = 5000;
 
 export const METRICOOL_BASE_URL = process.env.METRICOOL_BASE_URL ?? '';
 export const METRICOOL_API_TOKEN = process.env.METRICOOL_API_TOKEN ?? '';
@@ -30,6 +32,43 @@ export const METRICOOL_ANALYTICS_TIMELINES_PATH =
 
 // Admin / profile info (confirmed working from Postman)
 export const METRICOOL_ADMIN_PROFILE_PATH = '/api/admin/profile';
+
+const METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS = Math.max(
+  0,
+  Number(process.env.METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS ?? DEFAULT_RATE_LIMIT_INTERVAL_MS)
+);
+const METRICOOL_RATE_LIMIT_MAX_INTERVAL_MS = Math.max(
+  METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS,
+  Number(process.env.METRICOOL_RATE_LIMIT_MAX_INTERVAL_MS ?? DEFAULT_RATE_LIMIT_MAX_INTERVAL_MS)
+);
+
+let metricoolRateLimitChain: Promise<unknown> = Promise.resolve();
+let metricoolNextAvailableAt = 0;
+let dynamicRateLimitIntervalMs = METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function scheduleMetricoolRequest<T>(task: () => Promise<T>): Promise<T> {
+  const run = metricoolRateLimitChain
+    .catch(() => undefined)
+    .then(async () => {
+      if (METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS > 0) {
+        const now = Date.now();
+        const wait = Math.max(0, metricoolNextAvailableAt - now);
+        if (wait > 0) {
+          await sleep(wait);
+        }
+        metricoolNextAvailableAt = Date.now() + dynamicRateLimitIntervalMs;
+      }
+
+      return task();
+    });
+
+  metricoolRateLimitChain = run.catch(() => undefined);
+  return run;
+}
 
 export function buildMetricoolBaseParams(
   extra?: Record<string, string | number | undefined | null>
@@ -118,63 +157,76 @@ export async function metricoolRequest<T = unknown>(
     throw new Error('Missing METRICOOL_API_TOKEN');
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  );
-
-  const url = buildUrl(options.endpoint, options.searchParams);
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Mc-Auth': METRICOOL_API_TOKEN,
-  };
-
-  try {
-    const response = await fetch(
-      url,
-      {
-        method: options.method ?? 'GET',
-        headers,
-        body: options.body ? JSON.stringify(options.body) : null,
-        signal: controller.signal,
-      } as RequestInit
+  return scheduleMetricoolRequest(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS
     );
 
-    const contentType = response.headers.get('content-type') ?? '';
-    const isJson = contentType.includes('application/json');
-    const payload = isJson ? await response.json() : await response.text();
+    const url = buildUrl(options.endpoint, options.searchParams);
 
-    if (!response.ok) {
-      const errorShape: MetricoolErrorShape = {
-        ok: false,
-        status: response.status,
-        message:
-          typeof payload === 'string'
-            ? payload
-            : (payload?.message as string) || 'Metricool request failed',
-        code: typeof payload === 'object' ? (payload as any).code : undefined,
-        details: typeof payload === 'object' ? payload : undefined,
-      };
-      const err = new Error(errorShape.message);
-      (err as any).status = errorShape.status;
-      (err as any).code = errorShape.code;
-      (err as any).details = errorShape.details;
-      throw err;
-    }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Mc-Auth': METRICOOL_API_TOKEN,
+    };
 
-    return payload as T;
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      const timeoutError = new Error('Metricool request timed out');
-      (timeoutError as any).status = 504;
-      throw timeoutError;
+    try {
+      const response = await fetch(
+        url,
+        {
+          method: options.method ?? 'GET',
+          headers,
+          body: options.body ? JSON.stringify(options.body) : null,
+          signal: controller.signal,
+        } as RequestInit
+      );
+
+      const contentType = response.headers.get('content-type') ?? '';
+      const isJson = contentType.includes('application/json');
+      const payload = isJson ? await response.json() : await response.text();
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          dynamicRateLimitIntervalMs = Math.min(
+            Math.max(dynamicRateLimitIntervalMs, METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS) * 2,
+            METRICOOL_RATE_LIMIT_MAX_INTERVAL_MS
+          );
+          metricoolNextAvailableAt = Math.max(
+            metricoolNextAvailableAt,
+            Date.now() + dynamicRateLimitIntervalMs
+          );
+        }
+        const errorShape: MetricoolErrorShape = {
+          ok: false,
+          status: response.status,
+          message:
+            typeof payload === 'string'
+              ? payload
+              : (payload?.message as string) || 'Metricool request failed',
+          code: typeof payload === 'object' ? (payload as any).code : undefined,
+          details: typeof payload === 'object' ? payload : undefined,
+        };
+        const err = new Error(errorShape.message);
+        (err as any).status = errorShape.status;
+        (err as any).code = errorShape.code;
+        (err as any).details = errorShape.details;
+        throw err;
+      }
+
+      dynamicRateLimitIntervalMs = METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS;
+      return payload as T;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        const timeoutError = new Error('Metricool request timed out');
+        (timeoutError as any).status = 504;
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  });
 }
 
 export type MetricoolAnalyticsParams = {
