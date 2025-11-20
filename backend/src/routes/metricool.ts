@@ -42,6 +42,7 @@ const postsQuerySchema = z.object({
   to: z.string().optional(),
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),
+  subject: z.string().optional(),
 });
 
 router.get('/:network/distribution', async (req, res, next) => {

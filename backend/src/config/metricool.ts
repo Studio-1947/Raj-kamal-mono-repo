@@ -1,6 +1,5 @@
 const DEFAULT_TIMEOUT_MS = 15000;
-const DEFAULT_RATE_LIMIT_INTERVAL_MS = 400;
-const DEFAULT_RATE_LIMIT_MAX_INTERVAL_MS = 5000;
+const REQUEST_INTERVAL_MS = 1500; // 1.5 seconds between requests - prevents 429 errors
 
 export const METRICOOL_BASE_URL = process.env.METRICOOL_BASE_URL ?? '';
 export const METRICOOL_API_TOKEN = process.env.METRICOOL_API_TOKEN ?? '';
@@ -33,41 +32,59 @@ export const METRICOOL_ANALYTICS_TIMELINES_PATH =
 // Admin / profile info (confirmed working from Postman)
 export const METRICOOL_ADMIN_PROFILE_PATH = '/api/admin/profile';
 
-const METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS = Math.max(
-  0,
-  Number(process.env.METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS ?? DEFAULT_RATE_LIMIT_INTERVAL_MS)
-);
-const METRICOOL_RATE_LIMIT_MAX_INTERVAL_MS = Math.max(
-  METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS,
-  Number(process.env.METRICOOL_RATE_LIMIT_MAX_INTERVAL_MS ?? DEFAULT_RATE_LIMIT_MAX_INTERVAL_MS)
-);
-
-let metricoolRateLimitChain: Promise<unknown> = Promise.resolve();
-let metricoolNextAvailableAt = 0;
-let dynamicRateLimitIntervalMs = METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS;
+// Simple queue-based rate limiting - prevents 429 errors
+let requestQueue: Array<() => Promise<any>> = [];
+let isProcessingQueue = false;
+let lastRequestTime = 0;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function scheduleMetricoolRequest<T>(task: () => Promise<T>): Promise<T> {
-  const run = metricoolRateLimitChain
-    .catch(() => undefined)
-    .then(async () => {
-      if (METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS > 0) {
-        const now = Date.now();
-        const wait = Math.max(0, metricoolNextAvailableAt - now);
-        if (wait > 0) {
-          await sleep(wait);
-        }
-        metricoolNextAvailableAt = Date.now() + dynamicRateLimitIntervalMs;
+async function processQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) {
+    return;
+  }
+
+  isProcessingQueue = true;
+
+  while (requestQueue.length > 0) {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    
+    // Wait if needed to maintain interval
+    if (timeSinceLastRequest < REQUEST_INTERVAL_MS) {
+      await sleep(REQUEST_INTERVAL_MS - timeSinceLastRequest);
+    }
+
+    const task = requestQueue.shift();
+    if (task) {
+      try {
+        await task();
+      } catch (error) {
+        console.error('Metricool request failed:', error);
       }
+      lastRequestTime = Date.now();
+    }
+  }
 
-      return task();
-    });
+  isProcessingQueue = false;
+}
 
-  metricoolRateLimitChain = run.catch(() => undefined);
-  return run;
+function queueRequest<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const wrappedTask = async () => {
+      try {
+        const result = await task();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    requestQueue.push(wrappedTask);
+    processQueue();
+  });
 }
 
 export function buildMetricoolBaseParams(
@@ -117,11 +134,6 @@ function buildUrl(endpoint: string, searchParams?: MetricoolRequestOptions['sear
     throw new Error('Missing METRICOOL_BASE_URL');
   }
 
-  // Metricool's documentation states that the base URL already includes `/api`
-  // (https://app.metricool.com/api). A lot of their sample endpoints, however,
-  // also start with `/api/...`. When users copy the docs literally we end up with
-  // duplicated `/api/api/...` segments and Metricool replies with 404.
-  // Normalise the base and strip duplicated segments so both styles keep working.
   const normalizedBase = METRICOOL_BASE_URL.endsWith('/')
     ? METRICOOL_BASE_URL
     : `${METRICOOL_BASE_URL}/`;
@@ -157,7 +169,7 @@ export async function metricoolRequest<T = unknown>(
     throw new Error('Missing METRICOOL_API_TOKEN');
   }
 
-  return scheduleMetricoolRequest(async () => {
+  return queueRequest(async () => {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -187,16 +199,6 @@ export async function metricoolRequest<T = unknown>(
       const payload = isJson ? await response.json() : await response.text();
 
       if (!response.ok) {
-        if (response.status === 429) {
-          dynamicRateLimitIntervalMs = Math.min(
-            Math.max(dynamicRateLimitIntervalMs, METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS) * 2,
-            METRICOOL_RATE_LIMIT_MAX_INTERVAL_MS
-          );
-          metricoolNextAvailableAt = Math.max(
-            metricoolNextAvailableAt,
-            Date.now() + dynamicRateLimitIntervalMs
-          );
-        }
         const errorShape: MetricoolErrorShape = {
           ok: false,
           status: response.status,
@@ -214,7 +216,6 @@ export async function metricoolRequest<T = unknown>(
         throw err;
       }
 
-      dynamicRateLimitIntervalMs = METRICOOL_RATE_LIMIT_MIN_INTERVAL_MS;
       return payload as T;
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

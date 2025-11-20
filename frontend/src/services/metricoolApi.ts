@@ -12,6 +12,7 @@ type DistributionMetricMap = Partial<Record<"country" | "city", string>>;
 // Metricool endpoints can take longer than our default axios timeout, so give them more headroom.
 const METRICOOL_TIMEOUT_MS = 60000;
 const METRICOOL_CACHE_TTL_MS = 2 * 60 * 1000;
+const METRICOOL_DEFAULT_TIMEZONE = "Asia/Kolkata";
 
 type CacheEntry<T> = { expiresAt: number; data: T };
 
@@ -47,7 +48,7 @@ const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
     likes: "postsInteractions",
     pageImpressions: "impressions",
     pageViews: "profile_views",
-    followers: "Followers",
+    followers: "followers",
     newFollowers: "delta_followers",
     lostFollowers: "delta_followers",
     reach: "reach",
@@ -58,12 +59,12 @@ const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
 
 const distributionMetricAliases: Record<PlatformKey, DistributionMetricMap> = {
   facebook: {
-    country: "page_follows_country",
-    city: "page_follows_city",
+    country: "country", // Metricool API uses simple 'country' for distribution
+    city: "city", // Metricool API uses simple 'city' for distribution
   },
   instagram: {
-    country: "followers_country",
-    city: "followers_city",
+    country: "country", // Metricool API uses simple 'country' for distribution
+    city: "city", // Metricool API uses simple 'city' for distribution
   },
   meta_ads: {},
 };
@@ -136,9 +137,8 @@ function resolveDistributionMetric(
   platform: PlatformKey,
   kind: "country" | "city"
 ): string {
-  const fallback =
-    kind === "country" ? "page_follows_country" : "page_follows_city";
-  return distributionMetricAliases[platform]?.[kind] ?? fallback;
+  // Metricool distribution API uses simple 'country' and 'city' as metric names
+  return distributionMetricAliases[platform]?.[kind] ?? kind;
 }
 
 async function fetchTimelineSeries(
@@ -146,9 +146,11 @@ async function fetchTimelineSeries(
   metric: string,
   params?: Record<string, unknown>
 ) {
+  const { timezone, ...rest } = params ?? {};
   return getMetricool<any>("/metricool/" + platform + "/timeline", {
     metric: resolveTimelineMetric(platform, metric),
-    ...params,
+    timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    ...rest,
   });
 }
 
@@ -157,9 +159,11 @@ async function fetchDistributionMetric(
   metric: string,
   params?: Record<string, unknown>
 ) {
+  const { timezone, ...rest } = params ?? {};
   return getMetricool<any>("/metricool/" + platform + "/distribution", {
     metric,
-    ...params,
+    timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    ...rest,
   });
 }
 
@@ -295,4 +299,183 @@ export async function fetchAdsTimeseries(
 
 export async function fetchAdsCampaigns(): Promise<{ data: any[] }> {
   return { data: [] };
+}
+
+// Instagram section-specific data fetchers
+export type InstagramSection = "community" | "account" | "posts" | "reels" | "stories" | "competitors";
+
+export async function fetchInstagramSection(
+  section: InstagramSection,
+  params?: Record<string, unknown>
+) {
+  const subjectMap: Record<InstagramSection, string> = {
+    community: "account",
+    account: "account",
+    posts: "posts",
+    reels: "reels",
+    stories: "stories",
+    competitors: "competitors",
+  };
+
+  // Different subjects support different metrics in Metricool API
+  const metricMap: Record<InstagramSection, string> = {
+    community: "impressions",
+    account: "impressions",
+    posts: "impressions",
+    reels: "count", // Reels use 'count' metric
+    stories: "count", // Stories use 'count' metric
+    competitors: "count", // Competitors use 'count' metric
+  };
+
+  const subject = subjectMap[section];
+  const metric = metricMap[section];
+  const { timezone, ...rest } = params ?? {};
+
+  // Fetch timeline data for the section (skip for competitors as it's not supported)
+  let timelineData: any = null;
+  let timelineError: string | null = null;
+  
+  if (section !== "competitors") {
+    try {
+      timelineData = await getMetricool<any>("/metricool/instagram/timeline", {
+        metric,
+        subject,
+        timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+        ...rest,
+      });
+    } catch (error: any) {
+      console.warn(`Failed to fetch ${section} timeline:`, error);
+      timelineError = error?.response?.data?.error || error?.message || "Timeline data unavailable";
+      // Check if it's a Facebook connection error
+      if (timelineError?.includes("Facebook") || timelineError?.includes("connection")) {
+        throw new Error("This metric is not available for Instagram without a connection via Facebook.");
+      }
+    }
+  }
+
+  // Fetch posts/items for the section
+  let items: any[] = [];
+  try {
+    const postsData = await getMetricool<any>("/metricool/instagram/posts", {
+      subject,
+      ...rest,
+    });
+    items = postsData?.items ?? postsData?.data ?? postsData ?? [];
+  } catch (error) {
+    console.warn(`Failed to fetch ${section} posts:`, error);
+  }
+
+  return {
+    data: {
+      timeline: timelineData,
+      items,
+      subject,
+      section,
+      error: timelineError,
+    },
+  };
+}
+
+export async function fetchInstagramCommunity(params?: Record<string, unknown>) {
+  return fetchInstagramSection("community", params);
+}
+
+export async function fetchInstagramAccount(params?: Record<string, unknown>) {
+  return fetchInstagramSection("account", params);
+}
+
+export async function fetchInstagramPosts(params?: Record<string, unknown>) {
+  return fetchInstagramSection("posts", params);
+}
+
+export async function fetchInstagramReels(params?: Record<string, unknown>) {
+  return fetchInstagramSection("reels", params);
+}
+
+export async function fetchInstagramStories(params?: Record<string, unknown>) {
+  return fetchInstagramSection("stories", params);
+}
+
+export async function fetchInstagramCompetitors(params?: Record<string, unknown>) {
+  return fetchInstagramSection("competitors", params);
+}
+
+// Facebook section-specific data fetchers
+export type FacebookSection = "posts" | "reels" | "stories" | "competitors";
+
+
+export async function fetchFacebookSection(
+  section: FacebookSection,
+  params?: Record<string, unknown>
+) {
+  const subjectMap: Record<FacebookSection, string> = {
+    posts: "posts",
+    reels: "reels",
+    stories: "stories",
+    competitors: "competitors",
+  };
+
+  // Different subjects support different metrics in Metricool API
+  const metricMap: Record<FacebookSection, string> = {
+    posts: "impressions",
+    reels: "count", // Reels use 'count' metric
+    stories: "count", // Stories use 'count' metric  
+    competitors: "count", // Competitors use 'count' metric
+  };
+
+  const subject = subjectMap[section];
+  const metric = metricMap[section];
+  const { timezone, ...rest } = params ?? {};
+
+  // Fetch timeline data for the section (skip for competitors as it's not supported)
+  let timelineData: any = null;
+  let timelineError: string | null = null;
+  
+  if (section !== "competitors") {
+    try {
+      timelineData = await getMetricool<any>("/metricool/facebook/timeline", {
+        metric,
+        subject,
+        timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+        ...rest,
+      });
+    } catch (error: any) {
+      console.warn(`Failed to fetch Facebook ${section} timeline:`, error);
+      timelineError = error?.response?.data?.error || error?.message || "Timeline data unavailable";
+    }
+  }
+
+  // Fetch posts/items for the section
+  let items: any[] = [];
+  try {
+    const postsData = await getMetricool<any>("/metricool/facebook/posts", {
+      subject,
+      ...rest,
+    });
+    items = postsData?.items ?? postsData?.data ?? postsData ?? [];
+  } catch (error) {
+    console.warn(`Failed to fetch Facebook ${section} posts:`, error);
+  }
+
+  return {
+    data: {
+      timeline: timelineData,
+      items,
+      subject,
+      section,
+      error: timelineError,
+    },
+  };
+}
+
+export async function fetchFacebookReels(params?: Record<string, unknown>) {
+  return fetchFacebookSection("reels", params);
+}
+
+export async function fetchFacebookStories(params?: Record<string, unknown>) {
+  return fetchFacebookSection("stories", params);
+}
+
+export async function fetchFacebookCompetitors(params?: Record<string, unknown>) {
+  return fetchFacebookSection("competitors", params);
 }
