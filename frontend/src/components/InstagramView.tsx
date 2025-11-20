@@ -325,9 +325,9 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                     {items.slice(0, 10).map((item: any, index: number) => (
                                         <tr key={item.id ?? index} className="border-t border-gray-100">
                                             <td className="py-2 pr-2 text-gray-900">
-                                                {item.picture || item.thumbnailUrl ? (
+                                                {item.picture || item.thumbnailUrl || item.imageUrl ? (
                                                     <img
-                                                        src={item.picture || item.thumbnailUrl}
+                                                        src={item.picture || item.thumbnailUrl || item.imageUrl}
                                                         alt="Media"
                                                         className="w-10 h-10 rounded object-cover border border-gray-200"
                                                     />
@@ -344,7 +344,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                                 {item.mediaType || item.type || activeSection}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.impressions)}
+                                                {formatNumber(item.impressions || item.impressionsTotal)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
                                                 {formatNumber(item.reach)}
@@ -372,7 +372,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                         </p>
                     )}
                 </div>
-            </section>
-        </div>
+            </section >
+        </div >
     );
 }
