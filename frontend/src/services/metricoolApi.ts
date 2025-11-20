@@ -397,8 +397,21 @@ export async function fetchInstagramStories(params?: Record<string, unknown>) {
 }
 
 export async function fetchInstagramCompetitors(params?: Record<string, unknown>) {
-  return fetchInstagramSection("competitors", params);
+  const { timezone, ...rest } = params ?? {};
+  const data = await getMetricool<any>("/metricool/instagram/competitors", {
+    timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    limit: 1000,
+    ...rest,
+  });
+  
+  return {
+    data: {
+      items: data?.data ?? [],
+      section: "competitors",
+    },
+  };
 }
+
 
 // Facebook section-specific data fetchers
 export type FacebookSection = "posts" | "reels" | "stories" | "competitors";
@@ -477,5 +490,18 @@ export async function fetchFacebookStories(params?: Record<string, unknown>) {
 }
 
 export async function fetchFacebookCompetitors(params?: Record<string, unknown>) {
-  return fetchFacebookSection("competitors", params);
+  const { timezone, ...rest } = params ?? {};
+  const data = await getMetricool<any>("/metricool/facebook/competitors", {
+    timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    limit: 1000,
+    ...rest,
+  });
+  
+  return {
+    data: {
+      items: data?.data ?? [],
+      section: "competitors",
+    },
+  };
 }
+

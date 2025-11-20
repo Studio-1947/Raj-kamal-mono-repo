@@ -243,54 +243,129 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
             <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                 <header className="mb-4">
                     <p className="text-sm font-semibold text-gray-900 capitalize">
-                        {activeSection} Items
+                        {activeSection} {activeSection === 'competitors' ? 'Analysis' : 'Items'}
                     </p>
                     <p className="text-xs text-gray-900">
-                        Recent {activeSection} published in this period
+                        {activeSection === 'competitors'
+                            ? 'Compare your performance with competitors'
+                            : `Recent ${activeSection} published in this period`
+                        }
                     </p>
                 </header>
                 <div className="overflow-x-auto">
                     {items.length > 0 ? (
-                        <table className="min-w-full text-xs">
-                            <thead>
-                                <tr className="text-left text-gray-900">
-                                    <th className="py-2 pr-2">Message</th>
-                                    <th className="py-2 pr-2">Type</th>
-                                    <th className="py-2 pr-2 text-right">Impressions</th>
-                                    <th className="py-2 pr-2 text-right">Reach</th>
-                                    <th className="py-2 pr-2 text-right">Likes</th>
-                                    <th className="py-2 pr-2 text-right">Comments</th>
-                                    <th className="py-2 pr-2 text-right">Shares</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {items.slice(0, 10).map((item: any, index: number) => (
-                                    <tr key={item.id ?? index} className="border-t border-gray-100">
-                                        <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
-                                            {item.message || item.caption || "—"}
-                                        </td>
-                                        <td className="py-2 pr-2 text-gray-900">
-                                            {item.mediaType || item.type || activeSection}
-                                        </td>
-                                        <td className="py-2 pr-2 text-right">
-                                            {formatNumber(item.impressions)}
-                                        </td>
-                                        <td className="py-2 pr-2 text-right">
-                                            {formatNumber(item.reach)}
-                                        </td>
-                                        <td className="py-2 pr-2 text-right">
-                                            {formatNumber(item.likes)}
-                                        </td>
-                                        <td className="py-2 pr-2 text-right">
-                                            {formatNumber(item.comments)}
-                                        </td>
-                                        <td className="py-2 pr-2 text-right">
-                                            {formatNumber(item.shares)}
-                                        </td>
+                        activeSection === 'competitors' ? (
+                            <table className="min-w-full text-xs">
+                                <thead>
+                                    <tr className="text-left text-gray-900">
+                                        <th className="py-2 pr-2">Competitor</th>
+                                        <th className="py-2 pr-2 text-right">Followers</th>
+                                        <th className="py-2 pr-2 text-right">Posts</th>
+                                        <th className="py-2 pr-2 text-right">Likes</th>
+                                        <th className="py-2 pr-2 text-right">Comments</th>
+                                        <th className="py-2 pr-2 text-right">Shares</th>
+                                        <th className="py-2 pr-2 text-right">Engagement %</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {items.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="border-t border-gray-100">
+                                            <td className="py-2 pr-2 text-gray-900">
+                                                <div className="flex items-center gap-2">
+                                                    {item.picture && (
+                                                        <img
+                                                            src={item.picture}
+                                                            alt={item.displayName || item.screenName}
+                                                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                                                        />
+                                                    )}
+                                                    <span className="font-medium">
+                                                        {item.displayName || item.screenName || "—"}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.followers)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.posts)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.likes || item.reactions)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.comments)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.shares)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {item.engagement ? (item.engagement * 100).toFixed(2) + '%' : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <table className="min-w-full text-xs">
+                                <thead>
+                                    <tr className="text-left text-gray-900">
+                                        <th className="py-2 pr-2">Media</th>
+                                        <th className="py-2 pr-2">Message</th>
+                                        <th className="py-2 pr-2">Type</th>
+                                        <th className="py-2 pr-2 text-right">Impressions</th>
+                                        <th className="py-2 pr-2 text-right">Reach</th>
+                                        <th className="py-2 pr-2 text-right">Engagement</th>
+                                        <th className="py-2 pr-2 text-right">Likes</th>
+                                        <th className="py-2 pr-2 text-right">Comments</th>
+                                        <th className="py-2 pr-2 text-right">Shares</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {items.slice(0, 10).map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="border-t border-gray-100">
+                                            <td className="py-2 pr-2 text-gray-900">
+                                                {item.picture || item.thumbnailUrl ? (
+                                                    <img
+                                                        src={item.picture || item.thumbnailUrl}
+                                                        alt="Media"
+                                                        className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                    />
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                                                        No img
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
+                                                {item.message || item.caption || "—"}
+                                            </td>
+                                            <td className="py-2 pr-2 text-gray-900">
+                                                {item.mediaType || item.type || activeSection}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.impressions)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.reach)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.engagement)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.likes)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.comments)}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                                {formatNumber(item.shares)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )
                     ) : (
                         <p className="text-sm text-gray-900">
                             No {activeSection} items found for this period.

@@ -96,8 +96,29 @@ export async function fetchPosts(
       to: normalizeDateParam(options?.to, 'to'),
       page: options?.page?.toString(),
       pageSize: options?.pageSize?.toString(),
-      subject: options?.subject,
     }),
   });
 }
 
+const METRICOOL_ANALYTICS_COMPETITORS_BASE_PATH = '/api/v2/analytics/competitors';
+
+export async function fetchCompetitors(
+  network: string,
+  options?: {
+    from?: string | undefined;
+    to?: string | undefined;
+    timezone?: string | undefined;
+    limit?: number | undefined;
+  }
+) {
+  const endpoint = `${METRICOOL_ANALYTICS_COMPETITORS_BASE_PATH}/${network}`;
+  return metricoolRequest({
+    endpoint,
+    searchParams: buildMetricoolBaseParams({
+      from: normalizeDateParam(options?.from, 'from'),
+      to: normalizeDateParam(options?.to, 'to'),
+      timezone: options?.timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+      limit: options?.limit?.toString() ?? '1000',
+    }),
+  });
+}
