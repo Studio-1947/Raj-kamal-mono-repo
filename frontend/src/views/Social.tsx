@@ -3,6 +3,7 @@ import AppLayout from "../shared/AppLayout";
 import { useLang } from "../modules/lang/LangContext";
 import InstagramView from "../components/InstagramView";
 import FacebookView from "../components/FacebookView";
+import { LoadingSpinner } from "../components/LoadingSkeletons";
 import {
   fetchAdsCampaigns,
   fetchAdsOverview,
@@ -256,7 +257,7 @@ export default function Social() {
 
   const postsRows = posts.slice(0, 5);
 
-  const headerTabs: PlatformKey[] = ["facebook", "instagram", "meta_ads"];
+  const headerTabs: PlatformKey[] = ["facebook", "instagram"];
 
   return (
     <AppLayout>
@@ -306,9 +307,10 @@ export default function Social() {
       )}
 
       {loading && (
-        <p className="mb-4 text-sm text-gray-500">
-          Loading {activeNetwork} metrics...
-        </p>
+        <LoadingSpinner
+          size="lg"
+          message={`Loading ${activeNetwork} metrics...`}
+        />
       )}
 
       {activeNetwork === "instagram" && (

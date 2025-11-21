@@ -1,6 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 15000;
-const REQUEST_INTERVAL_MS = 1000; // 1 second between batches (faster than 2.5s)
-const MAX_PARALLEL_REQUESTS = 2; // Allow 2 requests in parallel per batch
+const REQUEST_INTERVAL_MS = 1500; // 1.5 seconds between batches (more conservative)
+const MAX_PARALLEL_REQUESTS = 1; // Process requests one at a time to avoid rate limits
 
 export const METRICOOL_BASE_URL = process.env.METRICOOL_BASE_URL ?? '';
 export const METRICOOL_API_TOKEN = process.env.METRICOOL_API_TOKEN ?? '';
@@ -165,6 +165,41 @@ function buildUrl(endpoint: string, searchParams?: MetricoolRequestOptions['sear
   return url.toString();
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000; // Start with 2 seconds
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = MAX_RETRIES
+): Promise<Response> {
+  try {
+    const response = await fetch(url, options);
+    
+    // If we get a 429, retry with exponential backoff
+    if (response.status === 429 && retries > 0) {
+      const retryAfter = response.headers.get('Retry-After');
+      const delayMs = retryAfter 
+        ? parseInt(retryAfter) * 1000 
+        : RETRY_DELAY_MS * (MAX_RETRIES - retries + 1);
+      
+      console.warn(`Rate limited (429). Retrying after ${delayMs}ms. Retries left: ${retries - 1}`);
+      await sleep(delayMs);
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    
+    return response;
+  } catch (error) {
+    if (retries > 0 && error instanceof Error && error.name !== 'AbortError') {
+      const delayMs = RETRY_DELAY_MS * (MAX_RETRIES - retries + 1);
+      console.warn(`Request failed. Retrying after ${delayMs}ms. Retries left: ${retries - 1}`);
+      await sleep(delayMs);
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    throw error;
+  }
+}
+
 export async function metricoolRequest<T = unknown>(
   options: MetricoolRequestOptions
 ): Promise<T> {
@@ -187,7 +222,7 @@ export async function metricoolRequest<T = unknown>(
     };
 
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         url,
         {
           method: options.method ?? 'GET',
@@ -202,13 +237,19 @@ export async function metricoolRequest<T = unknown>(
       const payload = isJson ? await response.json() : await response.text();
 
       if (!response.ok) {
+        // Enhanced error message for 429
+        let errorMessage = typeof payload === 'string'
+          ? payload
+          : (payload?.message as string) || 'Metricool request failed';
+        
+        if (response.status === 429) {
+          errorMessage = 'Rate limit exceeded. The Metricool API is temporarily unavailable. Please wait a moment and try again.';
+        }
+
         const errorShape: MetricoolErrorShape = {
           ok: false,
           status: response.status,
-          message:
-            typeof payload === 'string'
-              ? payload
-              : (payload?.message as string) || 'Metricool request failed',
+          message: errorMessage,
           code: typeof payload === 'object' ? (payload as any).code : undefined,
           details: typeof payload === 'object' ? payload : undefined,
         };
