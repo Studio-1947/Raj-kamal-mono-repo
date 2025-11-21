@@ -141,15 +141,36 @@ export default function SocialMediaOverview() {
                     return typeof latest?.value === 'number' ? latest.value : 0;
                 };
 
-                // Fetch only followers for Instagram (to reduce API calls)
-                const followersData = await fetchInstagramTimeline('followers').catch(() => null);
+                // Helper to sum all values from timeline
+                const sumValues = (payload: any): number => {
+                    const values = extractSeriesValues(payload);
+                    if (!values || values.length === 0) return 0;
+                    return values.reduce((sum: number, item: any) => {
+                        const val = typeof item?.value === 'number' ? item.value : 0;
+                        return sum + val;
+                    }, 0);
+                };
+
+                // Fetch Instagram metrics (followers, impressions, reach, engagement)
+                const [followersData, impressionsData, reachData, engagementData] = await Promise.all([
+                    fetchInstagramTimeline('followers').catch(() => null),
+                    fetchInstagramTimeline('impressions').catch(() => null),
+                    fetchInstagramTimeline('reach').catch(() => null),
+                    fetchInstagramTimeline('postsInteractions').catch(() => null),
+                ]);
 
                 // Extract metrics
                 const followers = getLatestValue(followersData);
+                const impressions = sumValues(impressionsData);
+                const reach = sumValues(reachData);
+                const engagement = sumValues(engagementData);
 
                 console.log("Instagram metrics extracted:", {
                     followers,
-                    rawData: followersData
+                    impressions,
+                    reach,
+                    engagement,
+                    rawData: { followersData, impressionsData, reachData, engagementData }
                 });
 
                 setMetrics((prev) =>
@@ -158,9 +179,9 @@ export default function SocialMediaOverview() {
                             ? {
                                 ...m,
                                 followers: followers,
-                                views: 0, // Not fetching to reduce API calls
-                                engagement: 0, // Not fetching to reduce API calls
-                                impressions: 0, // Not fetching to reduce API calls
+                                views: reach || impressions, // Use reach, fallback to impressions
+                                engagement: engagement,
+                                impressions: impressions,
                                 loading: false,
                             }
                             : m
@@ -181,18 +202,33 @@ export default function SocialMediaOverview() {
             try {
                 const fbData = await fetchOverview("facebook", params);
                 console.log("Facebook API Response:", fbData);
+                console.log("Facebook data fields:", fbData.data);
 
                 const fbMetrics = fbData.data as any;
+
+                // The fetchOverview returns: likes, followers, views (pageImpressions), pageVisits
+                // Map these to our display fields
+                const followers = fbMetrics?.followers || 0;
+                const views = fbMetrics?.pageVisits || 0; // Use pageVisits for views
+                const likes = fbMetrics?.likes || 0; // This is engagement
+                const impressions = fbMetrics?.views || 0; // pageImpressions is stored as 'views'
+
+                console.log("Facebook metrics extracted:", {
+                    followers,
+                    views,
+                    likes,
+                    impressions,
+                });
 
                 setMetrics((prev) =>
                     prev.map((m) =>
                         m.platform === "facebook"
                             ? {
                                 ...m,
-                                followers: fbMetrics?.followers || 0,
-                                views: fbMetrics?.views || fbMetrics?.pageVisits || 0,
-                                engagement: fbMetrics?.engagement || fbMetrics?.likes || 0,
-                                impressions: fbMetrics?.impressions || 0,
+                                followers: followers,
+                                views: views,
+                                engagement: likes,
+                                impressions: impressions,
                                 loading: false,
                             }
                             : m
@@ -285,8 +321,8 @@ export default function SocialMediaOverview() {
                                 </div>
                             )}
 
-                            {/* Secondary Metrics - Only show for Facebook */}
-                            {!metric.loading && !metric.error && metric.platform === "facebook" && metric.followers > 0 && (
+                            {/* Secondary Metrics - Show for both platforms */}
+                            {!metric.loading && !metric.error && metric.followers > 0 && (
                                 <div className="mt-3 pt-3 border-t border-gray-100 w-full space-y-1">
                                     <div className="flex justify-between text-[10px]">
                                         <span className="text-gray-500">Views</span>
