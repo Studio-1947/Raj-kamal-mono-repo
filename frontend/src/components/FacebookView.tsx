@@ -22,6 +22,8 @@ import {
     Pie,
     Cell,
 } from "recharts";
+import { ImageWithHover } from "./ImageWithHover";
+import { LoadingSpinner } from "./LoadingSkeletons";
 
 type TimeRangeKey = "7d" | "30d" | "90d";
 type FacebookSection = "page_overview" | "demographics" | "clicks_on_page" | "posts" | "reels" | "stories" | "competitors";
@@ -268,15 +270,38 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             </div>
 
             {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
+                <div className={`rounded-xl border px-4 py-3 text-sm ${error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')
+                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                        : 'border-red-200 bg-red-50 text-red-700'
+                    }`}>
+                    <div className="flex items-start gap-2">
+                        <span className="text-lg">
+                            {error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')
+                                ? '⏳'
+                                : '⚠️'}
+                        </span>
+                        <div className="flex-1">
+                            <p className="font-semibold mb-1">
+                                {error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')
+                                    ? 'Rate Limit Reached'
+                                    : 'Error Loading Data'}
+                            </p>
+                            <p className="text-xs opacity-90">{error}</p>
+                            {(error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')) && (
+                                <p className="text-xs mt-2 opacity-75">
+                                    💡 Tip: Try switching to a different tab or wait a few seconds before refreshing.
+                                </p>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
             {loading && (
-                <p className="text-sm text-gray-900">
-                    Loading {activeSection.replace(/_/g, " ")} metrics...
-                </p>
+                <LoadingSpinner
+                    size="md"
+                    message={`Loading ${activeSection.replace(/_/g, " ")} metrics...`}
+                />
             )}
 
             {/* PAGE OVERVIEW Section */}
@@ -595,17 +620,13 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     {postsRows.map((item: any, index: number) => (
                                         <tr key={item.id ?? index} className="border-t border-gray-100">
                                             <td className="py-2 pr-2 text-gray-900">
-                                                {item.picture ? (
-                                                    <img
-                                                        src={item.picture}
-                                                        alt="Post media"
-                                                        className="w-10 h-10 rounded object-cover border border-gray-200"
-                                                    />
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
-                                                        No img
-                                                    </div>
-                                                )}
+                                                <ImageWithHover
+                                                    src={item.picture}
+                                                    alt={item.message || "Post media"}
+                                                    className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                    showName={true}
+                                                    name={item.message?.substring(0, 50) || "Post"}
+                                                />
                                             </td>
                                             <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
                                                 {item.message || "—"}

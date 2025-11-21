@@ -42,5 +42,12 @@ body {
     @apply font-sans antialiased; /* uses --font-sans -> Switzer */
     font-synthesis-weight: none;
     font-synthesis-style: none;
+    /* Enhanced base font size for better accessibility */
+    font-size: 16px;
+  }
+  
+  body {
+    /* Improved line height for better readability */
+    line-height: 1.6;
   }
 }
