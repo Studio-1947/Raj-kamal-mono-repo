@@ -175,20 +175,36 @@ export async function fetchOverview(
     return { data: null };
   }
 
-  const [likes, followers, views, pageVisits] = await Promise.all([
+  const [likes, followers, impressions, reach, pageVisits, posts] = await Promise.all([
     fetchTimelineSeries(platform, "likes", params),
     fetchTimelineSeries(platform, "followers", params),
     fetchTimelineSeries(platform, "pageImpressions", params),
+    fetchTimelineSeries(platform, "reach", params),
     fetchTimelineSeries(platform, "pageViews", params),
+    getMetricool<any>("/metricool/" + platform + "/posts", params).catch(() => ({ items: [] })),
   ]);
+
+  // Extract values from series
+  const likesValue = extractLatestValue(likes);
+  const followersValue = extractLatestValue(followers);
+  const impressionsValue = extractLatestValue(impressions);
+  const reachValue = extractLatestValue(reach);
+  const pageVisitsValue = extractLatestValue(pageVisits);
+  
+  // Calculate total content from posts
+  const totalContentValue = posts?.items?.length ?? posts?.data?.items?.length ?? posts?.data?.length ?? null;
 
   return {
     data: {
-      likes: extractLatestValue(likes),
-      followers: extractLatestValue(followers),
-      views: extractLatestValue(views),
-      pageVisits: extractLatestValue(pageVisits),
-      totalContent: null,
+      from: params?.from as string,
+      to: params?.to as string,
+      likes: likesValue,
+      followers: followersValue,
+      views: impressionsValue ?? 0, // Use impressions for views
+      impressions: impressionsValue,
+      reach: reachValue,
+      pageVisits: pageVisitsValue,
+      totalContent: totalContentValue,
       followersChange: null,
       dailyPageViews: null,
       postsPerWeek: null,
@@ -223,6 +239,8 @@ export async function fetchGrowth(
 
   return {
     data: {
+      from: params?.from as string,
+      to: params?.to as string,
       series: {
         impressions: extractSeriesValues(impressions),
         reach: extractSeriesValues(reach),

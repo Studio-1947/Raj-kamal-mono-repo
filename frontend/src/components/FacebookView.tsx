@@ -47,6 +47,7 @@ function formatNumber(value?: number, fallback = "—") {
     if (value === undefined || value === null || Number.isNaN(value)) {
         return fallback;
     }
+    // Allow 0 to be displayed as "0"
     return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
@@ -337,13 +338,14 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </div>
                             )}
                         </header>
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                             {[
-                                { label: "Likes", value: overview?.likes },
-                                { label: "Followers", value: overview?.followers },
-                                { label: "Views", value: overview?.views ?? overview?.impressions },
-                                { label: "Page visits", value: overview?.pageVisits ?? overview?.pageViews },
-                                { label: "Total content", value: overview?.totalContent },
+                                { label: "Likes", value: overview?.likes ?? 0 },
+                                { label: "Followers", value: overview?.followers ?? 0 },
+                                { label: "Reach", value: overview?.reach ?? 0 },
+                                { label: "Impressions", value: overview?.impressions ?? overview?.views ?? 0 },
+                                { label: "Page visits", value: overview?.pageVisits ?? overview?.pageViews ?? 0 },
+                                { label: "Total content", value: overview?.totalContent ?? 0 },
                             ].map((card) => (
                                 <div
                                     key={card.label}
@@ -353,7 +355,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                         {card.label}
                                     </p>
                                     <p className="text-xl font-bold text-gray-900">
-                                        {formatNumber(card.value)}
+                                        {formatNumber(card.value, "0")}
                                     </p>
                                 </div>
                             ))}
