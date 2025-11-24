@@ -13,13 +13,13 @@ import {
 import {
     LineChart,
     Line,
+    BarChart,
+    Bar,
     XAxis,
     YAxis,
     Tooltip,
     CartesianGrid,
     ResponsiveContainer,
-    PieChart,
-    Pie,
     Cell,
 } from "recharts";
 import { ImageWithHover } from "./ImageWithHover";
@@ -47,6 +47,7 @@ function formatNumber(value?: number, fallback = "—") {
     if (value === undefined || value === null || Number.isNaN(value)) {
         return fallback;
     }
+    // Allow 0 to be displayed as "0"
     return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
@@ -71,6 +72,124 @@ function toChartPoints(points: any[]) {
         date: point.dateTime?.slice(0, 10) ?? "",
         value: typeof point.value === "number" ? point.value : 0,
     }));
+}
+
+// Map country codes to full country names
+function getCountryName(code: string): string {
+    const countryMap: Record<string, string> = {
+        // Common countries
+        "IN": "India",
+        "US": "United States",
+        "GB": "United Kingdom",
+        "CA": "Canada",
+        "AU": "Australia",
+        "DE": "Germany",
+        "FR": "France",
+        "IT": "Italy",
+        "ES": "Spain",
+        "NL": "Netherlands",
+        "BE": "Belgium",
+        "CH": "Switzerland",
+        "AT": "Austria",
+        "SE": "Sweden",
+        "NO": "Norway",
+        "DK": "Denmark",
+        "FI": "Finland",
+        "IE": "Ireland",
+        "PT": "Portugal",
+        "PL": "Poland",
+        "CZ": "Czech Republic",
+        "RO": "Romania",
+        "HU": "Hungary",
+        "GR": "Greece",
+        "BG": "Bulgaria",
+        "HR": "Croatia",
+        "SK": "Slovakia",
+        "SI": "Slovenia",
+        "LT": "Lithuania",
+        "LV": "Latvia",
+        "EE": "Estonia",
+        // Asia
+        "CN": "China",
+        "JP": "Japan",
+        "KR": "South Korea",
+        "SG": "Singapore",
+        "MY": "Malaysia",
+        "TH": "Thailand",
+        "ID": "Indonesia",
+        "PH": "Philippines",
+        "VN": "Vietnam",
+        "BD": "Bangladesh",
+        "PK": "Pakistan",
+        "NP": "Nepal",
+        "LK": "Sri Lanka",
+        "MM": "Myanmar",
+        "KH": "Cambodia",
+        "LA": "Laos",
+        "BN": "Brunei",
+        "TW": "Taiwan",
+        "HK": "Hong Kong",
+        "MO": "Macau",
+        // Middle East
+        "AE": "United Arab Emirates",
+        "SA": "Saudi Arabia",
+        "QA": "Qatar",
+        "KW": "Kuwait",
+        "BH": "Bahrain",
+        "OM": "Oman",
+        "IL": "Israel",
+        "TR": "Turkey",
+        "IR": "Iran",
+        "IQ": "Iraq",
+        "JO": "Jordan",
+        "LB": "Lebanon",
+        "SY": "Syria",
+        "YE": "Yemen",
+        // Africa
+        "ZA": "South Africa",
+        "EG": "Egypt",
+        "NG": "Nigeria",
+        "KE": "Kenya",
+        "GH": "Ghana",
+        "ET": "Ethiopia",
+        "TZ": "Tanzania",
+        "UG": "Uganda",
+        "MA": "Morocco",
+        "DZ": "Algeria",
+        "TN": "Tunisia",
+        "LY": "Libya",
+        // Americas
+        "MX": "Mexico",
+        "BR": "Brazil",
+        "AR": "Argentina",
+        "CL": "Chile",
+        "CO": "Colombia",
+        "PE": "Peru",
+        "VE": "Venezuela",
+        "EC": "Ecuador",
+        "BO": "Bolivia",
+        "PY": "Paraguay",
+        "UY": "Uruguay",
+        // Europe (continued)
+        "RU": "Russia",
+        "UA": "Ukraine",
+        "BY": "Belarus",
+        "MD": "Moldova",
+        "RS": "Serbia",
+        "BA": "Bosnia and Herzegovina",
+        "MK": "North Macedonia",
+        "AL": "Albania",
+        "ME": "Montenegro",
+        "XK": "Kosovo",
+        // Oceania
+        "NZ": "New Zealand",
+        "FJ": "Fiji",
+        "PG": "Papua New Guinea",
+        "NC": "New Caledonia",
+        "PF": "French Polynesia",
+    };
+
+    return countryMap[code.toUpperCase()] || code;
 }
 
 const chartColors = ["#2563eb", "#16a34a", "#f97316", "#e11d48", "#9333ea"];
@@ -171,6 +290,11 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     if (!cancelled) {
                         setStoriesData(storiesRes.data ?? null);
                         console.log("Facebook Stories Data Loaded:", storiesRes.data);
+                        // Log first item to see actual structure
+                        if (storiesRes.data?.items?.length > 0) {
+                            console.log("First Story Item Structure:", storiesRes.data.items[0]);
+                            console.log("Available fields:", Object.keys(storiesRes.data.items[0]));
+                        }
                     }
                 } else if (activeSection === "competitors") {
                     const competitorsRes = await fetchFacebookCompetitors({ from, to });
@@ -271,8 +395,8 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
 
             {error && (
                 <div className={`rounded-xl border px-4 py-3 text-sm ${error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')
-                        ? 'border-amber-200 bg-amber-50 text-amber-800'
-                        : 'border-red-200 bg-red-50 text-red-700'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-red-200 bg-red-50 text-red-700'
                     }`}>
                     <div className="flex items-start gap-2">
                         <span className="text-lg">
@@ -332,13 +456,14 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 </div>
                             )}
                         </header>
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                             {[
-                                { label: "Likes", value: overview?.likes },
-                                { label: "Followers", value: overview?.followers },
-                                { label: "Views", value: overview?.views ?? overview?.impressions },
-                                { label: "Page visits", value: overview?.pageVisits ?? overview?.pageViews },
-                                { label: "Total content", value: overview?.totalContent },
+                                { label: "Likes", value: overview?.likes ?? 0 },
+                                { label: "Followers", value: overview?.followers ?? 0 },
+                                { label: "Reach", value: overview?.reach ?? 0 },
+                                // { label: "Impressions", value: overview?.impressions ?? overview?.views ?? 0 },
+                                { label: "Page visits", value: overview?.pageVisits ?? overview?.pageViews ?? 0 },
+                                { label: "Total content", value: overview?.totalContent ?? 0 },
                             ].map((card) => (
                                 <div
                                     key={card.label}
@@ -348,7 +473,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                         {card.label}
                                     </p>
                                     <p className="text-xl font-bold text-gray-900">
-                                        {formatNumber(card.value)}
+                                        {formatNumber(card.value, "0")}
                                     </p>
                                 </div>
                             ))}
@@ -460,46 +585,148 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             {activeSection === "demographics" && (
                 <div className="space-y-6">
                     <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-semibold text-gray-900">
-                                Followers by Country
-                            </p>
-                            <p className="text-xs text-gray-900">
-                                Geographic distribution of your audience
-                            </p>
-                        </header>
-                        <div className="h-64 flex items-center justify-center">
-                            {demographicsPie.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={demographicsPie}
-                                            dataKey="value"
-                                            nameKey="name"
-                                            cx="50%"
-                                            cy="50%"
-                                            outerRadius={80}
-                                            label
-                                        >
-                                            {demographicsPie.map((entry, index) => (
-                                                <Cell
-                                                    key={`cell-${index}`}
-                                                    fill={chartColors[index % chartColors.length]}
-                                                />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="text-center">
-                                    <p className="text-sm text-gray-900 mb-2">No demographic data available</p>
-                                    <p className="text-xs text-gray-400">
-                                        Note: Facebook requires at least 100 followers for demographic data.
-                                        Age and gender demographics were deprecated by Facebook in Sept 2024.
-                                    </p>
+                        <header className="mb-4 flex justify-between items-start">
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                    Followers by Country
+                                </p>
+                                <p className="text-xs text-gray-900">
+                                    Geographic distribution of your audience (Top 10)
+                                </p>
+                            </div>
+                            {demographicsCountries.length > 0 && (
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            const section = document.getElementById('country-chart-all');
+                                            const sectionExcluding = document.getElementById('country-chart-excluding');
+                                            if (section && sectionExcluding) {
+                                                section.style.display = section.style.display === 'none' ? 'block' : 'none';
+                                                sectionExcluding.style.display = sectionExcluding.style.display === 'none' ? 'block' : 'none';
+                                            }
+                                        }}
+                                        className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                    >
+                                        Toggle View
+                                    </button>
                                 </div>
                             )}
+                        </header>
+
+                        {/* All Countries View */}
+                        <div id="country-chart-all" className="h-96">
+                            {demographicsCountries.length > 0 ? (
+                                <>
+                                    <p className="text-xs text-gray-500 mb-2">Showing all countries</p>
+                                    <ResponsiveContainer width="100%" height="90%">
+                                        <BarChart
+                                            data={demographicsCountries
+                                                .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                                .slice(0, 10)
+                                                .map(item => ({
+                                                    name: getCountryName(item?.key ?? "Unknown"),
+                                                    value: item?.value ?? 0,
+                                                    percentage: (item?.value ?? 0).toFixed(2)
+                                                }))}
+                                            layout="vertical"
+                                            margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                            <XAxis type="number" tick={{ fontSize: 11 }} label={{ value: 'Percentage (%)', position: 'insideBottom', offset: -5, fontSize: 11 }} />
+                                            <YAxis
+                                                dataKey="name"
+                                                type="category"
+                                                tick={{ fontSize: 11 }}
+                                                width={110}
+                                            />
+                                            <Tooltip
+                                                content={({ active, payload }) => {
+                                                    if (active && payload && payload.length) {
+                                                        return (
+                                                            <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
+                                                                <p className="text-xs font-semibold text-gray-900">{payload[0].payload.name}</p>
+                                                                <p className="text-xs text-blue-600 font-semibold">
+                                                                    {payload[0].payload.percentage}% of followers
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                            <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+                                                {demographicsCountries.slice(0, 10).map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </>
+                            ) : (
+                                <div className="text-center flex items-center justify-center h-full">
+                                    <div>
+                                        <p className="text-sm text-gray-900 mb-2">No demographic data available</p>
+                                        <p className="text-xs text-gray-400">
+                                            Note: Facebook requires at least 100 followers for demographic data.
+                                            Age and gender demographics were deprecated by Facebook in Sept 2024.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Excluding Top Country View */}
+                        <div id="country-chart-excluding" className="h-96" style={{ display: 'none' }}>
+                            {demographicsCountries.length > 1 ? (
+                                <>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Excluding top country ({getCountryName(demographicsCountries.sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))[0]?.key ?? "")}) for better visibility
+                                    </p>
+                                    <ResponsiveContainer width="100%" height="90%">
+                                        <BarChart
+                                            data={demographicsCountries
+                                                .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                                .slice(1, 11)
+                                                .map(item => ({
+                                                    name: getCountryName(item?.key ?? "Unknown"),
+                                                    value: item?.value ?? 0,
+                                                    percentage: (item?.value ?? 0).toFixed(2)
+                                                }))}
+                                            layout="vertical"
+                                            margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                            <XAxis type="number" tick={{ fontSize: 11 }} label={{ value: 'Percentage (%)', position: 'insideBottom', offset: -5, fontSize: 11 }} />
+                                            <YAxis
+                                                dataKey="name"
+                                                type="category"
+                                                tick={{ fontSize: 11 }}
+                                                width={110}
+                                            />
+                                            <Tooltip
+                                                content={({ active, payload }) => {
+                                                    if (active && payload && payload.length) {
+                                                        return (
+                                                            <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
+                                                                <p className="text-xs font-semibold text-gray-900">{payload[0].payload.name}</p>
+                                                                <p className="text-xs text-blue-600 font-semibold">
+                                                                    {payload[0].payload.percentage}% of followers
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                            <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+                                                {demographicsCountries.slice(1, 11).map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </>
+                            ) : null}
                         </div>
                     </section>
 
@@ -512,28 +739,33 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 Cities with the most followers
                             </p>
                         </header>
-                        <div className="overflow-x-auto">
+                        <div className="space-y-3">
                             {demographicsCityTable.length > 0 ? (
-                                <table className="min-w-full text-xs">
-                                    <thead>
-                                        <tr className="text-left text-gray-900">
-                                            <th className="py-2 pr-2">City</th>
-                                            <th className="py-2 pr-2 text-right">Followers</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {demographicsCityTable.map((item, index) => (
-                                            <tr key={index} className="border-t border-gray-100">
-                                                <td className="py-2 pr-2 text-gray-900">
+                                demographicsCityTable.map((item, index) => {
+                                    const maxValue = Math.max(...demographicsCityTable.map(i => i?.value ?? 0));
+                                    const percentage = ((item?.value ?? 0) / maxValue) * 100;
+                                    return (
+                                        <div key={index} className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-900">
                                                     {item?.key ?? "—"}
-                                                </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                </span>
+                                                <span className="text-sm font-semibold text-gray-900">
                                                     {formatNumber(item?.value)}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full transition-all duration-500"
+                                                    style={{
+                                                        width: `${percentage}%`,
+                                                        backgroundColor: chartColors[index % chartColors.length]
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })
                             ) : (
                                 <div className="text-center py-4">
                                     <p className="text-sm text-gray-900">No city breakdown available</p>
@@ -786,20 +1018,16 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     {storiesData.items.slice(0, 10).map((item: any, index: number) => (
                                         <tr key={item.id ?? index} className="border-t border-gray-100">
                                             <td className="py-2 pr-2 text-gray-900">
-                                                {item.picture ? (
-                                                    <img
-                                                        src={item.picture}
-                                                        alt="Story media"
-                                                        className="w-10 h-10 rounded object-cover border border-gray-200"
-                                                    />
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
-                                                        No img
-                                                    </div>
-                                                )}
+                                                <ImageWithHover
+                                                    src={item.picture}
+                                                    alt={item.text || "Story media"}
+                                                    className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                    showName={true}
+                                                    name={item.text?.substring(0, 50) || "Story"}
+                                                />
                                             </td>
                                             <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
-                                                {item.message || "—"}
+                                                {item.text || "—"}
                                             </td>
                                             <td className="py-2 pr-2 text-gray-900">
                                                 {item.mediaType || "Story"}
@@ -808,13 +1036,13 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                                 {formatNumber(item.impressions)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.reach)}
+                                                {formatNumber(item.impressionsUnique)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
                                                 {formatNumber(item.engagement)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.likes)}
+                                                {formatNumber(item.reactions)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
                                                 {formatNumber(item.comments)}
