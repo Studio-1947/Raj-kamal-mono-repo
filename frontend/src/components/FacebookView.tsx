@@ -271,8 +271,8 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
 
             {error && (
                 <div className={`rounded-xl border px-4 py-3 text-sm ${error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')
-                        ? 'border-amber-200 bg-amber-50 text-amber-800'
-                        : 'border-red-200 bg-red-50 text-red-700'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-red-200 bg-red-50 text-red-700'
                     }`}>
                     <div className="flex items-start gap-2">
                         <span className="text-lg">
@@ -786,41 +786,37 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     {storiesData.items.slice(0, 10).map((item: any, index: number) => (
                                         <tr key={item.id ?? index} className="border-t border-gray-100">
                                             <td className="py-2 pr-2 text-gray-900">
-                                                {item.picture ? (
-                                                    <img
-                                                        src={item.picture}
-                                                        alt="Story media"
-                                                        className="w-10 h-10 rounded object-cover border border-gray-200"
-                                                    />
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
-                                                        No img
-                                                    </div>
-                                                )}
+                                                <ImageWithHover
+                                                    src={item.picture || item.imageUrl || item.thumbnail}
+                                                    alt={item.message || item.text || "Story media"}
+                                                    className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                    showName={true}
+                                                    name={item.message?.substring(0, 50) || item.text?.substring(0, 50) || "Story"}
+                                                />
                                             </td>
                                             <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
-                                                {item.message || "—"}
+                                                {item.message || item.text || item.name || item.caption || "—"}
                                             </td>
                                             <td className="py-2 pr-2 text-gray-900">
                                                 {item.mediaType || "Story"}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.impressions)}
+                                                {formatNumber(item.impressions || item.impressionsTotal || item.views)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.reach)}
+                                                {formatNumber(item.reach || item.reachTotal || item.uniqueViews)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.engagement)}
+                                                {formatNumber(item.engagement || item.engagementTotal || item.interactions)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.likes)}
+                                                {formatNumber(item.likes || item.likesCount || item.reactions)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.comments)}
+                                                {formatNumber(item.comments || item.commentsCount)}
                                             </td>
                                             <td className="py-2 pr-2 text-right text-gray-900">
-                                                {formatNumber(item.shares)}
+                                                {formatNumber(item.shares || item.sharesCount)}
                                             </td>
                                         </tr>
                                     ))}
