@@ -343,7 +343,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 { label: "Likes", value: overview?.likes ?? 0 },
                                 { label: "Followers", value: overview?.followers ?? 0 },
                                 { label: "Reach", value: overview?.reach ?? 0 },
-                                { label: "Impressions", value: overview?.impressions ?? overview?.views ?? 0 },
+                                // { label: "Impressions", value: overview?.impressions ?? overview?.views ?? 0 },
                                 { label: "Page visits", value: overview?.pageVisits ?? overview?.pageViews ?? 0 },
                                 { label: "Total content", value: overview?.totalContent ?? 0 },
                             ].map((card) => (
