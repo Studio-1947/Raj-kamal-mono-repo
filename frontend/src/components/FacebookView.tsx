@@ -53,11 +53,28 @@ function formatNumber(value?: number, fallback = "—") {
 
 function normalizeSeries(seriesContainer: any, key: string): any[] {
     if (!seriesContainer) return [];
+
+    // Try to find the data in various possible locations
     const candidate =
         seriesContainer?.series?.[key] ??
         seriesContainer?.data?.series?.[key] ??
         seriesContainer?.[key];
-    if (!candidate) return [];
+
+    if (!candidate) {
+        // If no candidate found with the key, try direct access to values
+        if (Array.isArray(seriesContainer?.values)) {
+            return seriesContainer.values;
+        }
+        if (Array.isArray(seriesContainer?.data?.values)) {
+            return seriesContainer.data.values;
+        }
+        // Check if data is an array with values inside
+        if (Array.isArray(seriesContainer?.data) && seriesContainer.data[0]?.values) {
+            return seriesContainer.data[0].values;
+        }
+        return [];
+    }
+
     if (Array.isArray(candidate?.values)) {
         return candidate.values;
     }
@@ -259,10 +276,27 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         );
                     }
                 } else if (activeSection === "clicks_on_page") {
-                    const clicksRes = await fetchClicks("facebook", { from, to });
+                    const [clicksRes, overviewRes, growthRes] = await Promise.all([
+                        fetchClicks("facebook", { from, to }),
+                        fetchOverview("facebook", { from, to }),
+                        fetchGrowth("facebook", { from, to }),
+                    ]);
 
                     if (!cancelled) {
                         setClicksData(clicksRes.data ?? null);
+                        setOverview(overviewRes.data ?? null);
+                        setGrowth(growthRes.data ?? null);
+                        console.log("Facebook Clicks Data Loaded:", clicksRes.data);
+                        // Log the structure to understand what's available
+                        if (clicksRes.data) {
+                            console.log("Clicks Data Structure:", {
+                                hasSeries: !!clicksRes.data.series,
+                                hasDataSeries: !!clicksRes.data?.data?.series,
+                                hasValues: !!clicksRes.data.values,
+                                hasDataValues: !!clicksRes.data?.data?.values,
+                                topLevelKeys: Object.keys(clicksRes.data)
+                            });
+                        }
                     }
                 } else if (activeSection === "posts") {
                     const postsResRaw = await fetchPosts("facebook", { from, to, pageSize: 10 });
@@ -352,8 +386,15 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
     const lostFollowersPoints = toChartPoints(
         normalizeSeries(growthSeriesContainer, "lostFollowers")
     );
+    // Try multiple possible structures for clicks data
     const clicksPoints = toChartPoints(
-        normalizeSeries(clicksData, "series") ?? []
+        normalizeSeries(clicksData, "series") ??
+        normalizeSeries(clicksData, "clicks") ??
+        normalizeSeries(clicksData, "page_total_actions") ??
+        normalizeSeries(clicksData, "pageActions") ??
+        (Array.isArray(clicksData?.values) ? clicksData.values : []) ??
+        (Array.isArray(clicksData?.data?.values) ? clicksData.data.values : []) ??
+        []
     );
 
     const demographicsPie = demographicsCountries.map((item, index) => ({
@@ -801,8 +842,35 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             {networkFrom} → {networkTo}
                         </p>
                     </header>
+
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                        <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-center shadow-inner border border-emerald-100">
+                            <p className="text-xs font-semibold text-gray-900">Total clicks</p>
+                            <p className="text-2xl font-bold text-gray-900">
+                                {formatNumber(
+                                    clicksPoints.reduce((sum, point) => sum + (point.value || 0), 0),
+                                    "0"
+                                )}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl bg-purple-50 px-4 py-3 text-center shadow-inner border border-purple-100">
+                            <p className="text-xs font-semibold text-gray-900">Page visits</p>
+                            <p className="text-2xl font-bold text-gray-900">
+                                {formatNumber(overview?.pageVisits ?? 0, "0")}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-center shadow-inner border border-amber-100">
+                            <p className="text-xs font-semibold text-gray-900">Total content</p>
+                            <p className="text-2xl font-bold text-gray-900">
+                                {formatNumber(overview?.totalContent ?? 0, "0")}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Chart */}
                     <div className="h-64">
-                        {clicksPoints.length > 0 ? (
+                        {clicksPoints.length > 0 || impressionsPoints.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -815,13 +883,26 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     />
                                     <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
                                     <Tooltip />
-                                    <Line
-                                        dataKey="value"
-                                        data={clicksPoints}
-                                        name="Clicks"
-                                        stroke="#8b5cf6"
-                                        dot={false}
-                                    />
+                                    {clicksPoints.length > 0 && (
+                                        <Line
+                                            dataKey="value"
+                                            data={clicksPoints}
+                                            name="Clicks"
+                                            stroke="#f59e0b"
+                                            strokeWidth={2}
+                                            dot={false}
+                                        />
+                                    )}
+                                    {impressionsPoints.length > 0 && (
+                                        <Line
+                                            dataKey="value"
+                                            data={impressionsPoints}
+                                            name="Page Visits"
+                                            stroke="#8b5cf6"
+                                            strokeWidth={2}
+                                            dot={false}
+                                        />
+                                    )}
                                 </LineChart>
                             </ResponsiveContainer>
                         ) : (
