@@ -1,68 +1,110 @@
-import express from 'express';
-import { z } from 'zod';
-import { prisma } from '../../../lib/prisma.js';
+import express from "express";
+import { z } from "zod";
+import { prisma } from "../../../lib/prisma.js";
 
 const router = express.Router();
 
 // Utilities for resilient aggregation when DB fields are missing
 function decToNumber(v: any): number {
   if (v === null || v === undefined) return 0;
-  try { return Number(v.toString()); } catch { return Number(v) || 0; }
+  try {
+    return Number(v.toString());
+  } catch {
+    return Number(v) || 0;
+  }
 }
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 function numSafe(v: any): number | null {
-  if (v == null || v === '') return null;
-  const n = typeof v === 'string' ? Number(v.replace(/[\s,]/g, '')) : Number(v);
+  if (v == null || v === "") return null;
+  const n = typeof v === "string" ? Number(v.replace(/[\s,]/g, "")) : Number(v);
   return Number.isFinite(n) ? n : null;
 }
-function pick(row: Record<string, any> | null | undefined, names: string[]): any {
+function pick(
+  row: Record<string, any> | null | undefined,
+  names: string[],
+): any {
   if (!row) return undefined;
-  for (const k of Object.keys(row)) if (names.some(n => n.toLowerCase() === k.toLowerCase())) return (row as any)[k];
+  for (const k of Object.keys(row))
+    if (names.some((n) => n.toLowerCase() === k.toLowerCase()))
+      return (row as any)[k];
   return undefined;
 }
 function monthNameToIndex(m?: string | null): number | null {
   if (!m) return null;
-  const map: Record<string, number> = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,sept:8,oct:9,nov:10,dec:11 };
+  const map: Record<string, number> = {
+    jan: 0,
+    feb: 1,
+    mar: 2,
+    apr: 3,
+    may: 4,
+    jun: 5,
+    jul: 6,
+    aug: 7,
+    sep: 8,
+    sept: 8,
+    oct: 9,
+    nov: 10,
+    dec: 11,
+  };
   const i = map[m.toLowerCase()];
-  return (i === undefined ? null : i);
+  return i === undefined ? null : i;
 }
 
 function resolveRowDate(r: any): Date | null {
   let d: Date | null = r.date ? new Date(r.date) : null;
   if (!d) {
     const raw = r.rawJson as Record<string, any> | undefined;
-    const d1 = pick(raw, ['Date', 'Txn Date', 'Transaction Date', 'Trnsdocdate']);
-    if (d1) {
-      const dd = new Date(d1);
-      if (!isNaN(+dd)) d = dd;
-    }
-    if (!d) {
-      const mi = monthNameToIndex(r.month);
-      if (mi != null && r.year && r.year > 0) d = new Date(Date.UTC(r.year, mi, 1));
+    if (raw) {
+      // Normalize keys by trimming
+      const normalizedRaw: Record<string, any> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        normalizedRaw[k.trim()] = v;
+      }
+      const d1 = pick(normalizedRaw, [
+        "Date",
+        "Txn Date",
+        "Transaction Date",
+        "Trnsdocdate",
+      ]);
+      if (d1) {
+        const dd = new Date(d1);
+        if (!isNaN(+dd)) d = dd;
+      }
+      if (!d) {
+        const mi = monthNameToIndex(r.month);
+        if (mi != null && r.year && r.year > 0)
+          d = new Date(Date.UTC(r.year, mi, 1));
+      }
     }
   }
   return d;
 }
 
 // GET /api/offline-sales?limit=200&cursorId=<id>
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   const Q = z.object({
-    limit: z.string().regex(/^\d+$/).transform(Number).default('200').pipe(z.number().min(1).max(1000)),
+    limit: z
+      .string()
+      .regex(/^\d+$/)
+      .transform(Number)
+      .default("200")
+      .pipe(z.number().min(1).max(5000)),
     cursorId: z.string().regex(/^\d+$/).optional(),
     startDate: z.string().datetime().optional(),
     endDate: z.string().datetime().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse({
-    limit: req.query.limit ?? '200',
+    limit: req.query.limit ?? "200",
     cursorId: req.query.cursorId,
     startDate: req.query.startDate,
     endDate: req.query.endDate,
     q: req.query.q,
   });
-  if (!parsed.success) return res.status(400).json({ ok: false, error: 'Invalid query' });
+  if (!parsed.success)
+    return res.status(400).json({ ok: false, error: "Invalid query" });
   const { limit, cursorId, startDate, endDate, q } = parsed.data;
 
   try {
@@ -70,13 +112,18 @@ router.get('/', async (req, res) => {
     if (q) {
       const contains = q.toString();
       where.OR = [
-        { title: { contains, mode: 'insensitive' } },
-        { customerName: { contains, mode: 'insensitive' } },
+        { title: { contains, mode: "insensitive" } },
+        { customerName: { contains, mode: "insensitive" } },
       ];
     }
 
-    const fetchLimit = (startDate || endDate) ? Math.min(limit * 10, 5000) : limit;
-    const args: any = { take: fetchLimit, orderBy: { id: 'desc' as const }, where };
+    const fetchLimit =
+      startDate || endDate ? Math.min(limit * 10, 5000) : limit;
+    const args: any = {
+      take: fetchLimit,
+      orderBy: { id: "desc" as const },
+      where,
+    };
     if (cursorId) {
       args.skip = 1;
       args.cursor = { id: BigInt(cursorId) };
@@ -89,26 +136,31 @@ router.get('/', async (req, res) => {
       rate: it.rate != null ? round2(decToNumber(it.rate)) : null,
     }));
 
-    const data = (startDate || endDate)
-      ? dataAll.filter((r: any) => {
-          const d = resolveRowDate(r);
-          if (!d) return false;
-          if (startDate && d < new Date(startDate)) return false;
-          if (endDate && d > new Date(endDate)) return false;
-          return true;
-        }).slice(0, limit)
-      : dataAll;
+    const data =
+      startDate || endDate
+        ? dataAll
+            .filter((r: any) => {
+              const d = resolveRowDate(r);
+              if (!d) return false;
+              if (startDate && d < new Date(startDate)) return false;
+              if (endDate && d > new Date(endDate)) return false;
+              return true;
+            })
+            .slice(0, limit)
+        : dataAll;
 
     const last = (data as any[]).at(-1);
     return res.json({ ok: true, items: data, nextCursorId: last?.id ?? null });
   } catch (e: any) {
-    console.error('offline_sales_list_failed', e);
-    return res.status(500).json({ ok: false, error: 'Failed to fetch offline sales' });
+    console.error("offline_sales_list_failed", e);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Failed to fetch offline sales" });
   }
 });
 
 // GET /api/offline-sales/summary
-router.get('/summary', async (req, res) => {
+router.get("/summary", async (req, res) => {
   const Q = z.object({
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
     startDate: z.string().datetime().optional(),
@@ -119,16 +171,30 @@ router.get('/summary', async (req, res) => {
     startDate: req.query.startDate,
     endDate: req.query.endDate,
   });
-  if (!parsed.success) return res.status(400).json({ ok: false, error: 'Invalid query' });
+  if (!parsed.success)
+    return res.status(400).json({ ok: false, error: "Invalid query" });
   const days = parsed.data.days ?? 90;
-  const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
-  const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
+  const startDate = parsed.data.startDate
+    ? new Date(parsed.data.startDate)
+    : undefined;
+  const endDate = parsed.data.endDate
+    ? new Date(parsed.data.endDate)
+    : undefined;
 
   try {
-    const since = startDate ?? new Date(Date.now() - (days * 86400000));
+    const since = startDate ?? new Date(Date.now() - days * 86400000);
 
     const rows = await prisma.offlineCashUPICCSale.findMany({
-      select: { date: true, amount: true, qty: true, rate: true, title: true, month: true, year: true, rawJson: true },
+      select: {
+        date: true,
+        amount: true,
+        qty: true,
+        rate: true,
+        title: true,
+        month: true,
+        year: true,
+        rawJson: true,
+      },
       take: 100000,
     });
 
@@ -144,11 +210,16 @@ router.get('/summary', async (req, res) => {
       let amt = decToNumber(r.amount);
       if (!amt) {
         const raw = r.rawJson as Record<string, any> | undefined;
-        const v = numSafe(pick(raw, ['Selling Price', 'Amount', 'Total', 'amount', 'BOOKRATE']));
+        const v = numSafe(
+          pick(raw, ["Selling Price", "Amount", "Total", "amount", "BOOKRATE"]),
+        );
         if (v != null) amt = v;
         else {
-          const rate = numSafe(r.rate as any) || numSafe(pick(raw, ['Rate', 'BOOKRATE'])) || 0;
-          const qty = r.qty || numSafe(pick(raw, ['Qty', 'OUT'])) || 0;
+          const rate =
+            numSafe(r.rate as any) ||
+            numSafe(pick(raw, ["Rate", "BOOKRATE"])) ||
+            0;
+          const qty = r.qty || numSafe(pick(raw, ["Qty", "OUT"])) || 0;
           amt = rate * qty;
         }
       }
@@ -162,14 +233,26 @@ router.get('/summary', async (req, res) => {
       // Top items
       const raw = r.rawJson as Record<string, any> | undefined;
       let title = r.title as string | null | undefined;
-      if (!title || (typeof title === 'string' && title.trim() === '')) {
-        const rawTitle = pick(raw, ['Title', 'title', 'BookName', 'Book', 'book', 'Product', 'Item']);
-        title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : null;
+      if (!title || (typeof title === "string" && title.trim() === "")) {
+        const rawTitle = pick(raw, [
+          "Title",
+          "title",
+          "BookName",
+          "Book",
+          "book",
+          "Product",
+          "Item",
+        ]);
+        title =
+          typeof rawTitle === "string" && rawTitle.trim() ? rawTitle : null;
       }
-      const tkey = (title && typeof title === 'string' && title.trim()) ? title.trim() : 'Untitled Item';
+      const tkey =
+        title && typeof title === "string" && title.trim()
+          ? title.trim()
+          : "Untitled Item";
       const cur = top.get(tkey) || { total: 0, qty: 0 };
       cur.total += amt;
-      cur.qty += r.qty || numSafe(pick(raw, ['Qty', 'OUT'])) || 0;
+      cur.qty += r.qty || numSafe(pick(raw, ["Qty", "OUT"])) || 0;
       top.set(tkey, cur);
     }
 
@@ -179,23 +262,25 @@ router.get('/summary', async (req, res) => {
 
     const topItems = Array.from(top.entries())
       .filter(([_, v]) => v && (v.total > 0 || v.qty > 0))
-      .map(([title, v]) => ({ 
-        title: title || 'Untitled', 
-        total: round2(v.total || 0), 
-        qty: v.qty || 0 
+      .map(([title, v]) => ({
+        title: title || "Untitled",
+        total: round2(v.total || 0),
+        qty: v.qty || 0,
       }))
       .sort((a, b) => (b.total || 0) - (a.total || 0))
       .slice(0, 10);
 
     return res.json({ ok: true, timeSeries, topItems });
   } catch (e: any) {
-    console.error('offline_sales_summary_failed', e);
-    return res.status(500).json({ ok: false, error: 'Failed to compute summary' });
+    console.error("offline_sales_summary_failed", e);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Failed to compute summary" });
   }
 });
 
 // GET /api/offline-sales/counts
-router.get('/counts', async (req, res) => {
+router.get("/counts", async (req, res) => {
   const Q = z.object({
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
     startDate: z.string().datetime().optional(),
@@ -206,11 +291,12 @@ router.get('/counts', async (req, res) => {
     startDate: req.query.startDate,
     endDate: req.query.endDate,
   });
-  if (!parsed.success) return res.status(400).json({ ok: false, error: 'Invalid query' });
+  if (!parsed.success)
+    return res.status(400).json({ ok: false, error: "Invalid query" });
   const { days } = parsed.data;
   let { startDate, endDate } = parsed.data;
 
-  if (days && (!startDate && !endDate)) {
+  if (days && !startDate && !endDate) {
     const now = new Date();
     const since = new Date(now.getTime() - days * 86400000);
     startDate = since.toISOString();
@@ -219,7 +305,20 @@ router.get('/counts', async (req, res) => {
 
   try {
     const items = await prisma.offlineCashUPICCSale.findMany({
-      select: { amount: true, qty: true, rate: true, rawJson: true, customerName: true, email: true, mobile: true, orderStatus: true, date: true, month: true, year: true, title: true },
+      select: {
+        amount: true,
+        qty: true,
+        rate: true,
+        rawJson: true,
+        customerName: true,
+        email: true,
+        mobile: true,
+        orderStatus: true,
+        date: true,
+        month: true,
+        year: true,
+        title: true,
+      },
       take: 100000,
     });
 
@@ -230,38 +329,49 @@ router.get('/counts', async (req, res) => {
     let count = 0;
     const customerSet = new Set<string>();
     let refundCount = 0;
-    
+
     for (const r of items) {
       const d = resolveRowDate(r);
-      
+
       // If date filters are provided and we have a date, apply the filter
       // If no date on record, include it (don't filter out)
       if (start && d && d < start) continue;
       if (end && d && d > end) continue;
-      
+
       count++;
-      
+
       // Calculate amount from available fields
       let amt = decToNumber(r.amount);
       if (!amt) {
         const raw = r.rawJson as Record<string, any> | undefined;
-        const v = numSafe(pick(raw, ['Selling Price', 'Amount', 'Total', 'amount', 'BOOKRATE']));
+        const v = numSafe(
+          pick(raw, ["Selling Price", "Amount", "Total", "amount", "BOOKRATE"]),
+        );
         if (v != null) amt = v;
         else {
-          const rate = numSafe(r.rate as any) || numSafe(pick(raw, ['Rate', 'BOOKRATE'])) || 0;
-          const qty = r.qty || numSafe(pick(raw, ['Qty', 'OUT'])) || 0;
+          const rate =
+            numSafe(r.rate as any) ||
+            numSafe(pick(raw, ["Rate", "BOOKRATE"])) ||
+            0;
+          const qty = r.qty || numSafe(pick(raw, ["Qty", "OUT"])) || 0;
           amt = rate * qty;
         }
       }
       totalAmount += amt;
 
-      const st = (r.orderStatus as any as string) || String(pick(r.rawJson as any, ['Order Status', 'Status']) || '').toLowerCase();
-      if (st && st.toLowerCase() === 'refunded') refundCount++;
+      const st =
+        (r.orderStatus as any as string) ||
+        String(
+          pick(r.rawJson as any, ["Order Status", "Status"]) || "",
+        ).toLowerCase();
+      if (st && st.toLowerCase() === "refunded") refundCount++;
 
-      const name = (r.customerName || '').trim().toLowerCase();
-      const email = (r.email || '').trim().toLowerCase();
-      const mobile = (r.mobile || '').trim();
-      const key = [email || null, mobile || null, name || null].filter(Boolean).join('|');
+      const name = (r.customerName || "").trim().toLowerCase();
+      const email = (r.email || "").trim().toLowerCase();
+      const mobile = (r.mobile || "").trim();
+      const key = [email || null, mobile || null, name || null]
+        .filter(Boolean)
+        .join("|");
       if (key) customerSet.add(key);
     }
 
@@ -273,8 +383,8 @@ router.get('/counts', async (req, res) => {
       refundCount,
     });
   } catch (e: any) {
-    console.error('offline_sales_counts_failed', e);
-    return res.status(500).json({ ok: false, error: 'Failed to fetch counts' });
+    console.error("offline_sales_counts_failed", e);
+    return res.status(500).json({ ok: false, error: "Failed to fetch counts" });
   }
 });
 

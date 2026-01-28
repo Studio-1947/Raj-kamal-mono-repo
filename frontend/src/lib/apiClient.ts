@@ -27,8 +27,8 @@ class ApiClient {
   constructor() {
     this.client = axios.create({
       baseURL: normalizeBaseUrl((import.meta as any).env?.VITE_API_URL),
-      // Slightly higher timeout to play nicer with cold backends
-      timeout: 20000,
+      // Increased timeout to 60s to handle large data aggregations
+      timeout: 80000,
       headers: {
         "Content-Type": "application/json",
       },
