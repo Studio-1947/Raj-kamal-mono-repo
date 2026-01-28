@@ -137,6 +137,11 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                         setSectionData(result.data);
                         setOverview(null); // Clear overview data for other sections
                         setGrowth(null);
+                        console.log(`Instagram ${activeSection} Data Loaded:`, result.data);
+                        if (result.data?.items?.length > 0) {
+                            console.log(`First ${activeSection} Item:`, result.data.items[0]);
+                            console.log("Available fields:", Object.keys(result.data.items[0]));
+                        }
                     }
                 }
             } catch (err: any) {
@@ -530,7 +535,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                                     {formatNumber(item.comments)}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
-                                                    {formatNumber(item.shares)}
+                                                    {formatNumber(item.shares || item.sharesCount)}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
                                                     {item.engagement ? (item.engagement * 100).toFixed(2) + '%' : '—'}
@@ -560,35 +565,35 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                                 <td className="py-2 pr-2 text-gray-900">
                                                     <ImageWithHover
                                                         src={item.picture || item.thumbnailUrl || item.imageUrl}
-                                                        alt={item.message || item.caption || "Media"}
+                                                        alt={item.content || item.message || item.text || item.caption || item.description || item.title || "Media"}
                                                         className="w-10 h-10 rounded object-cover border border-gray-200"
                                                         showName={true}
-                                                        name={(item.message || item.caption || "").substring(0, 50) || activeSection}
+                                                        name={(item.content || item.message || item.text || item.caption || item.description || item.title || item.name || item.mediaType || item.type || activeSection).substring(0, 50)}
                                                     />
                                                 </td>
                                                 <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
-                                                    {item.message || item.caption || "—"}
+                                                    {item.content || item.message || item.text || item.caption || item.description || item.title || item.name || <span className="text-gray-400 italic text-xs">(No caption)</span>}
                                                 </td>
                                                 <td className="py-2 pr-2 text-gray-900">
                                                     {item.mediaType || item.type || activeSection}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
-                                                    {formatNumber(item.impressions || item.impressionsTotal)}
+                                                    {formatNumber(item.impressions || item.impressionsTotal || item.views)}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
-                                                    {formatNumber(item.reach)}
+                                                    {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
-                                                    {formatNumber(item.engagement)}
+                                                    {formatNumber(item.engagement || item.engagementTotal)}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
-                                                    {formatNumber(item.likes)}
+                                                    {formatNumber(item.likes || item.reactions || item.likesCount)}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
-                                                    {formatNumber(item.comments)}
+                                                    {formatNumber(item.comments || item.commentsCount)}
                                                 </td>
                                                 <td className="py-2 pr-2 text-right text-gray-900">
-                                                    {formatNumber(item.shares)}
+                                                    {formatNumber(item.shares || item.sharesCount)}
                                                 </td>
                                             </tr>
                                         ))}
