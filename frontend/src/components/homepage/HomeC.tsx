@@ -1244,20 +1244,24 @@ export default function HindiBooksSalesDashboard() {
         </div>
       </div>
 
-      {/* Row 2: Top Performing Locations + Social Media */}
+      {/* Row 2: Top Performing Locations */}
       <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-12">
           <TopLocationsCard days={days} />
-        </div>
-        <div className="lg:col-span-5">
-          <SocialMediaCard />
         </div>
       </div>
 
-      {/* Row 3: Inventory full-width last */}
+      {/* Row 3: Inventory full-width */}
       <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-12">
           <InventoryCard summary={summary} loading={loading} />
+        </div>
+      </div>
+
+      {/* Row 4: Social Media */}
+      <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
+        <div className="lg:col-span-12">
+          {/* <SocialMediaCard /> */}
         </div>
       </div>
     </main>

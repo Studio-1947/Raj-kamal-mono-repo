@@ -9,10 +9,10 @@ export default function Home() {
     <AppLayout>
       <div className="space-y-8">
         {/* Social Media Overview Section */}
-        <SocialMediaOverview />
 
         {/* Sales Dashboard Section */}
         <HindiBooksSalesDashboard />
+        <SocialMediaOverview />
       </div>
     </AppLayout>
   );
