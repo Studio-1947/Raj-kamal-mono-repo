@@ -1,8 +1,8 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { store } from '../store';
-import { logout } from '../store/slices/authSlice';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import { store } from "../store";
+import { logout } from "../store/slices/authSlice";
 
-const DEFAULT_BASE_URL = 'https://raj-kamal-mono-repo.vercel.app/api';
+const DEFAULT_BASE_URL = "https://raj-kamal-mono-repo.vercel.app/api";
 // const DEFAULT_BASE_URL = 'http://localhost:4000/api';
 function normalizeBaseUrl(value?: string): string {
   const rawUrl = value?.trim() || DEFAULT_BASE_URL;
@@ -10,13 +10,13 @@ function normalizeBaseUrl(value?: string): string {
   try {
     const parsed = new URL(rawUrl);
 
-    if (!parsed.pathname.endsWith('/')) {
+    if (!parsed.pathname.endsWith("/")) {
       parsed.pathname = `${parsed.pathname}/`;
     }
 
     return parsed.toString();
   } catch {
-    const sanitized = rawUrl.replace(/\/+$/, '');
+    const sanitized = rawUrl.replace(/\/+$/, "");
     return `${sanitized}/`;
   }
 }
@@ -30,7 +30,7 @@ class ApiClient {
       // Slightly higher timeout to play nicer with cold backends
       timeout: 20000,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -41,32 +41,48 @@ class ApiClient {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       (config) => {
-        if (typeof config.url === 'string' && config.url.startsWith('/')) {
-          config.url = config.url.replace(/^\/+/, '');
+        if (typeof config.url === "string" && config.url.startsWith("/")) {
+          config.url = config.url.replace(/^\/+/, "");
         }
 
         const token = store.getState().auth.token;
         if (token) {
           config.headers = config.headers ?? {};
-          (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
+          (config.headers as Record<string, string>).Authorization =
+            `Bearer ${token}`;
         }
         return config;
       },
       (error) => {
         return Promise.reject(error);
-      }
+      },
     );
 
     // Response interceptor to handle auth errors
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
+        const originalRequest = error.config;
+
+        // Handle 429 Too Many Requests with retry logic
+        if (error.response?.status === 429 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+
+          if (originalRequest._retryCount <= 3) {
+            const backoffDelay =
+              Math.pow(2, originalRequest._retryCount) * 1000; // 2s, 4s, 8s
+            await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+            return this.client(originalRequest);
+          }
+        }
+
         if (error.response?.status === 401) {
           store.dispatch(logout());
-          window.location.href = '/login';
+          window.location.href = "/login";
         }
         return Promise.reject(error);
-      }
+      },
     );
   }
 
@@ -75,18 +91,38 @@ class ApiClient {
     return response.data;
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.post(url, data, config);
+  async post<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.post(
+      url,
+      data,
+      config,
+    );
     return response.data;
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async put<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
     const response: AxiosResponse<T> = await this.client.put(url, data, config);
     return response.data;
   }
 
-  async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.patch(url, data, config);
+  async patch<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.patch(
+      url,
+      data,
+      config,
+    );
     return response.data;
   }
 
