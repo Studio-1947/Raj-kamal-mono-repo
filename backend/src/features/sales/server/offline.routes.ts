@@ -133,7 +133,8 @@ router.get('/summary', async (req, res) => {
     });
 
     const ts = new Map<string, number>();
-    const top = new Map<string, { total: number; qty: number }>();
+    // Carry optional metadata so UI can show author/isbn/language similar to online
+    const top = new Map<string, { total: number; qty: number; isbn?: string; author?: string; language?: string }>();
 
     for (const r of rows) {
       const d = resolveRowDate(r);
@@ -170,6 +171,15 @@ router.get('/summary', async (req, res) => {
       const cur = top.get(tkey) || { total: 0, qty: 0 };
       cur.total += amt;
       cur.qty += r.qty || numSafe(pick(raw, ['Qty', 'OUT'])) || 0;
+      // Try to enrich metadata from raw cells commonly present in offline Excel
+      if (raw) {
+        const isbnRaw = pick(raw, ['ISBN', 'isbn', 'ISBN13', 'Isbn', 'ISBN No.', 'BOOKCODE']);
+        const authorRaw = pick(raw, ['Author', 'author', 'Writer', 'writer', 'AUTHOR']);
+        const langRaw = pick(raw, ['Language', 'language', 'Lang']);
+        if (!cur.isbn && typeof isbnRaw === 'string' && isbnRaw.trim()) cur.isbn = isbnRaw.trim();
+        if (!cur.author && typeof authorRaw === 'string' && authorRaw.trim()) cur.author = authorRaw.trim();
+        if (!cur.language && typeof langRaw === 'string' && langRaw.trim()) cur.language = langRaw.trim();
+      }
       top.set(tkey, cur);
     }
 
@@ -182,7 +192,10 @@ router.get('/summary', async (req, res) => {
       .map(([title, v]) => ({ 
         title: title || 'Untitled', 
         total: round2(v.total || 0), 
-        qty: v.qty || 0 
+        qty: v.qty || 0,
+        isbn: v.isbn || undefined,
+        author: v.author || undefined,
+        language: v.language || undefined,
       }))
       .sort((a, b) => (b.total || 0) - (a.total || 0))
       .slice(0, 10);

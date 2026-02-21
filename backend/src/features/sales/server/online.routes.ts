@@ -255,20 +255,17 @@ router.get('/summary', async (req, res) => {
         cur.qty += r.qty ?? 0;
         
         // Extract additional book details from rawJson - with type safety
-        if (raw && !cur.isbn) {
-          const isbnRaw = pick(raw, ['ISBN', 'isbn', 'ISBN13', 'Isbn']);
-          const authorRaw = pick(raw, ['Author', 'author', 'Writer', 'writer']);
+        if (raw) {
+          const isbnRaw = pick(raw, ['ISBN', 'isbn', 'ISBN13', 'Isbn', 'ISBN No.', 'BOOKCODE']);
+          const authorRaw = pick(raw, [
+            'Author', 'author', 'Writer', 'writer',
+            'Author Name', 'AUTHOR', 'AUTHORS', 'Auth', 'Author_Name', 'AUTHOR NAME', 'Authorname'
+          ]);
           const langRaw = pick(raw, ['Language', 'language', 'Lang']);
-          
-          if (typeof isbnRaw === 'string' && isbnRaw.trim()) {
-            cur.isbn = isbnRaw.trim();
-          }
-          if (typeof authorRaw === 'string' && authorRaw.trim()) {
-            cur.author = authorRaw.trim();
-          }
-          if (typeof langRaw === 'string' && langRaw.trim()) {
-            cur.language = langRaw.trim();
-          }
+
+          if (!cur.isbn && typeof isbnRaw === 'string' && isbnRaw.trim()) cur.isbn = isbnRaw.trim();
+          if (!cur.author && typeof authorRaw === 'string' && authorRaw.trim()) cur.author = authorRaw.trim();
+          if (!cur.language && typeof langRaw === 'string' && langRaw.trim()) cur.language = langRaw.trim();
         }
         
         top.set(tkey, cur);

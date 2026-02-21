@@ -153,9 +153,11 @@ function Card({
 /***********************\
 |* Types & API Fetching *|
 \***********************/
+// Summary shape used by both online and offline endpoints
+// Note: offline summary does not include paymentMode; mark it optional
 type SummaryResponse = {
   ok: boolean;
-  paymentMode: { paymentMode: string; total: number }[];
+  paymentMode?: { paymentMode: string; total: number }[];
   timeSeries: { date: string; total: number }[];
   topItems: {
     title: string;
@@ -201,24 +203,96 @@ function formatIN(tick: number) {
 const ONLINE_COLOR = "#2B4D9C";
 const OFFLINE_COLOR = "#7EA6FF";
 
+// Channel filter for Top Book/Author
+type Channel = 'all' | 'online' | 'offline';
+
+function SegmentedTabs({
+  value,
+  onChange,
+}: { value: Channel; onChange: (v: Channel) => void }) {
+  const options: { key: Channel; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'online', label: 'Online' },
+    { key: 'offline', label: 'Offline' },
+  ];
+  return (
+    <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
+      {options.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => onChange(t.key)}
+          className={`px-2.5 py-1 rounded-full font-semibold transition-all ${
+            value === t.key ? 'bg-white text-[#1e3a8a] shadow' : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**********************\
 |* Section Components *|
 \**********************/
 function RevenueCard({
   days,
   setDays,
-  summary,
-  counts,
+  onlineSummary,
+  offlineSummary,
+  onlineCounts,
+  offlineCounts,
   loading,
   onRefresh,
 }: {
   days: number;
   setDays: (d: number) => void;
-  summary: SummaryResponse | null;
-  counts: CountsResponse | null;
+  onlineSummary: SummaryResponse | null;
+  offlineSummary: SummaryResponse | null;
+  onlineCounts: CountsResponse | null;
+  offlineCounts: CountsResponse | null;
   loading: boolean;
   onRefresh: () => void;
 }) {
+  const [activeView, setActiveView] = useState<"total" | "online" | "offline">("total");
+  
+  const totalAmount = useMemo(() => {
+    const online = onlineCounts?.totalAmount || 0;
+    const offline = offlineCounts?.totalAmount || 0;
+    if (activeView === 'online') return online;
+    if (activeView === 'offline') return offline;
+    return online + offline;
+  }, [activeView, onlineCounts, offlineCounts]);
+
+  const totalOrders = useMemo(() => {
+    const online = onlineCounts?.totalCount || 0;
+    const offline = offlineCounts?.totalCount || 0;
+    if (activeView === 'online') return online;
+    if (activeView === 'offline') return offline;
+    return online + offline;
+  }, [activeView, onlineCounts, offlineCounts]);
+
+  const uniqueCustomers = useMemo(() => {
+    const online = onlineCounts?.uniqueCustomers || 0;
+    const offline = offlineCounts?.uniqueCustomers || 0;
+    if (activeView === 'online') return online;
+    if (activeView === 'offline') return offline;
+    return online + offline;
+  }, [activeView, onlineCounts, offlineCounts]);
+  
+  // Calculate growth
+  const growth = useMemo(() => {
+    // Build series according to activeView
+    const onlineSeries = onlineSummary?.timeSeries || [];
+    const offlineSeries = offlineSummary?.timeSeries || [];
+    // sum by date for total view
+    const mergedTotal = new Map<string, number>();
+    for (const r of onlineSeries) mergedTotal.set(r.date, (mergedTotal.get(r.date) || 0) + (r.total || 0));
+    for (const r of offlineSeries) mergedTotal.set(r.date, (mergedTotal.get(r.date) || 0) + (r.total || 0));
+
+    const series = activeView === 'online' ? onlineSeries : activeView === 'offline' ? offlineSeries : Array.from(mergedTotal.entries()).sort(([a],[b]) => a < b ? -1 : 1).map(([date,total]) => ({ date, total }));
+    if (series.length < 2) return { pct: 0, dir: "flat" as "up" | "down" | "flat" };
   const [activeView, setActiveView] = useState<"total" | "online" | "offline">(
     "total"
   );
@@ -239,9 +313,32 @@ function RevenueCard({
     const b = sum(prev) || 1;
     const pct = ((a - b) / b) * 100;
     return { pct, dir: pct > 0 ? "up" : pct < 0 ? "down" : "flat" };
-  }, [summary]);
+  }, [activeView, onlineSummary, offlineSummary]);
 
   const chartData = useMemo(() => {
+    const online = onlineSummary?.timeSeries || [];
+    const offline = offlineSummary?.timeSeries || [];
+    const byDate = new Map<string, { online: number; offline: number }>();
+    for (const r of online) {
+      const key = r.date;
+      const prev = byDate.get(key) || { online: 0, offline: 0 };
+      prev.online += r.total || 0;
+      byDate.set(key, prev);
+    }
+    for (const r of offline) {
+      const key = r.date;
+      const prev = byDate.get(key) || { online: 0, offline: 0 };
+      prev.offline += r.total || 0;
+      byDate.set(key, prev);
+    }
+    return Array.from(byDate.entries())
+      .sort(([a],[b]) => a < b ? -1 : 1)
+      .map(([date, vals]) => ({
+        name: new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        online: vals.online,
+        offline: vals.offline,
+      }));
+  }, [onlineSummary, offlineSummary]);
     return (summary?.timeSeries || []).map((d) => ({
       name: new Date(d.date).toLocaleDateString("en-IN", {
         day: "numeric",
@@ -368,6 +465,9 @@ function RevenueCard({
           </span>
           <span className="text-gray-500">total orders</span>
         </span>
+        {uniqueCustomers > 0 && (
+        <span className="inline-flex items-center gap-2">
+            <span className="font-semibold text-[#43547E]">{formatIN(uniqueCustomers)}</span>
         {counts?.uniqueCustomers && (
           <span className="inline-flex items-center gap-2">
             <span className="font-semibold text-[#43547E]">
@@ -410,6 +510,28 @@ function RevenueCard({
                     fontSize: "12px",
                   }}
                 />
+                {(activeView === 'total' || activeView === 'online') && (
+                  <Line
+                    type="monotone"
+                    dataKey="online"
+                    name="Online"
+                    stroke={ONLINE_COLOR}
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 0, fill: ONLINE_COLOR }}
+                    activeDot={{ r: 6 }}
+                  />
+                )}
+                {(activeView === 'total' || activeView === 'offline') && (
+                  <Line
+                    type="monotone"
+                    dataKey="offline"
+                    name="Offline"
+                    stroke={OFFLINE_COLOR}
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 0, fill: OFFLINE_COLOR }}
+                    activeDot={{ r: 6 }}
+                  />
+                )}
                 <Line
                   type="monotone"
                   dataKey="online"
@@ -439,6 +561,23 @@ function RevenueCard({
       </div>
 
       {/* info chip */}
+      {(() => {
+        const onAmt = onlineCounts?.totalAmount || 0;
+        const offAmt = offlineCounts?.totalAmount || 0;
+        const leader = onAmt >= offAmt ? { label: 'Online', amt: onAmt } : { label: 'Offline', amt: offAmt };
+        const denom = (onAmt + offAmt) || 1;
+        const pct = Math.round((leader.amt / denom) * 100);
+        return (
+          <div className="mt-3 rounded-2xl bg-gray-100 text-gray-700 px-4 py-3 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center rounded-full bg-[#E5EEFF] text-[#43547E] w-6 h-6">
+              <IoMdInformationCircle className="w-8 h-8" />
+            </span>
+            <span className="text-sm">
+              {leader.label} contributed {pct}% of revenue.
+            </span>
+          </div>
+        );
+      })()}
       {summary?.paymentMode && summary.paymentMode.length > 0 && (
         <div className="mt-2 rounded-xl bg-gray-100 text-gray-700 px-3 py-2 flex items-center gap-2">
           <span className="inline-flex items-center justify-center rounded-full bg-[#E5EEFF] text-[#43547E] w-5 h-5">
@@ -457,6 +596,7 @@ function RevenueCard({
   );
 }
 
+function TopBookCard({ summary, loading, counts, channel, onChannelChange }: { summary: SummaryResponse | null; loading: boolean; counts: CountsResponse | null; channel: Channel; onChannelChange: (v: Channel) => void }) {
 function TopBookCard({
   summary,
   loading,
@@ -491,6 +631,11 @@ function TopBookCard({
   return (
     <Card
       title={
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-[16px] text-[#000000]">Top Book</span>
+          <div className="ml-auto flex items-center gap-3 text-xs">
+            <SegmentedTabs value={channel} onChange={onChannelChange} />
+            <span className="font-semibold text-[#43547E] text-[16px]">This Period</span>
         <div className="flex items-center">
           <span className="font-semibold text-[16px] text-[#000000]">
             Top Book
@@ -584,6 +729,7 @@ function TopBookCard({
   );
 }
 
+function TopAuthorCard({ summary, loading, days, channel, onChannelChange }: { summary: SummaryResponse | null; loading: boolean; days: number; channel: Channel; onChannelChange: (v: Channel) => void }) {
 function TopAuthorCard({
   summary,
   loading,
@@ -636,9 +782,115 @@ function TopAuthorCard({
     };
   }, [summary]);
 
+  // Fallback enrichment: if we don't have a known author, try inferring from latest orders
+  const [enriched, setEnriched] = useState<{
+    name: string; books: number; totalQty: number; contributionPercent: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (topAuthor && topAuthor.name !== 'Unknown Author') { setEnriched(null); return; }
+      try {
+        const now = new Date();
+        const since = new Date(now.getTime() - days * 86400000);
+        const qs = new URLSearchParams({ limit: String(1500), startDate: since.toISOString(), endDate: now.toISOString() }).toString();
+
+        type ListItem = { title?: string|null; qty?: number|null; amount?: number|null; rate?: number|null; rawJson?: Record<string, any> };
+        type ListResp = { ok: boolean; items: ListItem[] };
+
+        // Fetch only what is needed for the selected channel
+        let o: ListResp | null = null;
+        let f: ListResp | null = null;
+        if (channel === 'online') {
+          o = await apiClient.get<ListResp>(`online-sales?${qs}`);
+        } else if (channel === 'offline') {
+          f = await apiClient.get<ListResp>(`offline-sales?${qs}`);
+        } else {
+          [o, f] = await Promise.all([
+            apiClient.get<ListResp>(`online-sales?${qs}`),
+            apiClient.get<ListResp>(`offline-sales?${qs}`),
+          ]);
+        }
+
+        const extractAuthor = (raw?: Record<string, any>, title?: string|null): string | null => {
+          if (raw) {
+            const candidates = [
+              'Author','author','AUTHOR','Author Name','AuthorName','Author(s)',
+              'Writer','writer','Writer Name','WriterName','WRITER','AUTHORS','AUTH'
+            ];
+            for (const k of Object.keys(raw)) {
+              if (candidates.some(c => c.toLowerCase() === k.toLowerCase())) {
+                const v = (raw as any)[k];
+                if (typeof v === 'string' && v.trim()) return v.trim();
+              }
+            }
+          }
+          // Heuristic: look for " by " in title
+          const t = (title || '').toString();
+          const byIdx = t.toLowerCase().lastIndexOf(' by ');
+          if (byIdx > -1) {
+            const guess = t.slice(byIdx + 4).trim();
+            if (guess) return guess;
+          }
+          return null;
+        };
+
+        const num = (v: any): number => {
+          if (v == null || v === '') return 0;
+          const n = typeof v === 'string' ? Number(v.replace(/[\s,]/g, '')) : Number(v);
+          return Number.isFinite(n) ? n : 0;
+        };
+
+        const computeAmount = (it: ListItem): number => {
+          const d = num(it.amount);
+          if (d) return d;
+          const r = num(it.rate); const q = num(it.qty);
+          return r * q;
+        };
+
+        const authorAgg = new Map<string, { total: number; qty: number; books: number }>();
+        const seenTitles = new Map<string, Set<string>>();
+        const all = [...(o?.items || []), ...(f?.items || [])];
+        for (const it of all) {
+          const a = extractAuthor(it.rawJson, it.title);
+          if (!a) continue;
+          const key = a.trim();
+          const cur = authorAgg.get(key) || { total: 0, qty: 0, books: 0 };
+          cur.total += computeAmount(it);
+          cur.qty += num(it.qty);
+          // unique title per author
+          const t = (it.title || '').toString().trim();
+          if (t) {
+            const set = seenTitles.get(key) || new Set<string>();
+            if (!set.has(t)) { cur.books += 1; set.add(t); seenTitles.set(key, set); }
+          }
+          authorAgg.set(key, cur);
+        }
+
+        const arr = Array.from(authorAgg.entries()).sort((a,b) => (b[1].total - a[1].total) || (b[1].qty - a[1].qty));
+        const best = arr[0];
+        if (!best) { setEnriched(null); return; }
+
+        const totalRevenue = Array.from(authorAgg.values()).reduce((s, x) => s + x.total, 0) || 1;
+        const pct = Math.round((best[1].total / totalRevenue) * 100);
+        if (!cancelled) setEnriched({ name: best[0], books: best[1].books, totalQty: best[1].qty, contributionPercent: pct });
+      } catch (e) {
+        if (!cancelled) setEnriched(null);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [topAuthor, days, channel]);
+
   return (
     <Card
       title={
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-[#000000] text-[16px]">Top Author</span>
+          <div className="ml-auto flex items-center gap-3 text-xs">
+            <SegmentedTabs value={channel} onChange={onChannelChange} />
+            <span className="font-semibold text-[#43547E] text-[16px]">This Period</span>
         <div className="flex items-center">
           <span className="font-semibold text-[#000000] text-[16px]">
             Top Author
@@ -665,7 +917,7 @@ function TopAuthorCard({
             <div className="h-3 bg-gray-200 rounded w-24" />
           </div>
         </div>
-      ) : topAuthor ? (
+      ) : (topAuthor && topAuthor.name !== 'Unknown Author') ? (
         <div className="flex items-start gap-3">
           <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-xl font-bold text-green-700 shadow-sm">
             {topAuthor.name.charAt(0).toUpperCase()}
@@ -685,6 +937,25 @@ function TopAuthorCard({
               {topAuthor.totalQty > 0
                 ? `${topAuthor.totalQty} units sold`
                 : "Top seller"}
+            </div>
+          </div>
+        </div>
+      ) : enriched ? (
+        <div className="flex items-start gap-3">
+          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-xl font-bold text-green-700 shadow-sm">
+            {enriched.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-gray-900">{enriched.name}</div>
+            <div className="text-xs text-gray-600">{enriched.books} book{enriched.books !== 1 ? 's' : ''} in top 10</div>
+          </div>
+          <div className="ml-auto text-right">
+            <div className="text-3xl font-extrabold text-[#43547E] inline-flex items-center gap-1">
+              {enriched.contributionPercent}%
+              <ArrowUp className="w-4 h-4 text-green-600" />
+            </div>
+            <div className="text-[11px] text-gray-500">
+              {enriched.totalQty > 0 ? `${enriched.totalQty} units sold` : 'Top seller'}
             </div>
           </div>
         </div>
@@ -1179,8 +1450,13 @@ function SocialMediaCard() {
 \*******************/
 export default function HindiBooksSalesDashboard() {
   const [days, setDays] = useState(90);
-  const [summary, setSummary] = useState<SummaryResponse | null>(null);
-  const [counts, setCounts] = useState<CountsResponse | null>(null);
+  const [summary, setSummary] = useState<SummaryResponse | null>(null); // combined summary
+  const [counts, setCounts] = useState<CountsResponse | null>(null); // combined counts
+  const [onlineSummary, setOnlineSummary] = useState<SummaryResponse | null>(null);
+  const [offlineSummary, setOfflineSummary] = useState<SummaryResponse | null>(null);
+  const [onlineCounts, setOnlineCounts] = useState<CountsResponse | null>(null);
+  const [offlineCounts, setOfflineCounts] = useState<CountsResponse | null>(null);
+  const [topChannel, setTopChannel] = useState<Channel>('online');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -1189,12 +1465,75 @@ export default function HindiBooksSalesDashboard() {
     setError(null);
     try {
       const qs = new URLSearchParams({ days: String(days) }).toString();
-      const [summaryData, countsData] = await Promise.all([
+      const [onlineSum, onlineCnt, offlineSum, offlineCnt] = await Promise.all([
         apiClient.get<SummaryResponse>(`online-sales/summary?${qs}`),
         apiClient.get<CountsResponse>(`online-sales/counts?${qs}`),
+        apiClient.get<SummaryResponse>(`offline-sales/summary?${qs}`),
+        apiClient.get<CountsResponse>(`offline-sales/counts?${qs}`),
       ]);
 
       // Debug: Log what we received
+      console.log('📊 Online summary:', onlineSum);
+      console.log('📈 Online counts:', onlineCnt);
+      console.log('🧾 Offline summary:', offlineSum);
+      console.log('🧮 Offline counts:', offlineCnt);
+
+      setOnlineSummary(onlineSum);
+      setOfflineSummary(offlineSum);
+      setOnlineCounts(onlineCnt);
+      setOfflineCounts(offlineCnt);
+
+      // Build combined counts
+      const combinedCounts: CountsResponse = {
+        ok: true,
+        totalCount: (onlineCnt?.totalCount || 0) + (offlineCnt?.totalCount || 0),
+        totalAmount: (onlineCnt?.totalAmount || 0) + (offlineCnt?.totalAmount || 0),
+        uniqueCustomers: (onlineCnt?.uniqueCustomers || 0) + (offlineCnt?.uniqueCustomers || 0),
+        refundCount: (onlineCnt?.refundCount || 0) + (offlineCnt?.refundCount || 0),
+      };
+
+      // Combine summaries: merge time series and top items
+      const seriesMap = new Map<string, number>();
+      for (const r of onlineSum?.timeSeries || []) seriesMap.set(r.date, (seriesMap.get(r.date) || 0) + (r.total || 0));
+      for (const r of offlineSum?.timeSeries || []) seriesMap.set(r.date, (seriesMap.get(r.date) || 0) + (r.total || 0));
+      const timeSeries = Array.from(seriesMap.entries())
+        .sort(([a],[b]) => a < b ? -1 : 1)
+        .map(([date,total]) => ({ date, total }));
+
+      const topMap = new Map<string, { total: number; qty: number; author?: string; isbn?: string; language?: string }>();
+      const addTop = (arr?: SummaryResponse['topItems']) => {
+        (arr || []).forEach((i) => {
+          const key = i.title || 'Untitled';
+          const cur = topMap.get(key) || { total: 0, qty: 0 };
+          cur.total += i.total || 0;
+          cur.qty += i.qty || 0;
+          // Fill missing metadata from any source encountered
+          if (!cur.author && i.author) cur.author = i.author;
+          if (!cur.isbn && i.isbn) cur.isbn = i.isbn;
+          if (!cur.language && i.language) cur.language = i.language;
+          topMap.set(key, cur);
+        });
+      };
+      addTop(onlineSum?.topItems);
+      addTop(offlineSum?.topItems);
+      const topItems = Array.from(topMap.entries())
+        .map(([title, v]) => ({ title, total: v.total, qty: v.qty, author: v.author, isbn: v.isbn, language: v.language }))
+        .sort((a, b) => (b.total || 0) - (a.total || 0))
+        .slice(0, 10);
+
+      const combinedSummary: SummaryResponse = {
+        ok: true,
+        // Provide a simple paymentMode-like breakdown to feed the info chip
+        paymentMode: [
+          { paymentMode: 'Online', total: onlineCnt?.totalAmount || 0 },
+          { paymentMode: 'Offline', total: offlineCnt?.totalAmount || 0 },
+        ],
+        timeSeries,
+        topItems,
+      };
+
+      setSummary(combinedSummary);
+      setCounts(combinedCounts);
       console.log("📊 Summary data received:", summaryData);
       console.log("📈 Counts data received:", countsData);
       console.log("📚 Top items:", summaryData?.topItems);
@@ -1236,12 +1575,29 @@ export default function HindiBooksSalesDashboard() {
           <RevenueCard
             days={days}
             setDays={setDays}
-            summary={summary}
-            counts={counts}
+            onlineSummary={onlineSummary}
+            offlineSummary={offlineSummary}
+            onlineCounts={onlineCounts}
+            offlineCounts={offlineCounts}
             loading={loading}
             onRefresh={fetchData}
           />
         </div>
+        <div className="grid gap-4">
+          <TopBookCard
+            summary={topChannel==='online'? onlineSummary : topChannel==='offline'? offlineSummary : summary}
+            loading={loading}
+            counts={topChannel==='online'? onlineCounts : topChannel==='offline'? offlineCounts : counts}
+            channel={topChannel}
+            onChannelChange={setTopChannel}
+          />
+          <TopAuthorCard
+            summary={topChannel==='online'? onlineSummary : topChannel==='offline'? offlineSummary : summary}
+            loading={loading}
+            days={days}
+            channel={topChannel}
+            onChannelChange={setTopChannel}
+          />
         <div className="lg:col-span-5 grid grid-cols-1 gap-3">
           <TopBookCard summary={summary} loading={loading} counts={counts} />
           <TopAuthorCard summary={summary} loading={loading} />
