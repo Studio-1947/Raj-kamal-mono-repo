@@ -1,0 +1,113 @@
+🔍 Debugging OnlineSale Data...
+📊 Total OnlineSale records: 20580
+📝 Last 5 records:
+---------------------------------------------------
+ID: 20581
+Date (DB): null
+Raw JSON: {
+  "MRP": 250,
+  "ISBN": 9789349180697,
+  "Year": 2025,
+  "Month": "Aug",
+  "Order": "000019249",
+  "Author": "Kunal Singh",
+  "Title ": "Romeo Juliet Aur Andhera",
+  "Pincode": 421306,
+  "Category": "Fiction : Novel",
+  "Event Type": "Non Event",
+  "Publication": "Lokbharti Prakashan",
+  "Order Status": "complete",
+  "Payment Mode": "COD",
+  "Selling Price": 225,
+  "Publication_Year": 2025,
+  "                                                          ": "2025-08-29T18:29:50.000Z"
+}
+Resolved Date: undefined
+---------------------------------------------------
+ID: 20580
+Date (DB): null
+Raw JSON: {
+  "MRP": 350,
+  "ISBN": 9789360868895,
+  "Year": 2025,
+  "Month": "Aug",
+  "Order": "000019248",
+  "Author": "Yunus Khan",
+  "Title ": "Ummidon Ke Geetkar Shailendra : Cinema Mein Rache Gaane, Zindagi Mein Base Gaane",
+  "Pincode": 221103,
+  "Category": "Cinema/Music ",
+  "Event Type": "Non Event",
+  "Publication": "Rajkamal Prakashan",
+  "Order Status": "complete",
+  "Payment Mode": "Paid",
+  "Selling Price": 315,
+  "Publication_Year": 2024,
+  "                                                          ": "2025-08-29T18:29:50.000Z"
+}
+Resolved Date: undefined
+---------------------------------------------------
+ID: 20579
+Date (DB): null
+Raw JSON: {
+  "MRP": 125,
+  "ISBN": 9789388753661,
+  "Year": 2025,
+  "Month": "Aug",
+  "Order": "000019247",
+  "Author": "Kailash Wankhede",
+  "Title ": "Sulgan",
+  "Pincode": 440024,
+  "Category": "Fiction : Stories",
+  "Event Type": "Non Event",
+  "Publication": "Rajkamal Prakashan",
+  "Order Status": "complete",
+  "Payment Mode": "Paid",
+  "Selling Price": 112.5,
+  "Publication_Year": 2019,
+  "                                                          ": "2025-08-29T18:29:50.000Z"
+}
+Resolved Date: undefined
+---------------------------------------------------
+ID: 20578
+Date (DB): null
+Raw JSON: {
+  "MRP": 495,
+  "ISBN": 9788171789702,
+  "Year": 2025,
+  "Month": "Aug",
+  "Order": "000019246",
+  "Author": "Abhimanyu Anat",
+  "Title ": "Ek Beegha Pyar",
+  "Pincode": 209601,
+  "Category": "Fiction : Novel",
+  "Event Type": "Non Event",
+  "Publication": "Rajkamal Prakashan",
+  "Order Status": "complete",
+  "Payment Mode": "Paid",
+  "Selling Price": 420.75,
+  "Publication_Year": 1972,
+  "                                                          ": "2025-08-29T18:29:50.000Z"
+}
+Resolved Date: undefined
+---------------------------------------------------
+ID: 20577
+Date (DB): null
+Raw JSON: {
+  "MRP": 895,
+  "ISBN": 9789389598384,
+  "Year": 2025,
+  "Month": "Aug",
+  "Order": "000019246",
+  "Author": "Abhimanyu Unat",
+  "Title ": "Aur Pasina Bahata Raha",
+  "Pincode": 209601,
+  "Category": "Fiction : Novel",
+  "Event Type": "Non Event",
+  "Publication": "Rajkamal Prakashan",
+  "Order Status": "complete",
+  "Payment Mode": "Paid",
+  "Selling Price": 760.75,
+  "Publication_Year": 1993,
+  "                                                          ": "2025-08-29T18:29:50.000Z"
+}
+Resolved Date: undefined

@@ -6,6 +6,7 @@ import {
   MdOutlineKeyboardArrowDown,
   MdRefresh,
 } from "react-icons/md";
+import SocialDashboard from "../SocialDashboard";
 import { apiClient } from "../../lib/apiClient";
 import {
   ResponsiveContainer,
@@ -123,9 +124,8 @@ function Card({
   return (
     <section
       onClick={onClick}
-      className={`min-w-0 rounded-[22px] border border-black/10 bg-white shadow-sm transition-all duration-300 flex flex-col h-full ${
-        hoverable ? "hover:shadow-xl cursor-pointer" : ""
-      } ${className}`}
+      className={`min-w-0 rounded-[22px] border border-black/10 bg-white shadow-sm transition-all duration-300 flex flex-col h-full ${hoverable ? "hover:shadow-xl cursor-pointer" : ""
+        } ${className}`}
     >
       {title && (
         <header className="px-4 sm:px-5 py-2 sm:py-3 flex-shrink-0">
@@ -269,11 +269,10 @@ function RevenueCard({
                 key={t.label}
                 type="button"
                 onClick={() => setActiveView(t.value)}
-                className={`px-2.5 py-1 rounded-full font-semibold transition-all ${
-                  activeView === t.value
-                    ? "bg-white text-[#1e3a8a] shadow"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
+                className={`px-2.5 py-1 rounded-full font-semibold transition-all ${activeView === t.value
+                  ? "bg-white text-[#1e3a8a] shadow"
+                  : "text-gray-600 hover:text-gray-900"
+                  }`}
               >
                 {t.label}
               </button>
@@ -287,9 +286,9 @@ function RevenueCard({
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
             >
-              {[30, 60, 90, 180, 365].map((d) => (
+              {[30, 60, 90, 180, 365, 10000].map((d) => (
                 <option key={d} value={d}>
-                  {d === 30 ? "This Month" : `${d} days`}
+                  {d === 30 ? "This Month" : d === 10000 ? "All Time" : `${d} days`}
                 </option>
               ))}
             </select>
@@ -344,13 +343,12 @@ function RevenueCard({
       {/* deltas */}
       <div className="mt-2 flex flex-wrap gap-2 text-xs">
         <span
-          className={`inline-flex items-center gap-2 ${
-            growth.dir === "up"
-              ? "text-green-700"
-              : growth.dir === "down"
+          className={`inline-flex items-center gap-2 ${growth.dir === "up"
+            ? "text-green-700"
+            : growth.dir === "down"
               ? "text-red-700"
               : "text-gray-700"
-          }`}
+            }`}
         >
           {growth.dir === "up" ? (
             <MdOutlineKeyboardArrowUp className="w-5 h-5 text-[#2EC700]" />
@@ -830,11 +828,10 @@ function InventoryCard({
               </div>
               {/* alert strip */}
               <div
-                className={`mt-3 rounded-xl px-3 py-2 text-xs font-medium flex items-start gap-2 ${
-                  item.alert.tone === "red"
-                    ? "bg-[#FDEBEE] text-[#A12B3A]"
-                    : "bg-[#FFF4DE] text-[#A35C00]"
-                }`}
+                className={`mt-3 rounded-xl px-3 py-2 text-xs font-medium flex items-start gap-2 ${item.alert.tone === "red"
+                  ? "bg-[#FDEBEE] text-[#A12B3A]"
+                  : "bg-[#FFF4DE] text-[#A35C00]"
+                  }`}
               >
                 <span className="mt-0.5">•</span>
                 <span>{item.alert.text}</span>
@@ -973,14 +970,14 @@ function TopLocationsCard({ days }: { days: number }) {
                 "delivery pincode",
                 "p.o. code",
               ]) ||
-                extractPincodeFromText(
-                  extractValueFlexible(raw, [
-                    "address",
-                    "shipping address",
-                    "billing address",
-                    "delivery address",
-                  ]) || ""
-                )
+              extractPincodeFromText(
+                extractValueFlexible(raw, [
+                  "address",
+                  "shipping address",
+                  "billing address",
+                  "delivery address",
+                ]) || ""
+              )
             ) || "Unknown";
           const city =
             normalizeText(
@@ -1178,7 +1175,7 @@ function SocialMediaCard() {
 |* Page Entry Point *|
 \*******************/
 export default function HindiBooksSalesDashboard() {
-  const [days, setDays] = useState(90);
+  const [days, setDays] = useState(10000);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [counts, setCounts] = useState<CountsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1248,22 +1245,26 @@ export default function HindiBooksSalesDashboard() {
         </div>
       </div>
 
-      {/* Row 2: Top Performing Locations + Social Media */}
+      {/* Row 2: Top Performing Locations */}
       <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-12">
           <TopLocationsCard days={days} />
-        </div>
-        <div className="lg:col-span-5">
-          <SocialMediaCard />
         </div>
       </div>
 
-      {/* Row 3: Inventory full-width last */}
+      {/* Row 3: Inventory full-width */}
       <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-12">
           <InventoryCard summary={summary} loading={loading} />
         </div>
       </div>
+
+      {/* Row 4: Social Media */}
+      {/* <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
+        <div className="lg:col-span-12">
+          <SocialDashboard />
+        </div>
+      </div> */}
     </main>
   );
 }

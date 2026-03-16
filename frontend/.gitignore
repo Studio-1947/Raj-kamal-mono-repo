@@ -46,3 +46,8 @@ Thumbs.db
 *.swp
 *.swo
 
+# Logs
+*.log
+error.log
+metricool_test*.log
+output_v2.log

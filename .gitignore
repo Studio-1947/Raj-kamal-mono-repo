@@ -1,0 +1,13 @@
+# Logs
+*.log
+error.log
+metricool_test*.log
+output_v2.log
+
+# Temporary files
+tmp_head.txt
+tmp_tail.txt
+
+# Data
+Rajkamal-datas.xlsx
+RKP offline Sales.xlsx

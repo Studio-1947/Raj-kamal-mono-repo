@@ -87,3 +87,8 @@ jspm_packages/
 # OS
 .DS_Store
 Thumbs.db
+# Logs
+*.log
+error.log
+metricool_test*.log
+output_v2.log

@@ -57,6 +57,7 @@ export default function Inventory() {
   // State management
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [locationData, setLocationData] = useState<LocationSales[]>([]);
   type Channel = "all" | "online" | "offline" | "lok" | "rajradha";
   const [byChannel, setByChannel] = useState<Record<Channel, LocationSales[]>>({
@@ -70,7 +71,7 @@ export default function Inventory() {
     key: "totalAmount",
     direction: "desc",
   });
-  const [days, setDays] = useState(90);
+  const [days, setDays] = useState(10000);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChannel, setSelectedChannel] = useState<Channel>("all");
   const [perfFilter, setPerfFilter] = useState<"all" | "top" | "low">("all");
@@ -93,9 +94,28 @@ export default function Inventory() {
   const toggleMapOpen = () =>
     setMapOpen((v) => {
       const n = !v;
-      try { localStorage.setItem('rk_geo_map_open', n ? '1' : '0'); } catch {}
+      try { localStorage.setItem('rk_geo_map_open', n ? '1' : '0'); } catch { }
       return n;
     });
+
+  const handleSync = async () => {
+    if (!confirm("Are you sure you want to sync daily updates from Google Sheets? This might take a few seconds.")) return;
+    setSyncing(true);
+    try {
+      const res = await apiClient.post<{ ok: boolean; importedCount: number; skippedCount: number }>("offline-sales/sync");
+      if (res.ok) {
+        alert(`Sync successful! Imported ${res.importedCount} rows, skipped ${res.skippedCount} rows.`);
+        // Reload to show fresh data
+        window.location.reload();
+      } else {
+        alert("Sync failed: " + (res as any).error);
+      }
+    } catch (err: any) {
+      alert("Sync failed: " + err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   /**
    * Fetch sales data from all channels and aggregate by location
@@ -124,6 +144,13 @@ export default function Inventory() {
             apiClient.get<{ items: SaleItem[] }>(`rajradha-event-sales?${qs}`),
           ]);
 
+        console.log("🌍 Geo Data Responses:", {
+          online: onlineRes.status,
+          offline: offlineRes.status,
+          lok: lokRes.status,
+          rajradha: rajradhaRes.status,
+        });
+
         // Collect per-channel items
         const onlineItems =
           onlineRes.status === "fulfilled" && onlineRes.value?.items
@@ -150,6 +177,11 @@ export default function Inventory() {
           ...rajradhaItems,
         ];
 
+        console.log("📦 Total Sales Items for Geo:", allSales.length);
+        if (allSales.length > 0) {
+          console.log("🔍 Sample Sale Item:", allSales[0]);
+        }
+
         // Extract and aggregate location data
         const locationMap = new Map<string, LocationSales>();
         const customerSets = new Map<string, Set<string>>();
@@ -174,14 +206,14 @@ export default function Inventory() {
                 "delivery pincode",
                 "p.o. code",
               ]) ||
-                extractPincodeFromText(
-                  extractValueFlexible(raw, [
-                    "address",
-                    "shipping address",
-                    "billing address",
-                    "delivery address",
-                  ]) || ""
-                )
+              extractPincodeFromText(
+                extractValueFlexible(raw, [
+                  "address",
+                  "shipping address",
+                  "billing address",
+                  "delivery address",
+                ]) || ""
+              )
             ) || "Unknown";
 
           const city =
@@ -241,6 +273,9 @@ export default function Inventory() {
           }
         });
 
+        console.log("📍 Location Map Size:", locationMap.size);
+        console.log("📍 Sample Location Entry:", Array.from(locationMap.entries())[0]);
+
         // Calculate average order values and convert to array
         const locationArray: LocationSales[] = Array.from(
           locationMap.entries()
@@ -276,14 +311,14 @@ export default function Inventory() {
                   "delivery pincode",
                   "p.o. code",
                 ]) ||
-                  extractPincodeFromText(
-                    extractValueFlexible(raw, [
-                      "address",
-                      "shipping address",
-                      "billing address",
-                      "delivery address",
-                    ]) || ""
-                  )
+                extractPincodeFromText(
+                  extractValueFlexible(raw, [
+                    "address",
+                    "shipping address",
+                    "billing address",
+                    "delivery address",
+                  ]) || ""
+                )
               ) || "Unknown";
             const city =
               normalizeText(
@@ -511,7 +546,7 @@ export default function Inventory() {
     try { return JSON.parse(localStorage.getItem("rk_pin_meta") || "{}"); } catch { return {}; }
   };
   const setPinCache = (map: Record<string, { city?: string; state?: string }>) => {
-    try { localStorage.setItem("rk_pin_meta", JSON.stringify(map)); } catch {}
+    try { localStorage.setItem("rk_pin_meta", JSON.stringify(map)); } catch { }
   };
 
   async function lookupPin(pin: string): Promise<{ city?: string; state?: string } | null> {
@@ -534,7 +569,7 @@ export default function Inventory() {
         cache[pin] = val; setPinCache(cache);
         return val;
       }
-    } catch {}
+    } catch { }
     return null;
   }
 
@@ -646,6 +681,34 @@ export default function Inventory() {
         <p className="mt-2 text-gray-600">
           Analyze sales performance across different geographical locations
         </p>
+        <div className="mt-4">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              syncing
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow"
+            }`}
+          >
+            {syncing ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Syncing with Google Sheets...
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Sync with Google Sheets
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -701,19 +764,32 @@ export default function Inventory() {
                 setStateFilter(s);
               }}
             />
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-              <span>Map markers:</span>
-              <button onClick={() => setMapKind('both')} className={`rounded-full px-2 py-1 border ${mapKind==='both'?'bg-gray-100 border-gray-300':'border-gray-200 hover:bg-gray-50'}`}>Both</button>
-              <button onClick={() => setMapKind('top')} className={`rounded-full px-2 py-1 border ${mapKind==='top'?'bg-green-100 border-green-300':'border-gray-200 hover:bg-gray-50'}`}>Top only</button>
-              <button onClick={() => setMapKind('bottom')} className={`rounded-full px-2 py-1 border ${mapKind==='bottom'?'bg-orange-100 border-orange-300':'border-gray-200 hover:bg-gray-50'}`}>Bottom only</button>
-              <span className="ml-3">Fill:</span>
-              <button onClick={() => setMapChoropleth(true)} className={`rounded-full px-2 py-1 border ${mapChoropleth?'bg-blue-100 border-blue-300':'border-gray-200 hover:bg-gray-50'}`}>By Total</button>
-              <button onClick={() => setMapChoropleth(false)} className={`rounded-full px-2 py-1 border ${!mapChoropleth?'bg-gray-100 border-gray-300':'border-gray-200 hover:bg-gray-50'}`}>Plain</button>
+            <div className="mt-4 flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Markers</span>
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <button onClick={() => setMapKind('both')} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapKind === 'both' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>All</button>
+                  <button onClick={() => setMapKind('top')} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapKind === 'top' ? 'bg-emerald-50 shadow-sm text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Top</button>
+                  <button onClick={() => setMapKind('bottom')} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapKind === 'bottom' ? 'bg-rose-50 shadow-sm text-rose-700' : 'text-gray-500 hover:text-gray-700'}`}>Low</button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Visualization</span>
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <button onClick={() => setMapChoropleth(true)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapChoropleth ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>Heatmap</button>
+                  <button onClick={() => setMapChoropleth(false)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${!mapChoropleth ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Plain</button>
+                </div>
+              </div>
+
               {stateFilter && (
-                <span className="ml-3 inline-flex items-center gap-2 rounded-full bg-gray-100 px-2 py-1 border border-gray-200">
-                  <span>State: {stateFilter}</span>
-                  <button className="text-gray-600 hover:text-gray-800" onClick={()=>setStateFilter(null)}>×</button>
-                </span>
+                <div className="flex items-center gap-2 animate-fadeIn">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Filter</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 border border-indigo-100">
+                    {stateFilter}
+                    <button className="text-indigo-400 hover:text-indigo-900 ml-1" onClick={() => setStateFilter(null)}>×</button>
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -852,14 +928,14 @@ export default function Inventory() {
               </select>
             )}
             <label className="ml-2 inline-flex items-center gap-1 text-sm text-gray-700">
-              <input type="checkbox" checked={hideUnknown} onChange={(e)=>setHideUnknown(e.target.checked)} />
+              <input type="checkbox" checked={hideUnknown} onChange={(e) => setHideUnknown(e.target.checked)} />
               Hide Unknown
             </label>
             <button
               onClick={() => {
                 const rows = sortedAndFilteredData;
-                const header = ['Pincode','City','State','Orders','Customers','Total','Avg Order'];
-                const body = rows.map(r=>[
+                const header = ['Pincode', 'City', 'State', 'Orders', 'Customers', 'Total', 'Avg Order'];
+                const body = rows.map(r => [
                   r.pincode,
                   r.city,
                   r.state,
@@ -868,7 +944,7 @@ export default function Inventory() {
                   String(r.totalAmount),
                   String(Math.round(r.avgOrderValue))
                 ]);
-                const csv = [header, ...body].map(line => line.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+                const csv = [header, ...body].map(line => line.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -1098,15 +1174,13 @@ function SortableHeader({
 
   return (
     <th
-      className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
+      className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${align === "right" ? "text-right" : "text-left"
+        }`}
       onClick={() => onSort(sortKey)}
     >
       <div
-        className={`flex items-center gap-1 ${
-          align === "right" ? "justify-end" : "justify-start"
-        }`}
+        className={`flex items-center gap-1 ${align === "right" ? "justify-end" : "justify-start"
+          }`}
       >
         <span>{label}</span>
         <span className="text-gray-400">

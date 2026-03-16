@@ -1,24 +1,25 @@
-import express from 'express';
-import { z } from 'zod';
+import express from "express";
+import { z } from "zod";
 import {
   fetchDistribution,
   fetchTimeline,
   fetchPosts,
   fetchCompetitors,
-} from '../services/metricoolService.js';
+} from "../services/metricoolService.js";
 
 const router = express.Router();
 
 const networkSchema = z.enum([
-  'facebook',
-  'instagram',
-  'linkedin',
-  'pinterest',
-  'tiktok',
-  'youtube',
-  'threads',
-  'twitter',
-  'gmb',
+  "facebook",
+  "instagram",
+  "linkedin",
+  "pinterest",
+  "tiktok",
+  "youtube",
+  "threads",
+  "twitter",
+  "gmb",
+  "meta_ads",
 ]);
 
 const distributionQuerySchema = z.object({
@@ -53,7 +54,7 @@ const competitorsQuerySchema = z.object({
   limit: z.coerce.number().optional(),
 });
 
-router.get('/:network/distribution', async (req, res, next) => {
+router.get("/:network/distribution", async (req, res, next) => {
   try {
     const network = networkSchema.parse(req.params.network);
     const query = distributionQuerySchema.parse(req.query);
@@ -67,7 +68,7 @@ router.get('/:network/distribution', async (req, res, next) => {
   }
 });
 
-router.get('/:network/timeline', async (req, res, next) => {
+router.get("/:network/timeline", async (req, res, next) => {
   try {
     const network = networkSchema.parse(req.params.network);
     const query = timelineQuerySchema.parse(req.query);
@@ -81,7 +82,7 @@ router.get('/:network/timeline', async (req, res, next) => {
   }
 });
 
-router.get('/:network/posts', async (req, res, next) => {
+router.get("/:network/posts", async (req, res, next) => {
   try {
     const network = networkSchema.parse(req.params.network);
     const query = postsQuerySchema.parse(req.query);
@@ -92,7 +93,7 @@ router.get('/:network/posts', async (req, res, next) => {
   }
 });
 
-router.get('/:network/competitors', async (req, res, next) => {
+router.get("/:network/competitors", async (req, res, next) => {
   try {
     const network = networkSchema.parse(req.params.network);
     const query = competitorsQuerySchema.parse(req.query);

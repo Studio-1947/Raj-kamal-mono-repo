@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import indiaGeoData from '../../assets/india.json';
 
 type MapPoint = {
   pincode: string;
@@ -28,7 +29,6 @@ const INDIA_BOUNDS = {
 };
 
 // State centroids (approx) for placing markers when exact pincode lat/lng is unavailable
-// Source: compiled from public domain references (approximate midpoints)
 const STATE_CENTROIDS: Record<string, { lat: number; lon: number }> = {
   'andhra pradesh': { lat: 15.9, lon: 79.7 },
   'arunachal pradesh': { lat: 28.2, lon: 94.6 },
@@ -111,63 +111,42 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
   const [ty, setTy] = useState(0);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
 
-  // Try to fetch a public India states GeoJSON; fallback gracefully if blocked
+  // Load local GeoJSON
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        // Multiple mirrors; first that works wins
-        const urls = [
-          'https://unpkg.com/india-geojson@1.0.6/india.geojson',
-          'https://raw.githubusercontent.com/geohacker/india/master/state/india_telengana.geojson',
-        ];
-        for (const u of urls) {
-          try {
-            const ctl = new AbortController();
-            const t = setTimeout(() => ctl.abort(), 5000);
-            const r = await fetch(u, { signal: ctl.signal });
-            clearTimeout(t);
-            if (r.ok) {
-              const gj = await r.json();
-              if (!alive) return;
-              setGeo(gj);
-              // Compute bounds from data if possible
-              let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
-              for (const f of gj.features || []) {
-                const geom = f.geometry;
-                const polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
-                for (const poly of polys) {
-                  for (const ring of poly) {
-                    for (const [lon, lat] of ring) {
-                      if (lon < minLon) minLon = lon;
-                      if (lon > maxLon) maxLon = lon;
-                      if (lat < minLat) minLat = lat;
-                      if (lat > maxLat) maxLat = lat;
-                    }
-                  }
-                }
-              }
-              setBounds({ minLon, maxLon, minLat, maxLat });
-              return;
-            }
-          } catch {}
+    // Use the imported JSON directly
+    const gj = indiaGeoData as any;
+    setGeo(gj);
+
+    // Compute bounds from data
+    let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
+    for (const f of gj.features || []) {
+      const geom = f.geometry;
+      const polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+      for (const poly of polys) {
+        for (const ring of poly) {
+          for (const [lon, lat] of ring) {
+            if (lon < minLon) minLon = lon;
+            if (lon > maxLon) maxLon = lon;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+          }
         }
-      } catch {}
-    })();
-    return () => {
-      alive = false;
-    };
+      }
+    }
+    // Add some padding
+    const pad = 0.5;
+    setBounds({ minLon: minLon - pad, maxLon: maxLon + pad, minLat: minLat - pad, maxLat: maxLat + pad });
   }, []);
 
-  const w = 760;
-  const h = 560;
+  const w = 800;
+  const h = 650; // Increased height for better aspect ratio
 
   const resetView = () => { setScale(1); setTx(0); setTy(0); };
-  const zoomBy = (dz: number, cx = w/2, cy = h/2) => {
-    const ns = Math.min(6, Math.max(1, scale * dz));
+  const zoomBy = (dz: number, cx = w / 2, cy = h / 2) => {
+    const ns = Math.min(8, Math.max(1, scale * dz));
     // Zoom toward cursor: adjust translate so the point under cursor stays fixed
-    const dx = cx - (cx - tx) * (ns/scale);
-    const dy = cy - (cy - ty) * (ns/scale);
+    const dx = cx - (cx - tx) * (ns / scale);
+    const dy = cy - (cy - ty) * (ns / scale);
     setScale(ns);
     setTx(dx);
     setTy(dy);
@@ -193,9 +172,9 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
     const vmin = Math.min(...vals, 1);
     const vmax = Math.max(...vals, 1);
     const radius = (v: number) => {
-      if (vmax === vmin) return 7;
+      if (vmax === vmin) return 8;
       const t = (v - vmin) / (vmax - vmin);
-      return 6 + t * 8; // 6..14 px
+      return 6 + t * 10; // 6..16 px
     };
     return arr.map((m) => ({ ...m, r: radius(m.total) }));
   }, [limited, bounds]);
@@ -216,12 +195,13 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
     }
     if (!isFinite(min)) min = 0;
     if (!isFinite(max)) max = 0;
+
     const scaleColor = (v: number) => {
       if (max <= 0) return '#f8fafc';
       const t = Math.max(0, Math.min(1, v / max));
-      // Blend from light theme blue to darker brand (#526BA3)
-      const c1 = [219, 234, 254]; // #DBEAFE
-      const c2 = [82, 107, 163]; // #526BA3
+      // Premium Blue Gradient: #EEF2FF (indigo-50) to #4338CA (indigo-700)
+      const c1 = [238, 242, 255];
+      const c2 = [67, 56, 202];
       const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
       const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
       const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
@@ -234,10 +214,12 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
   const tipRef = useRef<HTMLDivElement | null>(null);
 
   return (
-    <div className={className} style={{ position: 'relative' }}>
+    <div className={`${className} relative overflow-hidden rounded-3xl bg-white shadow-xl border border-gray-100`} style={{ height: '600px' }}>
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-white opacity-50 pointer-events-none" />
+
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className="w-full h-auto rounded-2xl border border-gray-200 bg-gradient-to-b from-white to-slate-50 shadow-sm"
+        className="w-full h-full cursor-move"
         onWheel={(e) => {
           e.preventDefault();
           const svg = e.currentTarget;
@@ -261,62 +243,64 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
       >
         <defs>
           <filter id="markerGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <linearGradient id="mapGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f8fafc" />
+            <stop offset="100%" stopColor="#f1f5f9" />
+          </linearGradient>
         </defs>
 
         <g transform={`translate(${tx} ${ty}) scale(${scale})`}>
           {/* Map background */}
           {geo ? (
             <g>
-              {(geo.features || []).map((f: any, idx: number) => (
-                <path
-                  key={idx}
-                  d={toSvgPath(f.geometry, w, h, bounds)}
-                  fill={(() => {
-                    const nm = (f.properties?.st_nm || f.properties?.NAME_1 || '').toString().toLowerCase();
-                    const total = stateTotals.map.get(nm) || 0;
-                    const base = choropleth ? stateTotals.scaleColor(total) : '#f8fafc';
-                    return hoverState === nm ? '#eef2ff' : base;
-                  })()}
-                  stroke="#94a3b8"
-                  strokeWidth={hoverState ? 1.1 : 0.8}
-                  onMouseEnter={() => setHoverState((f.properties?.st_nm || f.properties?.NAME_1 || '').toString().toLowerCase())}
-                  onMouseLeave={() => setHoverState(null)}
-                  onClick={() => onStateClick?.((f.properties?.st_nm || f.properties?.NAME_1 || '').toString())}
-                />
-              ))}
+              {(geo.features || []).map((f: any, idx: number) => {
+                const nm = (f.properties?.st_nm || f.properties?.NAME_1 || '').toString().toLowerCase();
+                const total = stateTotals.map.get(nm) || 0;
+                const base = choropleth ? stateTotals.scaleColor(total) : 'url(#mapGrad)';
+                const isHovered = hoverState === nm;
+
+                return (
+                  <path
+                    key={idx}
+                    d={toSvgPath(f.geometry, w, h, bounds)}
+                    fill={isHovered ? '#818cf8' : base}
+                    fillOpacity={isHovered ? 0.4 : 1}
+                    stroke={isHovered ? '#4f46e5' : '#cbd5e1'}
+                    strokeWidth={isHovered ? 1.5 / scale : 0.8 / scale}
+                    className="transition-colors duration-200 ease-in-out"
+                    onMouseEnter={() => setHoverState(nm)}
+                    onMouseLeave={() => setHoverState(null)}
+                    onClick={() => onStateClick?.((f.properties?.st_nm || f.properties?.NAME_1 || '').toString())}
+                    style={{ cursor: 'pointer' }}
+                  />
+                );
+              })}
             </g>
           ) : (
-            // Fallback placeholder grid
+            // Fallback placeholder
             <g>
-              <rect x={0} y={0} width={w} height={h} fill="#ffffff" />
-              {Array.from({ length: 10 }).map((_, i) => (
-                <line key={`v${i}`} x1={(i * w) / 10} y1={0} x2={(i * w) / 10} y2={h} stroke="#eef2f7" />
-              ))}
-              {Array.from({ length: 8 }).map((_, i) => (
-                <line key={`h${i}`} x1={0} y1={(i * h) / 8} x2={w} y2={(i * h) / 8} stroke="#eef2f7" />
-              ))}
-              <text x={12} y={22} fontSize={12} fill="#64748b">India (outline unavailable)</text>
+              <text x={w / 2} y={h / 2} textAnchor="middle" fill="#94a3b8">Loading Map Data...</text>
             </g>
           )}
 
           {/* Markers */}
           {markers.map((m, i) => (
-            <g key={`${m.pincode}-${i}`}>
+            <g key={`${m.pincode}-${i}`} className="transition-all duration-300">
               <circle
                 cx={m.x}
                 cy={m.y}
-                r={m.r}
+                r={m.r / scale}
                 filter="url(#markerGlow)"
-                fill={m.kind === 'top' ? '#16a34a' : '#f97316'}
-                fillOpacity={0.9}
+                fill={m.kind === 'top' ? '#10b981' : '#f43f5e'}
+                fillOpacity={0.85}
                 stroke="#ffffff"
-                strokeWidth={1.5 / scale}
+                strokeWidth={2 / scale}
                 onMouseEnter={(e) => {
                   const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
                   const ex = e.clientX - rect.left;
@@ -326,48 +310,54 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
                 onMouseLeave={() => setHover(null)}
                 onClick={() => onPointClick?.(m)}
                 style={{ cursor: 'pointer' }}
+                className="hover:fill-opacity-100 transition-all"
               />
               {/* Top 3 labels for each kind */}
               {i < Math.min(3, topN) && (
-                <text x={m.x + 10} y={m.y - 10} fontSize={12/scale} fill={m.kind === 'top' ? '#065f46' : '#7c2d12'}>
+                <text
+                  x={m.x + (12 / scale)}
+                  y={m.y}
+                  fontSize={11 / scale}
+                  fontWeight="600"
+                  fill="#1e293b"
+                  style={{ textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}
+                  dominantBaseline="middle"
+                >
                   {m.city}
                 </text>
               )}
             </g>
           ))}
         </g>
-
-        {/* Legend */}
-        <g transform={`translate(${w - 190}, ${20})`}>
-          <rect x={0} y={-12} width={180} height={42} rx={10} fill="#ffffff" stroke="#e5e7eb" />
-          <circle cx={18} cy={8} r={7} fill="#16a34a" />
-          <text x={32} y={12} fontSize={12} fill="#065f46">Top</text>
-          <circle cx={96} cy={8} r={7} fill="#f97316" />
-          <text x={110} y={12} fontSize={12} fill="#7c2d12">Bottom</text>
-        </g>
-        {choropleth && (
-          <g transform={`translate(${20}, ${20})`}>
-            <rect x={0} y={-12} width={220} height={42} rx={10} fill="#ffffff" stroke="#e5e7eb" />
-            <text x={12} y={12} fontSize={12} fill="#334155">State total</text>
-            {/* gradient */}
-            <defs>
-              <linearGradient id="totGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#DBEAFE" />
-                <stop offset="100%" stopColor="#526BA3" />
-              </linearGradient>
-            </defs>
-            <rect x={100} y={-4} width={100} height={12} fill="url(#totGrad)" stroke="#e5e7eb" />
-            <text x={96} y={24} fontSize={10} fill="#475569">0</text>
-            <text x={196} y={24} fontSize={10} fill="#475569" textAnchor="end">max</text>
-          </g>
-        )}
       </svg>
 
+      {/* Legend */}
+      <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-gray-100 flex flex-col gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm"></span>
+          <span className="font-medium text-gray-700">Top Performing</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-rose-500 shadow-sm"></span>
+          <span className="font-medium text-gray-700">Low Performing</span>
+        </div>
+        {choropleth && (
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            <div className="mb-1 font-medium text-gray-500">Sales Intensity</div>
+            <div className="h-2 w-32 rounded-full bg-gradient-to-r from-indigo-50 to-indigo-700"></div>
+            <div className="flex justify-between mt-1 text-[10px] text-gray-400">
+              <span>Low</span>
+              <span>High</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Zoom controls */}
-      <div className="pointer-events-auto absolute right-3 top-3 flex gap-2">
-        <button onClick={() => zoomBy(1.2)} className="rounded-lg bg-white px-2 py-1 shadow border border-gray-200 hover:bg-gray-50">+</button>
-        <button onClick={() => zoomBy(1/1.2)} className="rounded-lg bg-white px-2 py-1 shadow border border-gray-200 hover:bg-gray-50">-</button>
-        <button onClick={resetView} className="rounded-lg bg-white px-2 py-1 shadow border border-gray-200 hover:bg-gray-50">Reset</button>
+      <div className="absolute right-4 top-4 flex flex-col gap-2">
+        <button onClick={() => zoomBy(1.3)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-700 font-bold transition-transform active:scale-95">+</button>
+        <button onClick={() => zoomBy(1 / 1.3)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-700 font-bold transition-transform active:scale-95">-</button>
+        <button onClick={resetView} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-600 text-[10px] font-medium transition-transform active:scale-95">Fit</button>
       </div>
 
       {/* Tooltip */}
@@ -376,17 +366,27 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
           ref={tipRef}
           style={{
             position: 'absolute',
-            left: Math.min(Math.max(hover.x + 12, 8), w - 220),
-            top: Math.min(Math.max(hover.y + 12, 8), h - 60),
+            left: hover.x,
+            top: hover.y,
+            transform: 'translate(10px, 10px)',
           }}
-          className="pointer-events-none rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-lg"
+          className="pointer-events-none z-50 min-w-[180px]"
         >
-          <div className="font-semibold text-gray-900">
-            {hover.p.city}, {hover.p.state}
-          </div>
-          <div>PIN: {hover.p.pincode}</div>
-          <div>
-            Orders: {hover.p.orders.toLocaleString('en-IN')} · Total: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(hover.p.total)}
+          <div className="bg-gray-900/90 backdrop-blur-md text-white p-3 rounded-xl shadow-xl border border-white/10">
+            <div className="font-bold text-sm mb-1">
+              {hover.p.city}, {hover.p.state}
+            </div>
+            <div className="text-xs text-gray-300 mb-2">PIN: {hover.p.pincode}</div>
+            <div className="flex justify-between items-center text-xs border-t border-white/10 pt-2 mt-1">
+              <span className="text-gray-400">Orders</span>
+              <span className="font-mono">{hover.p.orders.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs mt-1">
+              <span className="text-gray-400">Revenue</span>
+              <span className="font-mono font-semibold text-emerald-400">
+                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(hover.p.total)}
+              </span>
+            </div>
           </div>
         </div>
       )}
