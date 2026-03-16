@@ -11,7 +11,7 @@ type DistributionMetricMap = Partial<Record<"country" | "city", string>>;
 
 // Metricool endpoints can take longer than our default axios timeout, so give them more headroom.
 const METRICOOL_TIMEOUT_MS = 60000;
-const METRICOOL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes - increased from 2 minutes for better performance
+const METRICOOL_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes - increased for better performance
 const METRICOOL_DEFAULT_TIMEZONE = "Asia/Kolkata";
 
 type CacheEntry<T> = { expiresAt: number; data: T };
@@ -92,7 +92,7 @@ function extractLatestValue(payload: any): number | null {
 
 async function getMetricool<T>(
   url: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ): Promise<T> {
   const key = buildCacheKey(url, params);
   const now = Date.now();
@@ -135,7 +135,7 @@ function resolveTimelineMetric(platform: PlatformKey, metric: string): string {
 
 function resolveDistributionMetric(
   platform: PlatformKey,
-  kind: "country" | "city"
+  kind: "country" | "city",
 ): string {
   // Metricool distribution API uses simple 'country' and 'city' as metric names
   return distributionMetricAliases[platform]?.[kind] ?? kind;
@@ -144,7 +144,7 @@ function resolveDistributionMetric(
 async function fetchTimelineSeries(
   platform: PlatformKey,
   metric: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   const { timezone, ...rest } = params ?? {};
   return getMetricool<any>("/metricool/" + platform + "/timeline", {
@@ -157,7 +157,7 @@ async function fetchTimelineSeries(
 async function fetchDistributionMetric(
   platform: PlatformKey,
   metric: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   const { timezone, ...rest } = params ?? {};
   return getMetricool<any>("/metricool/" + platform + "/distribution", {
@@ -169,20 +169,23 @@ async function fetchDistributionMetric(
 
 export async function fetchOverview(
   platform: PlatformKey,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   if (platform === "meta_ads") {
     return { data: null };
   }
 
-  const [likes, followers, impressions, reach, pageVisits, posts] = await Promise.all([
-    fetchTimelineSeries(platform, "likes", params),
-    fetchTimelineSeries(platform, "followers", params),
-    fetchTimelineSeries(platform, "pageImpressions", params),
-    fetchTimelineSeries(platform, "reach", params),
-    fetchTimelineSeries(platform, "pageViews", params),
-    getMetricool<any>("/metricool/" + platform + "/posts", params).catch(() => ({ items: [] })),
-  ]);
+  const [likes, followers, impressions, reach, pageVisits, posts] =
+    await Promise.all([
+      fetchTimelineSeries(platform, "likes", params),
+      fetchTimelineSeries(platform, "followers", params),
+      fetchTimelineSeries(platform, "pageImpressions", params),
+      fetchTimelineSeries(platform, "reach", params),
+      fetchTimelineSeries(platform, "pageViews", params),
+      getMetricool<any>("/metricool/" + platform + "/posts", params).catch(
+        () => ({ items: [] }),
+      ),
+    ]);
 
   // Extract values from series
   const likesValue = extractLatestValue(likes);
@@ -190,9 +193,13 @@ export async function fetchOverview(
   const impressionsValue = extractLatestValue(impressions);
   const reachValue = extractLatestValue(reach);
   const pageVisitsValue = extractLatestValue(pageVisits);
-  
+
   // Calculate total content from posts
-  const totalContentValue = posts?.items?.length ?? posts?.data?.items?.length ?? posts?.data?.length ?? null;
+  const totalContentValue =
+    posts?.items?.length ??
+    posts?.data?.items?.length ??
+    posts?.data?.length ??
+    null;
 
   return {
     data: {
@@ -221,21 +228,27 @@ export async function fetchOverview(
 
 export async function fetchGrowth(
   platform: PlatformKey,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   if (platform === "meta_ads") {
     return { data: null };
   }
 
-  const [impressions, reach, pageViews, followers, newFollowers, lostFollowers] =
-    await Promise.all([
-      fetchTimelineSeries(platform, "pageImpressions", params),
-      fetchTimelineSeries(platform, "reach", params),
-      fetchTimelineSeries(platform, "pageViews", params),
-      fetchTimelineSeries(platform, "followers", params),
-      fetchTimelineSeries(platform, "newFollowers", params),
-      fetchTimelineSeries(platform, "lostFollowers", params),
-    ]);
+  const [
+    impressions,
+    reach,
+    pageViews,
+    followers,
+    newFollowers,
+    lostFollowers,
+  ] = await Promise.all([
+    fetchTimelineSeries(platform, "pageImpressions", params),
+    fetchTimelineSeries(platform, "reach", params),
+    fetchTimelineSeries(platform, "pageViews", params),
+    fetchTimelineSeries(platform, "followers", params),
+    fetchTimelineSeries(platform, "newFollowers", params),
+    fetchTimelineSeries(platform, "lostFollowers", params),
+  ]);
 
   return {
     data: {
@@ -255,18 +268,21 @@ export async function fetchGrowth(
 
 export async function fetchPosts(
   platform: PlatformKey,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ): Promise<{ data: any }> {
   if (platform === "meta_ads") {
     return { data: { items: [] } };
   }
-  const data = await getMetricool<any>("/metricool/" + platform + "/posts", params);
+  const data = await getMetricool<any>(
+    "/metricool/" + platform + "/posts",
+    params,
+  );
   return { data };
 }
 
 export async function fetchDemographicsCountries(
   platform: PlatformKey,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   if (platform === "meta_ads") {
     return { data: { data: [] } };
@@ -280,7 +296,7 @@ export async function fetchDemographicsCountries(
 
 export async function fetchDemographicsCities(
   platform: PlatformKey,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   if (platform === "meta_ads") {
     return { data: { data: [] } };
@@ -294,7 +310,7 @@ export async function fetchDemographicsCities(
 
 export async function fetchClicks(
   platform: PlatformKey,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ): Promise<{ data: any }> {
   if (platform === "meta_ads") {
     return { data: null };
@@ -304,27 +320,73 @@ export async function fetchClicks(
 }
 
 export async function fetchAdsOverview(
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ): Promise<{ data: any }> {
-  return { data: null };
+  const [spend, impressions, reach, clicks, ctr, cpc, conversions, roas] =
+    await Promise.all([
+      fetchTimelineSeries("meta_ads", "spend", params),
+      fetchTimelineSeries("meta_ads", "impressions", params),
+      fetchTimelineSeries("meta_ads", "reach", params),
+      fetchTimelineSeries("meta_ads", "clicks", params),
+      fetchTimelineSeries("meta_ads", "ctr", params),
+      fetchTimelineSeries("meta_ads", "cpc", params),
+      fetchTimelineSeries("meta_ads", "conversions", params),
+      fetchTimelineSeries("meta_ads", "roas", params),
+    ]);
+
+  return {
+    data: {
+      spend: extractLatestValue(spend),
+      impressions: extractLatestValue(impressions),
+      reach: extractLatestValue(reach),
+      clicks: extractLatestValue(clicks),
+      ctr: extractLatestValue(ctr),
+      cpc: extractLatestValue(cpc),
+      conversions: extractLatestValue(conversions),
+      roas: extractLatestValue(roas),
+    },
+  };
 }
 
 export async function fetchAdsTimeseries(
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ): Promise<{ data: any }> {
-  return { data: null };
+  const [spend, impressions, clicks] = await Promise.all([
+    fetchTimelineSeries("meta_ads", "spend", params),
+    fetchTimelineSeries("meta_ads", "impressions", params),
+    fetchTimelineSeries("meta_ads", "clicks", params),
+  ]);
+
+  return {
+    data: {
+      series: {
+        spend: extractSeriesValues(spend),
+        impressions: extractSeriesValues(impressions),
+        clicks: extractSeriesValues(clicks),
+      },
+    },
+  };
 }
 
-export async function fetchAdsCampaigns(): Promise<{ data: any[] }> {
-  return { data: [] };
+export async function fetchAdsCampaigns(
+  params?: Record<string, unknown>,
+): Promise<{ data: any[] }> {
+  const data = await getMetricool<any>("/metricool/meta_ads/posts", params);
+  return { data: data?.items ?? data?.data?.items ?? [] };
 }
 
 // Instagram section-specific data fetchers
-export type InstagramSection = "community" | "account" | "posts" | "reels" | "stories" | "competitors";
+export type InstagramSection =
+  | "community"
+  | "account"
+  | "posts"
+  | "reels"
+  | "stories"
+  | "competitors";
 
 export async function fetchInstagramSection(
   section: InstagramSection,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   const subjectMap: Record<InstagramSection, string> = {
     community: "account",
@@ -352,7 +414,7 @@ export async function fetchInstagramSection(
   // Fetch timeline data for the section (skip for competitors as it's not supported)
   let timelineData: any = null;
   let timelineError: string | null = null;
-  
+
   if (section !== "competitors") {
     try {
       timelineData = await getMetricool<any>("/metricool/instagram/timeline", {
@@ -363,10 +425,18 @@ export async function fetchInstagramSection(
       });
     } catch (error: any) {
       console.warn(`Failed to fetch ${section} timeline:`, error);
-      timelineError = error?.response?.data?.error || error?.message || "Timeline data unavailable";
+      timelineError =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Timeline data unavailable";
       // Check if it's a Facebook connection error
-      if (timelineError?.includes("Facebook") || timelineError?.includes("connection")) {
-        throw new Error("This metric is not available for Instagram without a connection via Facebook.");
+      if (
+        timelineError?.includes("Facebook") ||
+        timelineError?.includes("connection")
+      ) {
+        throw new Error(
+          "This metric is not available for Instagram without a connection via Facebook.",
+        );
       }
     }
   }
@@ -394,7 +464,9 @@ export async function fetchInstagramSection(
   };
 }
 
-export async function fetchInstagramCommunity(params?: Record<string, unknown>) {
+export async function fetchInstagramCommunity(
+  params?: Record<string, unknown>,
+) {
   return fetchInstagramSection("community", params);
 }
 
@@ -414,14 +486,16 @@ export async function fetchInstagramStories(params?: Record<string, unknown>) {
   return fetchInstagramSection("stories", params);
 }
 
-export async function fetchInstagramCompetitors(params?: Record<string, unknown>) {
+export async function fetchInstagramCompetitors(
+  params?: Record<string, unknown>,
+) {
   const { timezone, ...rest } = params ?? {};
   const data = await getMetricool<any>("/metricool/instagram/competitors", {
     timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
     limit: 1000,
     ...rest,
   });
-  
+
   return {
     data: {
       items: data?.data ?? [],
@@ -430,14 +504,12 @@ export async function fetchInstagramCompetitors(params?: Record<string, unknown>
   };
 }
 
-
 // Facebook section-specific data fetchers
 export type FacebookSection = "posts" | "reels" | "stories" | "competitors";
 
-
 export async function fetchFacebookSection(
   section: FacebookSection,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ) {
   const subjectMap: Record<FacebookSection, string> = {
     posts: "posts",
@@ -450,7 +522,7 @@ export async function fetchFacebookSection(
   const metricMap: Record<FacebookSection, string> = {
     posts: "impressions",
     reels: "count", // Reels use 'count' metric
-    stories: "count", // Stories use 'count' metric  
+    stories: "count", // Stories use 'count' metric
     competitors: "count", // Competitors use 'count' metric
   };
 
@@ -461,7 +533,7 @@ export async function fetchFacebookSection(
   // Fetch timeline data for the section (skip for competitors as it's not supported)
   let timelineData: any = null;
   let timelineError: string | null = null;
-  
+
   if (section !== "competitors") {
     try {
       timelineData = await getMetricool<any>("/metricool/facebook/timeline", {
@@ -472,7 +544,10 @@ export async function fetchFacebookSection(
       });
     } catch (error: any) {
       console.warn(`Failed to fetch Facebook ${section} timeline:`, error);
-      timelineError = error?.response?.data?.error || error?.message || "Timeline data unavailable";
+      timelineError =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Timeline data unavailable";
     }
   }
 
@@ -507,14 +582,16 @@ export async function fetchFacebookStories(params?: Record<string, unknown>) {
   return fetchFacebookSection("stories", params);
 }
 
-export async function fetchFacebookCompetitors(params?: Record<string, unknown>) {
+export async function fetchFacebookCompetitors(
+  params?: Record<string, unknown>,
+) {
   const { timezone, ...rest } = params ?? {};
   const data = await getMetricool<any>("/metricool/facebook/competitors", {
     timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
     limit: 1000,
     ...rest,
   });
-  
+
   return {
     data: {
       items: data?.data ?? [],
@@ -522,4 +599,3 @@ export async function fetchFacebookCompetitors(params?: Record<string, unknown>)
     },
   };
 }
-

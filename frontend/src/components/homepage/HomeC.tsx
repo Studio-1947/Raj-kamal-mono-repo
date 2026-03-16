@@ -6,6 +6,7 @@ import {
   MdOutlineKeyboardArrowDown,
   MdRefresh,
 } from "react-icons/md";
+import SocialDashboard from "../SocialDashboard";
 import { apiClient } from "../../lib/apiClient";
 import {
   ResponsiveContainer,
@@ -1259,11 +1260,11 @@ export default function HindiBooksSalesDashboard() {
       </div>
 
       {/* Row 4: Social Media */}
-      <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
+      {/* <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-12">
-          {/* <SocialMediaCard /> */}
+          <SocialDashboard />
         </div>
-      </div>
+      </div> */}
     </main>
   );
 }
