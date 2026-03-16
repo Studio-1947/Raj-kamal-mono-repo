@@ -67,24 +67,30 @@ export class OfflineSyncService {
         continue;
       }
 
-      // Prepare data for Prisma
-      const orderNo = this.getVal(row, headerMap, "OrderNo") || this.getVal(row, headerMap, "Doc No") || this.getVal(row, headerMap, "Vch No");
+      const slNo = parseInt(this.getVal(row, headerMap, "sl/no") || "0");
+      const docNo = this.getVal(row, headerMap, "TrnsdocNo") || this.getVal(row, headerMap, "Doc No") || this.getVal(row, headerMap, "Vch No");
+      const dateStr = this.getVal(row, headerMap, "TrnsdocdateStr") || this.getVal(row, headerMap, "DateStr");
+      const isbn = this.getVal(row, headerMap, "BookCode") || this.getVal(row, headerMap, "ISBN") || this.getVal(row, headerMap, "ItemCode");
       const title = this.getVal(row, headerMap, "Title") || this.getVal(row, headerMap, "ItemName");
-      
-      const valQty = parseInt(this.getVal(row, headerMap, "Qty") || this.getVal(row, headerMap, "OUT") || "0");
-      const qty = isNaN(valQty) ? 0 : valQty;
-      
-      const valAmount = parseFloat(this.getVal(row, headerMap, "Amount") || "0");
-      const amount = isNaN(valAmount) ? 0 : valAmount;
-      
-      const valRate = parseFloat(this.getVal(row, headerMap, "Rate") || this.getVal(row, headerMap, "BOOKRATE") || "0");
-      const rate = isNaN(valRate) ? 0 : valRate;
+      const author = this.getVal(row, headerMap, "Author");
+      const binding = this.getVal(row, headerMap, "Binding");
+      const pubYear = parseInt(this.getVal(row, headerMap, "Pub-year") || "0");
+      const publisher = this.getVal(row, headerMap, "Publisher");
+      const qty = parseInt(this.getVal(row, headerMap, "OUT") || this.getVal(row, headerMap, "Qty") || "0");
+      const inQty = parseInt(this.getVal(row, headerMap, "IN") || "0");
+      const currency = this.getVal(row, headerMap, "CURRENCYID") || "RS";
+      const rate = parseFloat(this.getVal(row, headerMap, "BOOKRATE") || this.getVal(row, headerMap, "Rate") || "0");
+      const discount = parseFloat(this.getVal(row, headerMap, "BookDiscount") || "0");
+      const addDiscount = parseFloat(this.getVal(row, headerMap, "BookAddDiscount") || "0");
+      const amount = parseFloat(this.getVal(row, headerMap, "OUTAmount") || this.getVal(row, headerMap, "Amount") || "0");
+      const inAmount = parseFloat(this.getVal(row, headerMap, "INAmount") || "0");
+      const state = this.getVal(row, headerMap, "StateName");
+      const city = this.getVal(row, headerMap, "CityName");
 
       let date: Date | null = null;
-      const rawDate = this.getVal(row, headerMap, "Date") || this.getVal(row, headerMap, "Trnsdocdate");
+      const rawDate = this.getVal(row, headerMap, "Trnsdocdate") || this.getVal(row, headerMap, "Date");
       
       if (rawDate) {
-        // Handle Excel Serial Date (e.g. 46097)
         if (/^\d{5}(\.\d+)?$/.test(rawDate)) {
           const serial = parseFloat(rawDate);
           date = new Date((serial - 25569) * 86400 * 1000);
@@ -103,25 +109,53 @@ export class OfflineSyncService {
         await prisma.googleSheetOfflineSale.upsert({
           where: { rowHash },
           update: {
-            orderNo,
-            customerName,
-            title,
-            qty,
-            amount,
-            rate,
+            slNo,
+            docNo,
             date,
-            rawJson: row as any,
+            dateStr,
+            isbn,
+            title,
+            author,
+            binding,
+            pubYear,
+            publisher,
+            qty,
+            inQty,
+            currency,
+            rate,
+            discount,
+            addDiscount,
+            amount,
+            inAmount,
+            customerName,
+            state,
+            city,
+            rawJson: row.map(v => (v === undefined ? null : v)) as any,
           },
           create: {
-            orderNo,
-            customerName,
-            title,
-            qty,
-            amount,
-            rate,
+            slNo,
+            docNo,
             date,
+            dateStr,
+            isbn,
+            title,
+            author,
+            binding,
+            pubYear,
+            publisher,
+            qty,
+            inQty,
+            currency,
+            rate,
+            discount,
+            addDiscount,
+            amount,
+            inAmount,
+            customerName,
+            state,
+            city,
             rowHash,
-            rawJson: row as any,
+            rawJson: row.map(v => (v === undefined ? null : v)) as any,
           },
         });
         importedCount++;

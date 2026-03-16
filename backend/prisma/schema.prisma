@@ -219,36 +219,36 @@ model OfflineCashUPICCSale {
 }
 
 model GoogleSheetOfflineSale {
-  id            BigInt            @id @default(autoincrement())
-  orderNo       String?
-  orderStatus   SalesOrderStatus?
-  month         String?
-  year          Int?
-  isbn          String?
-  itemCode      String?
-  title         String?
-  author        String?
-  publisher     String?
-  category      String?
-  description   String?
-  qty           Int?
-  rate          Decimal?          @db.Decimal(12, 2)
-  amount        Decimal?          @db.Decimal(12, 2)
-  discount      Decimal?          @db.Decimal(12, 2)
-  tax           Decimal?          @db.Decimal(12, 2)
-  shipping      Decimal?          @db.Decimal(12, 2)
-  paymentMode   PaymentMode?
-  customerName  String?
-  mobile        String?
-  email         String?
-  date          DateTime?
-  publisherCode String?
-  rowHash       String?           @unique
-  rawJson       Json
-  createdAt     DateTime          @default(now())
+  id              BigInt            @id @default(autoincrement())
+  slNo            Int?
+  docNo           String?           // TrnsdocNo
+  date            DateTime?         // Trnsdocdate
+  dateStr         String?           // TrnsdocdateStr
+  isbn            String?           // BookCode
+  title           String?
+  author          String?
+  binding         String?
+  pubYear         Int?              // Pub-year
+  publisher       String?
+  qty             Int?              // OUT
+  inQty           Int?              // IN
+  currency        String?           // CURRENCYID
+  rate            Decimal?          @db.Decimal(12, 2) // BOOKRATE
+  discount        Decimal?          @db.Decimal(12, 2) // BookDiscount
+  addDiscount     Decimal?          @db.Decimal(12, 2) // BookAddDiscount
+  amount          Decimal?          @db.Decimal(12, 2) // OUTAmount
+  inAmount        Decimal?          @db.Decimal(12, 2) // INAmount
+  customerName    String?
+  state           String?           // StateName
+  city            String?           // CityName
+  
+  rowHash         String?           @unique
+  rawJson         Json
+  createdAt       DateTime          @default(now())
 
   @@index([date])
-  @@index([orderNo])
+  @@index([docNo])
+  @@map("google_sheet_offline_sales")
 }
 
 model RajRadhaEventSale {

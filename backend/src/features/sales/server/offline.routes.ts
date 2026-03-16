@@ -22,6 +22,12 @@ function numSafe(v: any): number | null {
   const n = typeof v === "string" ? Number(v.replace(/[\s,]/g, "")) : Number(v);
   return Number.isFinite(n) ? n : null;
 }
+function normalizeText(raw?: any): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  return s.replace(/\s+/g, " ");
+}
 function pick(
   row: Record<string, any> | null | undefined,
   names: string[],
@@ -133,6 +139,7 @@ router.get("/", async (req, res) => {
     const dataAll = items.map((it: any) => ({
       ...it,
       id: it.id?.toString?.() ?? String(it.id),
+      orderNo: it.docNo, // Alias for frontend compatibility
       amount: it.amount != null ? round2(decToNumber(it.amount)) : null,
       rate: it.rate != null ? round2(decToNumber(it.rate)) : null,
     }));
@@ -192,8 +199,6 @@ router.get("/summary", async (req, res) => {
         qty: true,
         rate: true,
         title: true,
-        month: true,
-        year: true,
         rawJson: true,
       },
       take: 100000,
@@ -312,12 +317,7 @@ router.get("/counts", async (req, res) => {
         rate: true,
         rawJson: true,
         customerName: true,
-        email: true,
-        mobile: true,
-        orderStatus: true,
         date: true,
-        month: true,
-        year: true,
         title: true,
       },
       take: 100000,
@@ -360,16 +360,15 @@ router.get("/counts", async (req, res) => {
       }
       totalAmount += amt;
 
-      const st =
-        (r.orderStatus as any as string) ||
-        String(
-          pick(r.rawJson as any, ["Order Status", "Status"]) || "",
-        ).toLowerCase();
+      const st = String(
+        pick(r.rawJson as any, ["Order Status", "Status"]) || "",
+      ).toLowerCase();
       if (st && st.toLowerCase() === "refunded") refundCount++;
 
       const name = (r.customerName || "").trim().toLowerCase();
-      const email = (r.email || "").trim().toLowerCase();
-      const mobile = (r.mobile || "").trim();
+      const raw = r.rawJson as Record<string, any> | undefined;
+      const email = normalizeText(pick(raw, ["Email", "email"])) || "";
+      const mobile = normalizeText(pick(raw, ["Mobile", "mobile", "Phone", "phone"])) || "";
       const key = [email || null, mobile || null, name || null]
         .filter(Boolean)
         .join("|");
