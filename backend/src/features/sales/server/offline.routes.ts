@@ -1,6 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import { prisma } from "../../../lib/prisma.js";
+import { offlineSyncService } from "./offlineSyncService.js";
 
 const router = express.Router();
 
@@ -128,7 +129,7 @@ router.get("/", async (req, res) => {
       args.skip = 1;
       args.cursor = { id: BigInt(cursorId) };
     }
-    const items = await prisma.offlineCashUPICCSale.findMany(args);
+    const items = await prisma.googleSheetOfflineSale.findMany(args);
     const dataAll = items.map((it: any) => ({
       ...it,
       id: it.id?.toString?.() ?? String(it.id),
@@ -184,7 +185,7 @@ router.get("/summary", async (req, res) => {
   try {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
 
-    const rows = await prisma.offlineCashUPICCSale.findMany({
+    const rows = await prisma.googleSheetOfflineSale.findMany({
       select: {
         date: true,
         amount: true,
@@ -304,7 +305,7 @@ router.get("/counts", async (req, res) => {
   }
 
   try {
-    const items = await prisma.offlineCashUPICCSale.findMany({
+    const items = await prisma.googleSheetOfflineSale.findMany({
       select: {
         amount: true,
         qty: true,
@@ -385,6 +386,30 @@ router.get("/counts", async (req, res) => {
   } catch (e: any) {
     console.error("offline_sales_counts_failed", e);
     return res.status(500).json({ ok: false, error: "Failed to fetch counts" });
+  }
+});
+
+// POST /api/offline-sales/push
+// Accepts { data: any[][] }
+router.post("/push", async (req, res) => {
+  const token = req.headers["x-sync-token"];
+  const expectedToken = process.env.GOOGLE_SYNC_TOKEN || "rk_default_token_2026";
+
+  if (!token || token !== expectedToken) {
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
+
+  const { data } = req.body;
+  if (!data || !Array.isArray(data)) {
+    return res.status(400).json({ ok: false, error: "Invalid data format. Expected { data: any[][] }" });
+  }
+
+  try {
+    const result = await offlineSyncService.processData(data);
+    return res.json({ ok: true, ...result });
+  } catch (e: any) {
+    console.error("offline_push_failed", e);
+    return res.status(500).json({ ok: false, error: e.message || "Push processing failed" });
   }
 });
 

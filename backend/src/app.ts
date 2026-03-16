@@ -17,6 +17,7 @@ import { mountOfflineSales } from "./features/sales/server/offline.index.js";
 import { mountLokEventSales } from "./features/sales/server/lok-event.index.js";
 import { mountRajRadhaEventSales } from "./features/sales/server/rajradha-event.index.js";
 import { notFound } from "./middleware/notFound.js";
+import { offlineSyncService } from "./features/sales/server/offlineSyncService.js";
 
 // Load environment variables
 dotenv.config();
@@ -196,5 +197,13 @@ app.use("*", (req, res) => {
 // Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
+
+// Basic background sync on startup (scalable fallback)
+if (process.env.NODE_ENV !== 'test') {
+  setTimeout(() => {
+    console.log("Auto-syncing offline sales data...");
+    offlineSyncService.syncOfflineSales().catch(err => console.error("Auto-sync failed:", err));
+  }, 5000); // 5s delay to let server settle
+}
 
 export default app;
