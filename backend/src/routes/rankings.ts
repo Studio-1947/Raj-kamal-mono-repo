@@ -3,6 +3,38 @@ import { authenticateToken, AuthRequest } from '../middleware/authPrisma.js';
 
 const router = Router();
 
+/**
+ * @swagger
+ * tags:
+ *   name: Rankings
+ *   description: Sales performance rankings
+ */
+
+/**
+ * @swagger
+ * /api/rankings/products:
+ *   get:
+ *     summary: Get product rankings
+ *     tags: [Rankings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [sales, revenue]
+ *           default: sales
+ *     responses:
+ *       200:
+ *         description: List of ranked products
+ */
+
 // Mock rankings data
 const productRankings = [
   {
@@ -133,6 +165,30 @@ router.get('/products', authenticateToken, (req: AuthRequest, res: Response) => 
   });
 });
 
+/**
+ * @swagger
+ * /api/rankings/customers:
+ *   get:
+ *     summary: Get customer rankings
+ *     tags: [Rankings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [totalOrders, totalSpent]
+ *           default: totalSpent
+ *     responses:
+ *       200:
+ *         description: List of ranked customers
+ */
 // Get customer rankings
 router.get('/customers', authenticateToken, (req: AuthRequest, res: Response) => {
   const { limit = 10, sortBy = 'totalSpent' } = req.query;
@@ -157,6 +213,18 @@ router.get('/customers', authenticateToken, (req: AuthRequest, res: Response) =>
   });
 });
 
+/**
+ * @swagger
+ * /api/rankings/categories:
+ *   get:
+ *     summary: Get category rankings
+ *     tags: [Rankings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of ranked categories
+ */
 // Get category rankings
 router.get('/categories', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json({
@@ -168,6 +236,18 @@ router.get('/categories', authenticateToken, (req: AuthRequest, res: Response) =
   });
 });
 
+/**
+ * @swagger
+ * /api/rankings/summary:
+ *   get:
+ *     summary: Get overall rankings summary
+ *     tags: [Rankings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Top product, customer, and category
+ */
 // Get overall rankings summary
 router.get('/summary', authenticateToken, (req: AuthRequest, res: Response): void => {
   const topProduct = productRankings[0];

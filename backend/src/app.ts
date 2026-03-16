@@ -18,6 +18,8 @@ import { mountLokEventSales } from "./features/sales/server/lok-event.index.js";
 import { mountRajRadhaEventSales } from "./features/sales/server/rajradha-event.index.js";
 import { notFound } from "./middleware/notFound.js";
 import { offlineSyncService } from "./features/sales/server/offlineSyncService.js";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./config/swagger.js";
 
 // Load environment variables
 dotenv.config();
@@ -77,7 +79,7 @@ const rateLimitMaxRequests =
   Number(process.env.API_RATE_LIMIT_MAX_REQUESTS) || 1000; // 1000 requests per minute
 const rateLimitBypassPaths = (
   process.env.API_RATE_LIMIT_BYPASS ||
-  "/health,/,/api/auth,/api/auth/login,/api/auth/me"
+  "/health,/,/api/auth,/api/auth/login,/api/auth/me,/api-docs"
 )
   .split(",")
   .map((p) => p.trim())
@@ -115,6 +117,9 @@ app.get("/health", (req, res) => {
     environment: process.env.NODE_ENV || "development",
   });
 });
+
+// Swagger UI
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Root endpoint - Backend status page
 app.get("/", (_req, res) => {
