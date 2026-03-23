@@ -8,8 +8,10 @@ const router = express.Router();
 /**
  * @swagger
  * tags:
- *   name: OfflineSales
- *   description: Google Sheets offline sales data management
+ *   - name: offline sales
+ *     description: General offline sales data management
+ *   - name: google sheet offline sales
+ *     description: Google Sheets offline sales data management
  */
 
 /**
@@ -47,7 +49,7 @@ const router = express.Router();
  * /api/offline-sales:
  *   get:
  *     summary: Get offline sales with pagination and filtering
- *     tags: [OfflineSales]
+ *     tags: [offline sales]
  *     parameters:
  *       - in: query
  *         name: limit
@@ -264,7 +266,7 @@ router.get("/", async (req, res) => {
  * /api/offline-sales/summary:
  *   get:
  *     summary: Get sales summary (time series and top items)
- *     tags: [OfflineSales]
+ *     tags: [offline sales]
  *     parameters:
  *       - in: query
  *         name: days
@@ -408,7 +410,7 @@ router.get("/summary", async (req, res) => {
  * /api/offline-sales/counts:
  *   get:
  *     summary: Get aggregate counts and totals
- *     tags: [OfflineSales]
+ *     tags: [offline sales]
  *     parameters:
  *       - in: query
  *         name: days
@@ -533,10 +535,42 @@ router.get("/counts", async (req, res) => {
 
 /**
  * @swagger
+ * /api/offline-sales/google-sheets:
+ *   get:
+ *     summary: Get/Sync offline sales from Google Sheets (Direct ERP URL)
+ *     tags: [google sheet offline sales]
+ *     responses:
+ *       200:
+ *         description: Sync successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 importedCount:
+ *                   type: integer
+ *                 skippedCount:
+ *                   type: integer
+ */
+// GET /api/offline-sales/google-sheets
+router.get("/google-sheets", async (req, res) => {
+  try {
+    const result = await offlineSyncService.syncOfflineSales();
+    return res.json({ ok: true, ...result });
+  } catch (e: any) {
+    console.error("offline_get_sync_failed", e);
+    return res.status(500).json({ ok: false, error: e.message || "Sync failed" });
+  }
+});
+
+/**
+ * @swagger
  * /api/offline-sales/push:
  *   post:
  *     summary: Push new sales data from Google Sheets
- *     tags: [OfflineSales]
+ *     tags: [google sheet offline sales]
  *     security: []
  *     parameters:
  *       - in: header
