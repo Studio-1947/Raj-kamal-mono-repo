@@ -28,7 +28,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. All API responses arrive gzip-compressed — visible as `Content-Encoding: gzip` in response headers
   3. A request to a slow or hung endpoint times out and returns an error within the configured threshold instead of hanging indefinitely
   4. Slow queries above a configurable millisecond threshold appear in application logs with the endpoint name and duration
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Install vitest + create failing test stubs for all 4 INFRA requirements
+- [ ] 01-02-PLAN.md — Prisma pool config (INFRA-01) and slow-query event logging (INFRA-04)
+- [ ] 01-03-PLAN.md — Gzip compression (INFRA-02) and request timeout enforcement (INFRA-03)
 
 ### Phase 2: Database Query Optimization
 **Goal**: All filter queries use indexes and return only the requested page of data — no full table scans, no unbounded result sets
@@ -69,7 +74,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure Baseline | 0/TBD | Not started | - |
+| 1. Infrastructure Baseline | 0/3 | Planning done | - |
 | 2. Database Query Optimization | 0/TBD | Not started | - |
 | 3. In-Memory Caching | 0/TBD | Not started | - |
 | 4. Async Google Sheets Sync | 0/TBD | Not started | - |
