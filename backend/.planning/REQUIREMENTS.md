@@ -27,10 +27,10 @@
 
 ### API Infrastructure
 
-- [ ] **INFRA-01**: PostgreSQL connection pool configured with appropriate min/max connections for 20-200 concurrent users
-- [ ] **INFRA-02**: All API responses compressed with gzip to reduce payload size
-- [ ] **INFRA-03**: Request timeout enforced on slow queries — no endpoint hangs indefinitely
-- [ ] **INFRA-04**: Slow queries logged (above configurable threshold) so bottlenecks are visible in logs
+- [x] **INFRA-01**: PostgreSQL connection pool configured with appropriate min/max connections for 20-200 concurrent users
+- [x] **INFRA-02**: All API responses compressed with gzip to reduce payload size
+- [x] **INFRA-03**: Request timeout enforced on slow queries — no endpoint hangs indefinitely
+- [x] **INFRA-04**: Slow queries logged (above configurable threshold) so bottlenecks are visible in logs
 
 ## v2 Requirements
 
@@ -63,10 +63,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
+| INFRA-03 | Phase 1 | Complete |
+| INFRA-04 | Phase 1 | Complete |
 | DB-01 | Phase 2 | Pending |
 | DB-02 | Phase 2 | Pending |
 | DB-03 | Phase 2 | Pending |

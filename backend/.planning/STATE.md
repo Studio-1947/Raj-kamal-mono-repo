@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: planning
+stopped_at: Completed 01-infrastructure-baseline-01-01-PLAN.md
+last_updated: "2026-03-23T06:53:10.676Z"
+last_activity: 2026-03-23 — Roadmap created
+progress:
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: 0 of TBD in current phase
 Status: Ready to plan
 Last activity: 2026-03-23 — Roadmap created
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -34,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-infrastructure-baseline P01 | 3 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -45,6 +62,8 @@ Recent decisions affecting current work:
 - Index-first approach: Indexes give biggest bang-for-buck before adding cache infrastructure
 - In-memory cache (node-cache) chosen for v1; Redis deferred to v2 (single-server load)
 - Background sync queue: blocking sync on startup is a quick win to eliminate
+- [Phase 01-infrastructure-baseline]: vitest chosen over jest: ESM-native, zero transform config required for NodeNext moduleResolution
+- [Phase 01-infrastructure-baseline]: Test stubs intentionally designed to fail for compression/timeout until implementation plans run in later waves
 
 ### Pending Todos
 
@@ -58,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23
-Stopped at: Roadmap created — ready to begin Phase 1 planning
+Last session: 2026-03-23T06:53:10.673Z
+Stopped at: Completed 01-infrastructure-baseline-01-01-PLAN.md
 Resume file: None
