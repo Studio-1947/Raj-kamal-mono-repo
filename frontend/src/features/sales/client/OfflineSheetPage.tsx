@@ -154,7 +154,7 @@ export default function OfflineSheetPage() {
   // Data hooks
   const countsQ  = useOfflineSheetCounts(filters);
   const summaryQ = useOfflineSheetSummary(filters);
-  const listQ    = useOfflineSheetList(filters, 200);
+  const listQ    = useOfflineSheetList(filters, 100);
   const syncMut  = useTriggerSync();
 
   // Flatten infinite pages into a single flat row array
