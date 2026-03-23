@@ -11,6 +11,7 @@ import {
   Settings,
   Language,
   Login,
+  OfflineSheetSales,
 } from "../views";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -89,6 +90,15 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <Language />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/offline-sheet-sales"
+        element={
+          <ProtectedRoute>
+            <OfflineSheetSales />
           </ProtectedRoute>
         }
       />

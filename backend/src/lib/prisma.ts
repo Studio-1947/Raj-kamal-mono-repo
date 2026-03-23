@@ -4,10 +4,27 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-// Prevent multiple instances of Prisma Client in development
-export const prisma = globalThis.__prisma || new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-});
+const SLOW_QUERY_THRESHOLD_MS = Number(process.env.SLOW_QUERY_THRESHOLD_MS) || 500;
+
+function createPrisma(): PrismaClient {
+  const client = new PrismaClient({
+    log: [
+      { emit: 'event', level: 'query' },
+      'error',
+      'warn',
+    ],
+  });
+  client.$on('query', (e) => {
+    if (e.duration >= SLOW_QUERY_THRESHOLD_MS) {
+      console.warn(
+        `[SLOW QUERY] ${e.duration}ms | ${e.query} | params: ${e.params}`
+      );
+    }
+  });
+  return client;
+}
+
+export const prisma: PrismaClient = globalThis.__prisma ?? createPrisma();
 
 if (process.env.NODE_ENV !== 'production') {
   globalThis.__prisma = prisma;

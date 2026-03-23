@@ -1,4 +1,4 @@
-﻿import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -25,6 +25,49 @@ const loginSchema = z.object({
     .transform((v) => v.toLowerCase().trim()),
   password: z.string().min(1, 'Password is required'),
 });
+
+/**
+ * @swagger
+ * tags:
+ *   name: Auth
+ *   description: Authentication and user management
+ */
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new admin user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - name
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *               name:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *       400:
+ *         description: Validation error or user already exists
+ *       403:
+ *         description: Registration disabled (admin already exists)
+ *       500:
+ *         description: Internal server error
+ */
 
 // Register admin (only once)
 router.post('/register', async (req: Request, res: Response): Promise<any> => {
@@ -90,6 +133,37 @@ router.post('/register', async (req: Request, res: Response): Promise<any> => {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Login as an admin
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       401:
+ *         description: Invalid credentials
+ *       403:
+ *         description: Not an admin
+ *       500:
+ *         description: Internal server error
+ */
 // Login endpoint (admin only)
 router.post('/login', async (req: Request, res: Response): Promise<any> => {
   try {
@@ -153,6 +227,24 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current user profile
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user profile
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
 // Get current user profile
 router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
@@ -176,6 +268,16 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Pr
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout (client-side)
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Logged out successfully
+ */
 // Logout endpoint (client-side token removal)
 router.post('/logout', (req: Request, res: Response): any => {
   return res.json({
@@ -184,6 +286,18 @@ router.post('/logout', (req: Request, res: Response): any => {
   });
 });
 
+/**
+ * @swagger
+ * /api/auth/admin-status:
+ *   get:
+ *     summary: Check if an admin exists
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Admin status
+ *       500:
+ *         description: Internal server error
+ */
 // Admin existence status
 router.get('/admin-status', async (_req: Request, res: Response): Promise<any> => {
   try {

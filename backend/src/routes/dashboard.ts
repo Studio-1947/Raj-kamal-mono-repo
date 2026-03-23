@@ -3,6 +3,28 @@ import { authenticateToken, AuthRequest } from '../middleware/authPrisma.js';
 
 const router = Router();
 
+/**
+ * @swagger
+ * tags:
+ *   name: Dashboard
+ *   description: Dashboard statistics and overview
+ */
+
+/**
+ * @swagger
+ * /api/dashboard/overview:
+ *   get:
+ *     summary: Get dashboard overview data
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard overview stats, recent orders, and chart data
+ *       401:
+ *         description: Unauthorized
+ */
+
 // Mock dashboard data
 const dashboardStats = {
   totalSales: 24320,
@@ -60,6 +82,20 @@ router.get('/overview', authenticateToken, (req: AuthRequest, res: Response) => 
   });
 });
 
+/**
+ * @swagger
+ * /api/dashboard/sales:
+ *   get:
+ *     summary: Get sales statistics
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sales growth and chart data
+ *       401:
+ *         description: Unauthorized
+ */
 // Get sales statistics
 router.get('/sales', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json({
@@ -72,6 +108,20 @@ router.get('/sales', authenticateToken, (req: AuthRequest, res: Response) => {
   });
 });
 
+/**
+ * @swagger
+ * /api/dashboard/orders:
+ *   get:
+ *     summary: Get orders statistics
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Order growth and recent orders
+ *       401:
+ *         description: Unauthorized
+ */
 // Get orders statistics
 router.get('/orders', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json({
@@ -84,6 +134,20 @@ router.get('/orders', authenticateToken, (req: AuthRequest, res: Response) => {
   });
 });
 
+/**
+ * @swagger
+ * /api/dashboard/customers:
+ *   get:
+ *     summary: Get customer statistics
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Customer growth and total count
+ *       401:
+ *         description: Unauthorized
+ */
 // Get customer statistics
 router.get('/customers', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json({

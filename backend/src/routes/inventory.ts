@@ -3,6 +3,68 @@ import { authenticateToken, AuthRequest } from '../middleware/authPrisma.js';
 
 const router = Router();
 
+/**
+ * @swagger
+ * tags:
+ *   name: Inventory
+ *   description: Product and stock management
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     InventoryItem:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         name:
+ *           type: string
+ *         sku:
+ *           type: string
+ *         category:
+ *           type: string
+ *         quantity:
+ *           type: integer
+ *         price:
+ *           type: number
+ *         cost:
+ *           type: number
+ *         status:
+ *           type: string
+ *           enum: [in_stock, low_stock, out_of_stock]
+ *         lastUpdated:
+ *           type: string
+ *           format: date-time
+ */
+
+/**
+ * @swagger
+ * /api/inventory/items:
+ *   get:
+ *     summary: Get all inventory items with filtering
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of inventory items
+ */
+
 // Mock inventory data
 const inventoryItems = [
   {
@@ -88,6 +150,26 @@ router.get('/items', authenticateToken, (req: AuthRequest, res: Response) => {
   });
 });
 
+/**
+ * @swagger
+ * /api/inventory/items/{id}:
+ *   get:
+ *     summary: Get inventory item by ID
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Inventory item details
+ *       404:
+ *         description: Item not found
+ */
 // Get inventory item by ID
 router.get('/items/:id', authenticateToken, (req: AuthRequest, res: Response): void => {
   const { id } = req.params;
@@ -107,6 +189,18 @@ router.get('/items/:id', authenticateToken, (req: AuthRequest, res: Response): v
   });
 });
 
+/**
+ * @swagger
+ * /api/inventory/categories:
+ *   get:
+ *     summary: Get inventory categories
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of categories and item counts
+ */
 // Get inventory categories
 router.get('/categories', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json({
@@ -115,6 +209,18 @@ router.get('/categories', authenticateToken, (req: AuthRequest, res: Response) =
   });
 });
 
+/**
+ * @swagger
+ * /api/inventory/summary:
+ *   get:
+ *     summary: Get inventory stock summary
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Aggregate metrics for inventory stock
+ */
 // Get inventory summary
 router.get('/summary', authenticateToken, (req: AuthRequest, res: Response) => {
   const totalItems = inventoryItems.length;

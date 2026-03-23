@@ -74,6 +74,14 @@ const SALE_TYPES: SaleType[] = [
     badgeColor: "bg-orange-50 text-orange-700 ring-orange-200",
     chartColor: "#F97316",
   },
+  {
+    name: "googlesheet",
+    displayName: "GSheet Offline Sales",
+    endpoint: "offline-sales",
+    color: "bg-teal-50 border-teal-200",
+    badgeColor: "bg-teal-50 text-teal-700 ring-teal-200",
+    chartColor: "#0D9488",
+  },
 ];
 
 export default function Dashboard() {

@@ -5,6 +5,100 @@ import { offlineSyncService } from "./offlineSyncService.js";
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * tags:
+ *   - name: offline sales
+ *     description: General offline sales data management
+ *   - name: google sheet offline sales
+ *     description: Google Sheets offline sales data management
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     OfflineSale:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         docNo:
+ *           type: string
+ *         orderNo:
+ *           type: string
+ *         date:
+ *           type: string
+ *           format: date-time
+ *         title:
+ *           type: string
+ *         customerName:
+ *           type: string
+ *         amount:
+ *           type: number
+ *         qty:
+ *           type: number
+ *         rate:
+ *           type: number
+ *         rawJson:
+ *           type: object
+ */
+
+/**
+ * @swagger
+ * /api/offline-sales:
+ *   get:
+ *     summary: Get offline sales with pagination and filtering
+ *     tags: [offline sales]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 5000
+ *           default: 200
+ *         description: Number of items to return
+ *       - in: query
+ *         name: cursorId
+ *         schema:
+ *           type: string
+ *         description: Pagination cursor
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Filter by start date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Filter by end date
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: Search query for title or customer name
+ *     responses:
+ *       200:
+ *         description: List of offline sales
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 items:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/OfflineSale'
+ *                 nextCursorId:
+ *                   type: string
+ */
+
 // Utilities for resilient aggregation when DB fields are missing
 function decToNumber(v: any): number {
   if (v === null || v === undefined) return 0;
@@ -167,6 +261,32 @@ router.get("/", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/offline-sales/summary:
+ *   get:
+ *     summary: Get sales summary (time series and top items)
+ *     tags: [offline sales]
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 90
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *     responses:
+ *       200:
+ *         description: Sales summary data
+ */
 // GET /api/offline-sales/summary
 router.get("/summary", async (req, res) => {
   const Q = z.object({
@@ -285,6 +405,31 @@ router.get("/summary", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/offline-sales/counts:
+ *   get:
+ *     summary: Get aggregate counts and totals
+ *     tags: [offline sales]
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *     responses:
+ *       200:
+ *         description: Aggregate sales metrics
+ */
 // GET /api/offline-sales/counts
 router.get("/counts", async (req, res) => {
   const Q = z.object({
@@ -388,6 +533,71 @@ router.get("/counts", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/offline-sales/google-sheets:
+ *   get:
+ *     summary: Get/Sync offline sales from Google Sheets (Direct ERP URL)
+ *     tags: [google sheet offline sales]
+ *     responses:
+ *       200:
+ *         description: Sync successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 importedCount:
+ *                   type: integer
+ *                 skippedCount:
+ *                   type: integer
+ */
+// GET /api/offline-sales/google-sheets
+router.get("/google-sheets", async (req, res) => {
+  try {
+    const result = await offlineSyncService.syncOfflineSales();
+    return res.json({ ok: true, ...result });
+  } catch (e: any) {
+    console.error("offline_get_sync_failed", e);
+    return res.status(500).json({ ok: false, error: e.message || "Sync failed" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/offline-sales/push:
+ *   post:
+ *     summary: Push new sales data from Google Sheets
+ *     tags: [google sheet offline sales]
+ *     security: []
+ *     parameters:
+ *       - in: header
+ *         name: x-sync-token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               data:
+ *                 type: array
+ *                 items:
+ *                   type: array
+ *                   items: {}
+ *     responses:
+ *       200:
+ *         description: Data processed successfully
+ *       401:
+ *         description: Unauthorized
+ *       400:
+ *         description: Invalid data format
+ */
 // POST /api/offline-sales/push
 // Accepts { data: any[][] }
 router.post("/push", async (req, res) => {
