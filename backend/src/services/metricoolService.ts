@@ -73,10 +73,6 @@ export async function fetchDistribution(params: DistributionParams) {
     baseParams.timezone = params.timezone ?? METRICOOL_DEFAULT_TIMEZONE;
   }
 
-  console.log(
-    "Metricool Distribution Params:",
-    JSON.stringify(baseParams, null, 2),
-  );
 
   return metricoolRequest({
     endpoint: METRICOOL_ANALYTICS_DISTRIBUTION_PATH,
@@ -122,10 +118,6 @@ export async function fetchTimeline(params: TimelineParams) {
     baseParams.timezone = params.timezone ?? METRICOOL_DEFAULT_TIMEZONE;
   }
 
-  console.log(
-    "Metricool Timeline Params:",
-    JSON.stringify(baseParams, null, 2),
-  );
 
   return metricoolRequest({
     endpoint: METRICOOL_ANALYTICS_TIMELINES_PATH,

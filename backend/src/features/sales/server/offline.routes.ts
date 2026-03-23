@@ -396,6 +396,7 @@ router.get("/summary", async (req, res) => {
       .sort((a, b) => (b.total || 0) - (a.total || 0))
       .slice(0, 10);
 
+    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
     return res.json({ ok: true, timeSeries, topItems });
   } catch (e: any) {
     console.error("offline_sales_summary_failed", e);
@@ -520,6 +521,7 @@ router.get("/counts", async (req, res) => {
       if (key) customerSet.add(key);
     }
 
+    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
     return res.json({
       ok: true,
       totalCount: count,

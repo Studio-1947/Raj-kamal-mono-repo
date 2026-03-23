@@ -1,6 +1,11 @@
+import { TtlCache } from "../lib/cache.js";
+
 const DEFAULT_TIMEOUT_MS = 15000;
 const REQUEST_INTERVAL_MS = 300; // 0.3 seconds between batches (faster)
 const MAX_PARALLEL_REQUESTS = 5; // Process up to 5 requests in parallel
+
+// Cache for 5 minutes
+const metricoolCache = new TtlCache<any>(5 * 60 * 1000);
 
 export const METRICOOL_BASE_URL = process.env.METRICOOL_BASE_URL ?? "";
 export const METRICOOL_API_TOKEN = process.env.METRICOOL_API_TOKEN ?? "";
@@ -125,7 +130,7 @@ export type MetricoolRequestOptions = {
   timeoutMs?: number;
 };
 
-type MetricoolErrorShape = {
+export type MetricoolErrorShape = {
   ok: false;
   status: number;
   code?: string;
@@ -215,14 +220,21 @@ export async function metricoolRequest<T = unknown>(
     throw new Error("Missing METRICOOL_API_TOKEN");
   }
 
+  const url = buildUrl(options.endpoint, options.searchParams);
+
+  // Only cache GET requests
+  const isGet = !options.method || options.method === "GET";
+  if (isGet) {
+    const cached = metricoolCache.get(url);
+    if (cached) return cached as T;
+  }
+
   return queueRequest(async () => {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
       options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     );
-
-    const url = buildUrl(options.endpoint, options.searchParams);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -278,6 +290,11 @@ export async function metricoolRequest<T = unknown>(
         (err as any).code = errorShape.code;
         (err as any).details = errorShape.details;
         throw err;
+      }
+
+      // Cache successful GET results
+      if (isGet && response.ok) {
+        metricoolCache.set(url, payload);
       }
 
       return payload as T;

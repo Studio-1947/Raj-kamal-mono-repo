@@ -255,7 +255,6 @@ router.get("/summary", async (req, res) => {
       }
     >();
 
-    console.log("🔍 Total rows fetched:", rows.length);
 
     let processedCount = 0;
     let skippedCount = 0;
@@ -348,7 +347,6 @@ router.get("/summary", async (req, res) => {
             ) {
               // Use first non-empty string field as title
               title = raw[key];
-              console.log(`Using field "${key}" as title:`, title);
               break;
             }
           }
@@ -390,7 +388,6 @@ router.get("/summary", async (req, res) => {
       }
     }
 
-    console.log("✅ Processed:", processedCount, "❌ Skipped:", skippedCount);
 
     const byPayment = Array.from(payment.entries()).map(
       ([paymentMode, total]) => ({
@@ -407,8 +404,6 @@ router.get("/summary", async (req, res) => {
       }));
 
     // Log what we have before filtering
-    console.log("📦 Total unique items in top map:", top.size);
-    console.log("📊 Sample items:", Array.from(top.entries()).slice(0, 3));
 
     const topItems = Array.from(top.entries())
       .filter(([title, v]) => {
@@ -442,9 +437,8 @@ router.get("/summary", async (req, res) => {
       .sort((a, b) => (b.total || 0) - (a.total || 0)) // Sort by revenue (primary)
       .slice(0, 10);
 
-    console.log("✅ Final topItems count:", topItems.length);
-    console.log("📚 Top items:", topItems);
 
+    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
     return res.json({ ok: true, paymentMode: byPayment, timeSeries, topItems });
   } catch (e: any) {
     console.error("online_sales_summary_failed", e);
@@ -571,6 +565,7 @@ router.get("/counts", async (req, res) => {
       if (key) customerSet.add(key);
     }
 
+    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
     return res.json({
       ok: true,
       totalCount: count,
