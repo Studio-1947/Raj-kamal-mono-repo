@@ -37,10 +37,10 @@ function Pagination({ currentPage, totalCount, pageSize, setPage, isLoading }: P
   if (totalPages <= 1) return null;
 
   return (
-    <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
-      <div className="text-lg font-medium text-gray-500">
-        Showing Page <span className="font-bold text-gray-900">{currentPage}</span> of <span className="font-bold text-gray-900">{totalPages}</span>
-        <span className="ml-2 text-sm">({totalCount.toLocaleString()} total transactions)</span>
+    <div className="mt-8 flex items-center justify-between border-t-2 border-gray-100 pt-6">
+      <div className="text-xl font-black text-gray-900">
+        Showing Page <span className="px-1 text-teal-700">{currentPage}</span> of <span className="px-1">{totalPages}</span>
+        <span className="ml-4 text-base font-black text-gray-700">({totalCount.toLocaleString()} total transactions)</span>
       </div>
       <div className="flex items-center gap-3">
         <button
@@ -94,7 +94,7 @@ function FilterBar({
       {/* Top row: Search and Sync */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex flex-1 min-w-[300px] items-center gap-3">
-          <label htmlFor="search-input" className="text-lg font-bold text-gray-700">Search:</label>
+          <label htmlFor="search-input" className="text-xl font-black text-black">Filter by Title / Customer / State / Publisher:</label>
           <div className="relative flex-1">
             <input
               id="search-input"
@@ -138,7 +138,7 @@ function FilterBar({
       {/* Second row: Presets and Dates */}
       <div className="flex flex-wrap items-center gap-6">
         <div className="flex items-center gap-3">
-          <span className="text-lg font-bold text-gray-700">Select Period:</span>
+          <span className="text-xl font-black text-black">Select Period:</span>
           <div className="flex items-center gap-2 rounded-xl bg-gray-100 p-1.5">
             {[30, 90, 180, 365].map((d) => (
               <button
@@ -146,8 +146,8 @@ function FilterBar({
                 onClick={() => setDays(d)}
                 className={`rounded-lg px-5 py-2 text-base font-bold transition-all ${
                   filters.days === d && !filters.startDate
-                    ? 'bg-white text-teal-700 shadow-md ring-1 ring-teal-100'
-                    : 'text-gray-600 hover:bg-gray-200'
+                    ? 'bg-white text-teal-700 shadow-md ring-2 ring-teal-100'
+                    : 'text-black hover:bg-gray-200'
                 }`}
               >
                 {d === 30 ? '1 Month' : d === 90 ? '3 Months' : d === 180 ? '6 Months' : '1 Year'}
@@ -157,7 +157,7 @@ function FilterBar({
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-lg font-bold text-gray-700">Custom Dates:</span>
+          <span className="text-xl font-black text-black">Date Range:</span>
           <div className="flex items-center gap-2">
             <input
               type="date"
@@ -168,7 +168,7 @@ function FilterBar({
                 if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
               }}
             />
-            <span className="text-gray-400 font-bold">to</span>
+            <span className="text-black font-black px-1">to</span>
             <input
               type="date"
               aria-label="To Date"

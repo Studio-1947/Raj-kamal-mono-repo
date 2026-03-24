@@ -87,7 +87,7 @@ export default function OfflineSheetTable({ rows }: Props) {
         <div
           key={col.key}
           style={{ width: col.width }}
-          className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-widest"
+          className="px-3 py-3 text-sm font-black text-black uppercase tracking-widest"
         >
           {col.label}
         </div>
