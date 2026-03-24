@@ -247,6 +247,8 @@ model GoogleSheetOfflineSale {
   createdAt       DateTime          @default(now())
 
   @@index([date])
+  @@index([date, amount, qty, title])
+  @@index([customerName])
   @@index([docNo])
   @@map("google_sheet_offline_sales")
 }

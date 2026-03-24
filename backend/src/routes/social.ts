@@ -114,6 +114,7 @@ router.get('/overview', async (req, res, next) => {
       brandId,
     });
 
+    res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
     res.json(normalized);
   } catch (error) {
     next(error);
@@ -153,6 +154,7 @@ router.get('/network/:network/overview', async (req, res, next) => {
       },
     });
 
+    res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
     res.json({
       ok: true,
       network,
@@ -269,6 +271,7 @@ router.get('/network/:network/dashboard', async (req, res, next) => {
       timelines[item.metric] = item.payload;
     }
 
+    res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
     res.json({
       ok: true,
       network,

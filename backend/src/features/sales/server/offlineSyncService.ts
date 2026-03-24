@@ -4,27 +4,7 @@ import * as XLSX from "xlsx";
 
 const REPORT_URL = "https://rajkamal.cloudpub.in/Reports/rpttitlecustomerwisegriddataExport?FromDate=2026-01-01&ToDate=2026-12-31&iCompanyID=1&iBranchID=1,&cmbISBN=&CustomerName=&Documenttype=ALLS&TrnsDocID=&ManageEdition=false&CountryName=&StateName=&CityName=&SalesmanName=&SalesmanMgnrName=&chkshowclbal=N&BookCategoryID=&languageID=&PublisherID=&SelectDiscount=&TxtDiscount=0&AccountID=BookSeller&IncludeExcludeBranchSale=Exclude";
 
-const SKIP_CUSTOMERS = [
-  "Flipkart.Com",
-  "CREDIT CARD PAYMENT",
-  "SHIP ROCKET COD",
-  "ZOMBOZONE",
-  "LOV DEV & SONS-DELHI",
-  "Book chor literary solutions Pvt Ltd (ONLINE)",
-  "WHATSAPP SALE",
-  "MEESHO.COM",
-  "BIDCURIOS",
-  "SR ECOMMERCE FACTORY PVT LTD - NEW DELHI",
-  "GEM PORTAL , DELHI",
-  "REPRO BOOKS LIMITED - DHARUHERA (PSM)",
-  "GOVIND BOOK SHOP, AGRA",
-  "Rachnaye Private Limited , BANGALORE",
-  "Book chor literary solutions Pvt Ltd (OFFLINE)",
-  "REPRO BOOKS LIMITED (POD)",
-  "REKHTA FOUNDATION, (SALE)",
-  "SCHOLAR BOOKS DIST,  , LUCKNOW",
-  "VDK PUBLICATIONS PRIVATE LIMITED"
-];
+// SKIP_CUSTOMERS filter removed — all rows are now imported
 
 export interface SyncResult {
   success: boolean;
@@ -60,12 +40,6 @@ export class OfflineSyncService {
       if (!Array.isArray(row) || row.length === 0) continue;
 
       const customerName = this.getVal(row, headerMap, "CustomerName");
-      
-      // Skip specific customers as per user requirement
-      if (customerName && SKIP_CUSTOMERS.includes(customerName)) {
-        skippedCount++;
-        continue;
-      }
 
       const slNo = parseInt(this.getVal(row, headerMap, "sl/no") || "0");
       const docNo = this.getVal(row, headerMap, "TrnsdocNo") || this.getVal(row, headerMap, "Doc No") || this.getVal(row, headerMap, "Vch No");

@@ -2,21 +2,10 @@
 // offlineSheetService.ts
 //
 // TanStack Query hooks for the Google-Sheet Offline Sales feature.
-//
-// Scalability design:
-//  • Each hook embeds the full filter object in its queryKey, so 1000 concurrent
-//    users with different filter combos get fully isolated cache entries. Two
-//    users with identical filters share a single in-flight HTTP request (TQ
-//    request deduplication).
-//  • staleTime = 5 min  → repeated same-filter refreshes within 5 min are free.
-//  • gcTime    = 15 min → cache stays alive while switching tabs.
-//  • AbortController is threaded through so switching filters cancels the
-//    superseded HTTP call immediately.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
   useQuery,
-  useInfiniteQuery,
   useMutation,
   useQueryClient,
   keepPreviousData,
@@ -42,6 +31,18 @@ function buildQs(filters: OfflineSheetFilters, extra?: Record<string, string>): 
   if (filters.startDate) p.set('startDate', filters.startDate);
   if (filters.endDate)   p.set('endDate', filters.endDate);
   if (filters.q?.trim()) p.set('q', filters.q.trim());
+  if (filters.state)     p.set('state', filters.state);
+  if (filters.city)      p.set('city', filters.city);
+  if (filters.publisher) p.set('publisher', filters.publisher);
+  if (filters.author)    p.set('author', filters.author);
+  if (filters.minAmount) p.set('minAmount', String(filters.minAmount));
+  if (filters.maxAmount) p.set('maxAmount', String(filters.maxAmount));
+  
+  const page = filters.page || 1;
+  const limit = filters.limit || 100;
+  p.set('limit', String(limit));
+  p.set('offset', String((page - 1) * limit));
+
   if (extra) Object.entries(extra).forEach(([k, v]) => v && p.set(k, v));
   return p.toString();
 }
@@ -80,23 +81,16 @@ export function useOfflineSheetSummary(filters: OfflineSheetFilters) {
   });
 }
 
-// ── Infinite-scroll list hook ─────────────────────────────────────────────────
-// Uses useInfiniteQuery so cursor-based pages append without re-fetching
-// existing rows — safe for 5000+ row datasets.
+// ── Paginated list hook ─────────────────────────────────────────────────────────
 
-export function useOfflineSheetList(filters: OfflineSheetFilters, pageSize = 200) {
-  return useInfiniteQuery<OfflineSheetListResponse>({
-    queryKey: ['osheetList', filters, pageSize],
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => {
-      const extra: Record<string, string> = { limit: String(pageSize) };
-      if (pageParam) extra.cursorId = pageParam as string;
-      return apiClient.get<OfflineSheetListResponse>(
-        `${BASE}?${buildQs(filters, extra)}`,
+export function useOfflineSheetList(filters: OfflineSheetFilters) {
+  return useQuery<OfflineSheetListResponse>({
+    queryKey: ['osheetList', filters],
+    queryFn: ({ signal }) =>
+      apiClient.get<OfflineSheetListResponse>(
+        `${BASE}?${buildQs(filters)}`,
         { signal },
-      );
-    },
-    getNextPageParam: (lastPage) => lastPage.nextCursorId ?? undefined,
+      ),
     staleTime: STALE,
     gcTime: GC,
     retry: 2,
@@ -105,8 +99,6 @@ export function useOfflineSheetList(filters: OfflineSheetFilters, pageSize = 200
 }
 
 // ── Sync mutation ─────────────────────────────────────────────────────────────
-// Triggers GET /api/offline-sales/google-sheets and invalidates all osheet*
-// queries so KPIs / charts / table auto-refresh after sync.
 
 export function useTriggerSync() {
   const qc = useQueryClient();
@@ -114,7 +106,6 @@ export function useTriggerSync() {
     mutationFn: () =>
       apiClient.get<OfflineSheetSyncResponse>(`${BASE}/google-sheets`),
     onSuccess: () => {
-      // Invalidate all offline-sheet query keys so every visible widget refetches
       qc.invalidateQueries({ queryKey: ['osheetCounts'] });
       qc.invalidateQueries({ queryKey: ['osheetSummary'] });
       qc.invalidateQueries({ queryKey: ['osheetList'] });

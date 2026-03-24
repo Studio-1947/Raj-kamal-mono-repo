@@ -27,6 +27,7 @@ type Item = {
   label: string;
   to: string;
   icon: JSX.Element;
+  disabled?: boolean;
 };
 
 function LangMenuItems({ onSelect }: { onSelect: () => void }) {
@@ -75,11 +76,11 @@ export default function Sidebar() {
   const items: Item[] = [
     { label: t("home"), to: "/", icon: <span /> },
     { label: t("sales"), to: "/dashboard", icon: <span /> },
-    { label: "GSheet Offline Sales", to: "/offline-sheet-sales", icon: <span /> },
-    { label: t("geo_insights"), to: "/inventory", icon: <span /> },
-    { label: t("inventory"), to: "/stock", icon: <span /> },
-    { label: t("rankings"), to: "/rankings", icon: <span /> },
-    { label: t("social_media"), to: "/social", icon: <span /> },
+    { label: "Offline Sales", to: "/offline-sheet-sales", icon: <span /> },
+    { label: t("geo_insights"), to: "/inventory", icon: <span />, disabled: true },
+    { label: t("inventory"), to: "/stock", icon: <span />, disabled: true },
+    { label: t("rankings"), to: "/rankings", icon: <span />, disabled: true },
+    { label: t("social_media"), to: "/social", icon: <span />, disabled: true },
   ];
 
   // Bottom menus handled explicitly (Amod, Settings, Language)
@@ -112,8 +113,7 @@ export default function Sidebar() {
       className={
         // Ensure a space between class groups so Tailwind utilities are parsed correctly
         `group relative flex h-full flex-col border-r border-gray-200 bg-white/90 backdrop-blur rounded-3xl overflow-visible ` +
-        `transition-[width] duration-300 ease-in-out ${
-          collapsed ? "w-[72px]" : "w-64"
+        `transition-[width] duration-300 ease-in-out ${collapsed ? "w-[72px]" : "w-64"
         }`
       }
     >
@@ -186,28 +186,28 @@ export default function Sidebar() {
                   it.icon
                 );
               return (
-                <li key={it.label}>
+                <li key={it.label} className={it.disabled ? "cursor-not-allowed" : ""}>
                   <Link
-                    to={it.to}
+                    to={it.disabled ? "#" : it.to}
+                    onClick={(e) => it.disabled && e.preventDefault()}
                     title={collapsed ? it.label : undefined}
                     className={
                       // Common
                       "flex items-center text-sm transition-all " +
+                      (it.disabled ? "opacity-50 pointer-events-none " : "") +
                       // Expanded styles
                       (!collapsed
-                        ? `gap-3 rounded-lg px-3 py-2 h-[50px] max-w-[200px] ${
-                            active
-                              ? "bg-[#526BA3] text-white"
-                              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                          }`
+                        ? `gap-3 rounded-lg px-3 py-2 h-[50px] max-w-[200px] ${active
+                          ? "bg-[#526BA3] text-white"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        }`
                         : // Collapsed styles
-                          `${
-                            active
-                              ? // active -> centered circle
-                                "mx-auto justify-center rounded-full bg-[#526BA3] text-white w-11 h-11"
-                              : // inactive -> centered icon, no pill
-                                "mx-auto justify-center rounded-lg w-11 h-11 text-gray-600 hover:text-gray-900"
-                          }`)
+                        `${active
+                          ? // active -> centered circle
+                          "mx-auto justify-center rounded-full bg-[#526BA3] text-white w-11 h-11"
+                          : // inactive -> centered icon, no pill
+                          "mx-auto justify-center rounded-lg w-11 h-11 text-gray-600 hover:text-gray-900"
+                        }`)
                     }
                   >
                     <span className={active ? "text-white" : "text-gray-500"}>
@@ -242,9 +242,8 @@ export default function Sidebar() {
                 <>
                   <span className="text-sm">{user?.name || "Account"}</span>
                   <IconChevronDown
-                    className={`ml-auto h-4 w-4 transition-transform ${
-                      openMenu === "amod" ? "rotate-180" : ""
-                    }`}
+                    className={`ml-auto h-4 w-4 transition-transform ${openMenu === "amod" ? "rotate-180" : ""
+                      }`}
                   />
                 </>
               )}
@@ -252,9 +251,8 @@ export default function Sidebar() {
             {/* Expanded: inline accordion, Collapsed: popover */}
             {(!collapsed && (
               <div
-                className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${
-                  openMenu === "amod" ? "max-h-40" : "max-h-0"
-                }`}
+                className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "amod" ? "max-h-40" : "max-h-0"
+                  }`}
               >
                 <div className="mt-2 rounded-lg border border-gray-200 bg-white p-1">
                   <Link
@@ -319,18 +317,16 @@ export default function Sidebar() {
                     <>
                       <span className="truncate">{t("settings")}</span>
                       <IconChevronDown
-                        className={`ml-auto h-4 w-4 transition-transform ${
-                          openMenu === "settings" ? "rotate-180" : ""
-                        }`}
+                        className={`ml-auto h-4 w-4 transition-transform ${openMenu === "settings" ? "rotate-180" : ""
+                          }`}
                       />
                     </>
                   )}
                 </button>
                 {(!collapsed && (
                   <div
-                    className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${
-                      openMenu === "settings" ? "max-h-48" : "max-h-0"
-                    }`}
+                    className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "settings" ? "max-h-48" : "max-h-0"
+                      }`}
                   >
                     <div className="mt-2 rounded-lg border border-gray-200 bg-white p-1">
                       <Link
@@ -389,18 +385,16 @@ export default function Sidebar() {
                     <>
                       <span className="truncate">{t("language")}</span>
                       <IconChevronDown
-                        className={`ml-auto h-4 w-4 transition-transform ${
-                          openMenu === "lang" ? "rotate-180" : ""
-                        }`}
+                        className={`ml-auto h-4 w-4 transition-transform ${openMenu === "lang" ? "rotate-180" : ""
+                          }`}
                       />
                     </>
                   )}
                 </button>
                 {(!collapsed && (
                   <div
-                    className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${
-                      openMenu === "lang" ? "max-h-40" : "max-h-0"
-                    }`}
+                    className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "lang" ? "max-h-40" : "max-h-0"
+                      }`}
                   >
                     <div className="mt-2 rounded-lg border border-gray-200 bg-white p-1">
                       <div className="px-2 py-1 text-xs font-medium text-gray-500">
@@ -431,9 +425,8 @@ export default function Sidebar() {
           className="flex w-full items-center justify-center gap-2 rounded-full bg-gray-100 py-2 text-xs text-gray-600 hover:bg-gray-200"
         >
           <IconChevron
-            className={`h-4 w-4 transition-transform ${
-              collapsed ? "rotate-180" : ""
-            }`}
+            className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""
+              }`}
           />
           {!collapsed && <span>{t("collapse")}</span>}
         </button>

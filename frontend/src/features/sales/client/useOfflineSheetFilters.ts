@@ -1,74 +1,92 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// useOfflineSheetFilters.ts
-//
-// URL-param-driven filter state hook.
-// Persists filters in the URL (?days=90&q=...&startDate=...&endDate=...) so:
-//  • Each user's browser tab has a fully shareable, bookmarkable URL.
-//  • TanStack Query cache keys (derived from the filter object) stay stable.
-//  • Changing from 90d to 30d and back = 0 HTTP requests (cache hit).
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { useCallback, useMemo, useRef } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { OfflineSheetFilters } from './offlineSheetTypes';
 
-const DEFAULT_DAYS = 90;
-
 export function useOfflineSheetFilters() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [s, setS] = useSearchParams();
 
-  const filters: OfflineSheetFilters = useMemo(() => {
-    const days      = Number(searchParams.get('days')) || DEFAULT_DAYS;
-    const startDate = searchParams.get('startDate') || undefined;
-    const endDate   = searchParams.get('endDate')   || undefined;
-    const q         = searchParams.get('q')         || undefined;
-    return { days, startDate, endDate, q };
-  }, [searchParams]);
-
-  // Debounce timer ref — used by setQ so rapid typing doesn't spam URL writes
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filters = useMemo<OfflineSheetFilters>(() => ({
+    days: s.get('days') ? Number(s.get('days')) : 90,
+    startDate: s.get('startDate') || undefined,
+    endDate: s.get('endDate') || undefined,
+    q: s.get('q') || undefined,
+    state: s.get('state') || undefined,
+    city: s.get('city') || undefined,
+    publisher: s.get('publisher') || undefined,
+    author: s.get('author') || undefined,
+    isbn: s.get('isbn') || undefined,
+    customerName: s.get('customerName') || undefined,
+    minAmount: s.get('minAmount') ? Number(s.get('minAmount')) : undefined,
+    maxAmount: s.get('maxAmount') ? Number(s.get('maxAmount')) : undefined,
+    page: s.get('page') ? Number(s.get('page')) : 1,
+    limit: s.get('limit') ? Number(s.get('limit')) : 100,
+  }), [s]);
 
   const setDays = useCallback((days: number) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('days', String(days));
-      // Clear date-range overrides when switching days preset
-      next.delete('startDate');
-      next.delete('endDate');
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
+    setS((prev) => {
+      prev.set('days', String(days));
+      prev.delete('startDate');
+      prev.delete('endDate');
+      prev.set('page', '1');
+      return prev;
+    });
+  }, [setS]);
 
-  const setDateRange = useCallback((startDate: string, endDate: string) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('startDate', startDate);
-      next.set('endDate', endDate);
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
+  const setDateRange = useCallback((start: string, end: string) => {
+    setS((prev) => {
+      prev.set('startDate', start);
+      prev.set('endDate', end);
+      prev.delete('days');
+      prev.set('page', '1');
+      return prev;
+    });
+  }, [setS]);
 
   const clearDateRange = useCallback(() => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.delete('startDate');
-      next.delete('endDate');
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
+    setS((prev) => {
+      prev.delete('startDate');
+      prev.delete('endDate');
+      prev.set('days', '90');
+      prev.set('page', '1');
+      return prev;
+    });
+  }, [setS]);
 
-  /** Debounced — safe to call on every keystroke */
   const setQ = useCallback((q: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (q.trim()) next.set('q', q.trim());
-        else next.delete('q');
-        return next;
-      }, { replace: true });
-    }, 300);
-  }, [setSearchParams]);
+    setS((prev) => {
+      if (q) prev.set('q', q);
+      else prev.delete('q');
+      prev.set('page', '1');
+      return prev;
+    });
+  }, [setS]);
 
-  return { filters, setDays, setDateRange, clearDateRange, setQ };
+  const setPage = useCallback((p: number) => {
+    setS((prev) => {
+      prev.set('page', String(p));
+      return prev;
+    });
+  }, [setS]);
+
+  const updateFilter = useCallback((key: keyof OfflineSheetFilters, value: string | number | undefined) => {
+    setS((prev) => {
+      if (value === undefined || value === '') {
+        prev.delete(key);
+      } else {
+        prev.set(key, String(value));
+      }
+      prev.set('page', '1');
+      return prev;
+    });
+  }, [setS]);
+
+  const clearAll = useCallback(() => {
+    setS({ days: '90', page: '1', limit: '100' });
+  }, [setS]);
+
+  const isFiltered = useMemo(() => {
+    return !!(filters.q || filters.state || filters.city || filters.publisher || filters.author || filters.isbn || filters.customerName || filters.minAmount || filters.maxAmount || filters.startDate);
+  }, [filters]);
+
+  return { filters, setDays, setDateRange, clearDateRange, setQ, setPage, updateFilter, clearAll, isFiltered };
 }

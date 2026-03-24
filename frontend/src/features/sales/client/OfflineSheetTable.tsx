@@ -1,24 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // OfflineSheetTable.tsx
 //
-// Virtualised infinite-scroll table for Google-Sheet Offline Sales data.
-//
-// Performance design:
-//  • react-window FixedSizeList — only ~15 DOM row nodes exist at any time,
-//    regardless of how many rows are in memory (5000+). Scrolling is 60fps.
-//  • Infinite scroll via TanStack Query's useInfiniteQuery: when the user
-//    scrolls within 10 rows of the bottom, fetchNextPage() is called. New rows
-//    append without re-rendering existing rows.
-//  • Rows are only re-rendered when their slice of data changes (structural
-//    sharing via TQ).
+// Virtualised table for Google-Sheet Offline Sales data.
+// Optimised for 100-row pages.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import type { OfflineSheetItem } from './offlineSheetTypes';
 
-const ROW_H = 38;
-const TABLE_H = 460;
+const ROW_H = 55;
+const TABLE_H = 650;
 
 interface Column {
   key: keyof OfflineSheetItem | 'docNoDisplay';
@@ -42,50 +34,35 @@ function fmtINR(n: unknown): string {
 }
 
 const COLUMNS: Column[] = [
-  { key: 'date',         label: 'Date',     width: 110, fmt: (v) => v ? String(v).slice(0, 10) : '—' },
-  { key: 'docNoDisplay', label: 'Doc No',   width: 130, fmt: (_, r) => String(r.docNo ?? r.orderNo ?? '—') },
-  { key: 'title',        label: 'Title',    width: 280, fmt: (v) => String(v ?? '—') },
-  { key: 'customerName', label: 'Customer', width: 180, fmt: (v) => String(v ?? '—') },
-  { key: 'qty',          label: 'Qty',      width:  70, fmt: (v) => v != null ? String(v) : '—' },
-  { key: 'rate',         label: 'Rate',     width: 110, fmt: fmtINR },
-  { key: 'amount',       label: 'Amount',   width: 120, fmt: fmtINR },
+  { key: 'date',         label: 'Date',      width: 120, fmt: (v) => v ? String(v).slice(0, 10) : '—' },
+  { key: 'docNoDisplay', label: 'Doc No',    width: 130, fmt: (_, r) => String(r.docNo ?? r.orderNo ?? '—') },
+  { key: 'title',        label: 'Title',     width: 350, fmt: (v) => String(v ?? '—') },
+  { key: 'author',       label: 'Author',    width: 200, fmt: (v) => String(v ?? '—') },
+  { key: 'customerName', label: 'Customer',  width: 200, fmt: (v) => String(v ?? '—') },
+  { key: 'state',        label: 'State',     width: 130, fmt: (v) => String(v ?? '—') },
+  { key: 'city',         label: 'City',      width: 130, fmt: (v) => String(v ?? '—') },
+  { key: 'publisher',    label: 'Publisher', width: 200, fmt: (v) => String(v ?? '—') },
+  { key: 'binding',      label: 'Binding',   width: 100, fmt: (v) => String(v ?? '—') },
+  { key: 'qty',          label: 'Qty',       width:  80, fmt: (v) => v != null ? String(v) : '—' },
+  { key: 'rate',         label: 'Rate',      width: 100, fmt: fmtINR },
+  { key: 'amount',       label: 'Amount',    width: 140, fmt: fmtINR },
 ];
 
 const TOTAL_W = COLUMNS.reduce((acc, c) => acc + c.width, 0);
 
 interface Props {
   rows: OfflineSheetItem[];
-  hasNextPage?: boolean;
-  isFetchingNextPage?: boolean;
-  fetchNextPage?: () => void;
 }
 
-export default function OfflineSheetTable({
-  rows,
-  hasNextPage,
-  isFetchingNextPage,
-  fetchNextPage,
-}: Props) {
-  const fetchRef = useRef(false);
-
-  const maybeFetchMore = useCallback((index: number) => {
-    if (!hasNextPage || isFetchingNextPage || fetchRef.current) return;
-    if (index >= rows.length - 10) {
-      fetchRef.current = true;
-      fetchNextPage?.();
-      // Unlock after a tick so we don't call multiple times per render pass
-      setTimeout(() => { fetchRef.current = false; }, 50);
-    }
-  }, [hasNextPage, isFetchingNextPage, rows.length, fetchNextPage]);
-
+export default function OfflineSheetTable({ rows }: Props) {
   const Row = useCallback(({ index, style }: ListChildComponentProps) => {
     const row = rows[index];
-    maybeFetchMore(index);
-    const bg = index % 2 === 0 ? '#fff' : '#f9fafb';
+    const isEven = index % 2 === 0;
 
     return (
       <div
-        style={{ ...style, display: 'flex', alignItems: 'center', background: bg, borderBottom: '1px solid #f0f0f0' }}
+        style={style}
+        className={`flex items-center border-b border-gray-200 transition-colors hover:bg-teal-50/30 ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}
       >
         {COLUMNS.map((col) => {
           const raw = col.key === 'docNoDisplay' ? undefined : (row as any)[col.key];
@@ -94,15 +71,8 @@ export default function OfflineSheetTable({
             <div
               key={col.key}
               title={text}
-              style={{
-                width: col.width,
-                padding: '0 10px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                fontSize: 13,
-                color: '#374151',
-              }}
+              style={{ width: col.width }}
+              className="px-4 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-medium text-black"
             >
               {text}
             </div>
@@ -110,29 +80,18 @@ export default function OfflineSheetTable({
         })}
       </div>
     );
-  }, [rows, maybeFetchMore]);
+  }, [rows]);
 
   const Header = useMemo(() => (
     <div
-      style={{
-        display: 'flex',
-        background: '#f3f4f6',
-        borderBottom: '2px solid #e5e7eb',
-        width: TOTAL_W,
-      }}
+      style={{ width: TOTAL_W }}
+      className="flex bg-gray-100 border-b-4 border-black sticky top-0 z-10"
     >
       {COLUMNS.map((col) => (
         <div
           key={col.key}
-          style={{
-            width: col.width,
-            padding: '8px 10px',
-            fontSize: 12,
-            fontWeight: 600,
-            color: '#6b7280',
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-          }}
+          style={{ width: col.width }}
+          className="px-4 py-4 text-xs font-semibold text-black uppercase tracking-widest bg-gray-100 border-r border-gray-200 last:border-r-0"
         >
           {col.label}
         </div>
@@ -140,39 +99,40 @@ export default function OfflineSheetTable({
     </div>
   ), []);
 
-  if (rows.length === 0 && !isFetchingNextPage) {
+  if (rows.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-sm text-gray-400">
-        No records match the current filters
+      <div className="flex h-60 flex-col items-center justify-center rounded-2xl border-4 border-dashed border-gray-200 bg-white shadow-xl">
+        <svg className="h-16 w-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p className="text-2xl font-semibold text-black">No matching transactions</p>
+        <p className="text-lg text-gray-400 font-medium mt-1">Try adjusting your filters or Search terms</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-      <div style={{ overflowX: 'auto' }}>
-        {Header}
-        <List
-          height={TABLE_H}
-          itemCount={rows.length}
-          itemSize={ROW_H}
-          width={TOTAL_W}
-          overscanCount={8}
-        >
-          {Row}
-        </List>
+    <div className="rounded-2xl border-4 border-gray-200 bg-white shadow-2xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <div style={{ width: TOTAL_W }}>
+          {Header}
+          <List
+            height={Math.min(rows.length * ROW_H, TABLE_H)}
+            itemCount={rows.length}
+            itemSize={ROW_H}
+            width={TOTAL_W}
+            overscanCount={10}
+            className="scrollbar-thin scrollbar-thumb-teal-600 scrollbar-track-gray-100"
+          >
+            {Row}
+          </List>
+        </div>
       </div>
-      {isFetchingNextPage && (
-        <div className="flex items-center justify-center gap-2 py-3 text-xs text-gray-500">
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
-          Loading more rows…
-        </div>
-      )}
-      {!hasNextPage && rows.length > 0 && (
-        <div className="py-2 text-center text-xs text-gray-400">
-          All {rows.length.toLocaleString('en-IN')} records loaded
-        </div>
-      )}
+      <div className="bg-gray-50 px-6 py-3 border-t-2 border-gray-200 flex justify-end">
+        <p className="text-sm font-semibold text-black uppercase tracking-widest">
+           Showing {rows.length.toLocaleString('en-IN')} Records in this page
+        </p>
+      </div>
     </div>
   );
 }
