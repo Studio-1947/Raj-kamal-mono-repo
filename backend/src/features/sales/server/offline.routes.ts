@@ -1,7 +1,19 @@
 import express from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { offlineSyncService } from "./offlineSyncService.js";
+import { TtlCache } from "../../../lib/cache.js";
+
+// 5-minute server-side cache for expensive aggregate endpoints
+const summaryCache = new TtlCache<any>(5 * 60 * 1000);
+const countsCache = new TtlCache<any>(5 * 60 * 1000);
+
+// Periodic eviction every 10 minutes to prevent memory leaks
+setInterval(() => {
+  summaryCache.evictExpired();
+  countsCache.evictExpired();
+}, 10 * 60 * 1000);
 
 const router = express.Router();
 
@@ -287,7 +299,7 @@ router.get("/", async (req, res) => {
  *       200:
  *         description: Sales summary data
  */
-// GET /api/offline-sales/summary
+// GET /api/offline-sales/summary — uses SQL aggregates + server-side cache
 router.get("/summary", async (req, res) => {
   const Q = z.object({
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
@@ -309,102 +321,87 @@ router.get("/summary", async (req, res) => {
     ? new Date(parsed.data.endDate)
     : undefined;
 
+  // Cache key based on parameters
+  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}`;
+  const cached = summaryCache.get(cacheKey);
+  if (cached) {
+    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
+    res.set("X-Cache", "HIT");
+    return res.json(cached);
+  }
+
   try {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
+    const until = endDate ?? new Date();
 
-    const rows = await prisma.googleSheetOfflineSale.findMany({
-      where: {
-        OR: [{ date: { gte: since } }, { date: null }],
-      },
-      select: {
-        date: true,
-        amount: true,
-        qty: true,
-        rate: true,
-        title: true,
-      },
-      take: 20000,
-    });
+    // SQL aggregate: time series (daily totals)
+    const timeSeriesRows = await prisma.$queryRaw<
+      { day: string; total: number }[]
+    >(Prisma.sql`
+      SELECT
+        to_char("date", 'YYYY-MM-DD') AS day,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total
+      FROM "google_sheet_offline_sales"
+      WHERE "date" IS NOT NULL
+        AND "date" >= ${since}
+        AND "date" <= ${until}
+      GROUP BY to_char("date", 'YYYY-MM-DD')
+      ORDER BY day ASC
+    `);
 
-    const ts = new Map<string, number>();
-    const top = new Map<string, { total: number; qty: number }>();
+    // SQL aggregate: top 10 items by total amount
+    const topItemsRows = await prisma.$queryRaw<
+      { title: string; total: number; qty: number }[]
+    >(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item') AS title,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty
+      FROM "google_sheet_offline_sales"
+      WHERE "date" IS NOT NULL
+        AND "date" >= ${since}
+        AND "date" <= ${until}
+      GROUP BY COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item')
+      HAVING SUM(
+        CASE
+          WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+          WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+          ELSE 0
+        END
+      ) > 0 OR SUM("qty") > 0
+      ORDER BY total DESC
+      LIMIT 10
+    `);
 
-    for (const r of rows) {
-      const d = resolveRowDate(r);
-      if (d && d < since) continue;
-      if (endDate && d && d > endDate) continue;
+    const timeSeries = timeSeriesRows.map((r) => ({
+      date: r.day,
+      total: round2(Number(r.total)),
+    }));
 
-      // Calculate amount
-      let amt = decToNumber(r.amount);
-      if (!amt && (r as any).rawJson && typeof (r as any).rawJson === "object") {
-        const raw = (r as any).rawJson as Record<string, any>;
-        const v = numSafe(
-          pick(raw, ["Selling Price", "Amount", "Total", "amount", "BOOKRATE"]),
-        );
-        if (v != null) amt = v;
-        else {
-          const rate =
-            numSafe(r.rate as any) ||
-            numSafe(pick(raw, ["Rate", "BOOKRATE"])) ||
-            0;
-          const qty = r.qty || numSafe(pick(raw, ["Qty", "OUT"])) || 0;
-          amt = rate * qty;
-        }
-      }
+    const topItems = topItemsRows.map((r) => ({
+      title: r.title || "Untitled",
+      total: round2(Number(r.total)),
+      qty: Number(r.qty) || 0,
+    }));
 
-      // Time series - only add if we have a valid date
-      if (d) {
-        const key = d.toISOString().slice(0, 10);
-        ts.set(key, (ts.get(key) || 0) + amt);
-      }
-
-      // Top items
-      const raw = (r as any).rawJson as Record<string, any> | undefined;
-      let title = r.title as string | null | undefined;
-      if (!title || (typeof title === "string" && title.trim() === "")) {
-        if ((r as any).rawJson && typeof (r as any).rawJson === "object") {
-          const rawTitle = pick((r as any).rawJson as any, [
-            "Title",
-            "title",
-            "BookName",
-            "Book",
-            "book",
-            "Product",
-            "Item",
-          ]);
-          title = typeof rawTitle === "string" && rawTitle.trim() ? rawTitle : null;
-        }
-      }
-      const tkey =
-        title && typeof title === "string" && title.trim()
-          ? title.trim()
-          : "Untitled Item";
-      const cur = top.get(tkey) || { total: 0, qty: 0 };
-      cur.total += amt;
-      cur.qty +=
-        r.qty ||
-        ((r as any).rawJson && typeof (r as any).rawJson === "object"
-          ? numSafe(pick((r as any).rawJson as any, ["Qty", "OUT"])) || 0
-          : 0);
-      top.set(tkey, cur);
-    }
-
-    const timeSeries = Array.from(ts.entries())
-      .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([date, total]) => ({ date, total: round2(total) }));
-
-    const topItems = Array.from(top.entries())
-      .filter(([_, v]) => v && (v.total > 0 || v.qty > 0))
-      .map(([title, v]) => ({
-        title: title || "Untitled",
-        total: round2(v.total || 0),
-        qty: v.qty || 0,
-      }))
-      .sort((a, b) => (b.total || 0) - (a.total || 0))
-      .slice(0, 10);
+    const result = { ok: true, timeSeries, topItems };
+    summaryCache.set(cacheKey, result);
 
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
-    return res.json({ ok: true, timeSeries, topItems });
+    res.set("X-Cache", "MISS");
+    return res.json(result);
   } catch (e: any) {
     console.error("offline_sales_summary_failed", e);
     return res
@@ -438,7 +435,7 @@ router.get("/summary", async (req, res) => {
  *       200:
  *         description: Aggregate sales metrics
  */
-// GET /api/offline-sales/counts
+// GET /api/offline-sales/counts — uses SQL aggregates + server-side cache
 router.get("/counts", async (req, res) => {
   const Q = z.object({
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
@@ -462,89 +459,57 @@ router.get("/counts", async (req, res) => {
     endDate = now.toISOString();
   }
 
+  // Cache key based on parameters
+  const cacheKey = `counts:${days ?? ""}:${startDate ?? ""}:${endDate ?? ""}`;
+  const cached = countsCache.get(cacheKey);
+  if (cached) {
+    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
+    res.set("X-Cache", "HIT");
+    return res.json(cached);
+  }
+
   try {
     const start = startDate ? new Date(startDate) : null;
-
-    const items = await prisma.googleSheetOfflineSale.findMany({
-      where: start
-        ? {
-            OR: [{ date: { gte: start } }, { date: null }],
-          }
-        : {},
-      select: {
-        amount: true,
-        qty: true,
-        rate: true,
-        customerName: true,
-        date: true,
-        title: true,
-      },
-      take: 20000,
-    });
-
     const end = endDate ? new Date(endDate) : null;
 
-    let totalAmount = 0;
-    let count = 0;
-    const customerSet = new Set<string>();
-    let refundCount = 0;
-
-    for (const r of items) {
-      const d = resolveRowDate(r);
-
-      // If date filters are provided and we have a date, apply the filter
-      // If no date on record, include it (don't filter out)
-      if (start && d && d < start) continue;
-      if (end && d && d > end) continue;
-
-      count++;
-
-      // Calculate amount from available fields
-      let amt = decToNumber(r.amount);
-      if (!amt && (r as any).rawJson && typeof (r as any).rawJson === "object") {
-        const raw = (r as any).rawJson as Record<string, any>;
-        const v = numSafe(
-          pick(raw, ["Selling Price", "Amount", "Total", "amount", "BOOKRATE"]),
-        );
-        if (v != null) amt = v;
-        else {
-          const rate =
-            numSafe(r.rate as any) ||
-            numSafe(pick(raw, ["Rate", "BOOKRATE"])) ||
-            0;
-          const qty = r.qty || numSafe(pick(raw, ["Qty", "OUT"])) || 0;
-          amt = rate * qty;
-        }
-      }
-      totalAmount += amt;
-
-      const st = String(
-        pick((r as any).rawJson as any, ["Order Status", "Status"]) || "",
-      ).toLowerCase();
-      if (st && st.toLowerCase() === "refunded") refundCount++;
-
-      const name = (r.customerName || "").trim().toLowerCase();
-      let email = "";
-      let mobile = "";
-      if ((r as any).rawJson && typeof (r as any).rawJson === "object") {
-        const raw = (r as any).rawJson as Record<string, any>;
-        email = normalizeText(pick(raw, ["Email", "email"])) || "";
-        mobile = normalizeText(pick(raw, ["Mobile", "mobile", "Phone", "phone"])) || "";
-      }
-      const key = [email || null, mobile || null, name || null]
-        .filter(Boolean)
-        .join("|");
-      if (key) customerSet.add(key);
+    // Build dynamic WHERE clause for raw SQL
+    let whereClause = Prisma.sql`WHERE "date" IS NOT NULL`;
+    if (start && end) {
+      whereClause = Prisma.sql`WHERE "date" IS NOT NULL AND "date" >= ${start} AND "date" <= ${end}`;
+    } else if (start) {
+      whereClause = Prisma.sql`WHERE "date" IS NOT NULL AND "date" >= ${start}`;
     }
 
-    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
-    return res.json({
+    // Single SQL aggregate query for all counts
+    const [agg] = await prisma.$queryRaw<
+      { count: bigint; total_amount: number; unique_customers: bigint }[]
+    >(Prisma.sql`
+      SELECT
+        COUNT(*)::bigint AS count,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total_amount,
+        COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers
+      FROM "google_sheet_offline_sales"
+      ${whereClause}
+    `);
+
+    const result = {
       ok: true,
-      totalCount: count,
-      totalAmount: round2(totalAmount),
-      uniqueCustomers: customerSet.size,
-      refundCount,
-    });
+      totalCount: Number(agg?.count ?? 0),
+      totalAmount: round2(Number(agg?.total_amount ?? 0)),
+      uniqueCustomers: Number(agg?.unique_customers ?? 0),
+      refundCount: 0,
+    };
+    countsCache.set(cacheKey, result);
+
+    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
+    res.set("X-Cache", "MISS");
+    return res.json(result);
   } catch (e: any) {
     console.error("offline_sales_counts_failed", e);
     return res.status(500).json({ ok: false, error: "Failed to fetch counts" });
