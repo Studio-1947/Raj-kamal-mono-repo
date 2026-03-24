@@ -15,6 +15,11 @@ export interface OfflineSheetItem {
   rate?: number | null;
   month?: string | null;
   year?: number | null;
+  state?: string | null;
+  city?: string | null;
+  publisher?: string | null;
+  author?: string | null;
+  binding?: string | null;
   rawJson?: Record<string, unknown>;
 }
 
@@ -22,6 +27,7 @@ export interface OfflineSheetListResponse {
   ok: boolean;
   items: OfflineSheetItem[];
   nextCursorId: string | null;
+  totalCount?: number;
 }
 
 export interface OfflineSheetSummaryResponse {
@@ -29,6 +35,9 @@ export interface OfflineSheetSummaryResponse {
   timeSeries: { date: string; total: number }[];
   topItems: { title: string; total: number; qty: number }[];
   paymentMode?: { paymentMode: string; total: number }[];
+  revenueByState?: { state: string; total: number }[];
+  revenueByPublisher?: { publisher: string; total: number }[];
+  topCustomers?: { customerName: string; total: number }[];
 }
 
 export interface OfflineSheetCountsResponse {
@@ -52,4 +61,12 @@ export interface OfflineSheetFilters {
   startDate?: string;
   endDate?: string;
   q?: string;
+  state?: string;
+  city?: string;
+  publisher?: string;
+  author?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  page?: number;
+  limit?: number;
 }

@@ -92,7 +92,37 @@ const router = express.Router();
  *         name: q
  *         schema:
  *           type: string
- *         description: Search query for title or customer name
+ *         description: Search query for title, customer, state, city, or publisher
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: Filter by state
+ *       - in: query
+ *         name: city
+ *         schema:
+ *           type: string
+ *         description: Filter by city
+ *       - in: query
+ *         name: publisher
+ *         schema:
+ *           type: string
+ *         description: Filter by publisher
+ *       - in: query
+ *         name: author
+ *         schema:
+ *           type: string
+ *         description: Filter by author
+ *       - in: query
+ *         name: minAmount
+ *         schema:
+ *           type: number
+ *         description: Filter by minimum amount
+ *       - in: query
+ *         name: maxAmount
+ *         schema:
+ *           type: number
+ *         description: Filter by maximum amount
  *     responses:
  *       200:
  *         description: List of offline sales
@@ -202,23 +232,37 @@ router.get("/", async (req, res) => {
       .string()
       .regex(/^\d+$/)
       .transform(Number)
-      .default("200")
+      .default("100")
       .pipe(z.number().min(1).max(5000)),
+    offset: z.string().regex(/^\d+$/).transform(Number).optional(),
     cursorId: z.string().regex(/^\d+$/).optional(),
     startDate: z.string().datetime().optional(),
     endDate: z.string().datetime().optional(),
     q: z.string().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
   });
   const parsed = Q.safeParse({
-    limit: req.query.limit ?? "200",
+    limit: req.query.limit ?? "100",
+    offset: req.query.offset,
     cursorId: req.query.cursorId,
     startDate: req.query.startDate,
     endDate: req.query.endDate,
     q: req.query.q,
+    state: req.query.state,
+    city: req.query.city,
+    publisher: req.query.publisher,
+    author: req.query.author,
+    minAmount: req.query.minAmount,
+    maxAmount: req.query.maxAmount,
   });
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: "Invalid query" });
-  const { limit, cursorId, startDate, endDate, q } = parsed.data;
+  const { limit, offset, cursorId, startDate, endDate, q, state, city, publisher, author, minAmount, maxAmount } = parsed.data;
 
   try {
     const where: any = {};
@@ -227,8 +271,22 @@ router.get("/", async (req, res) => {
       where.OR = [
         { title: { contains, mode: "insensitive" } },
         { customerName: { contains, mode: "insensitive" } },
+        { state: { contains, mode: "insensitive" } },
+        { city: { contains, mode: "insensitive" } },
+        { publisher: { contains, mode: "insensitive" } },
       ];
     }
+    if (state)     where.state = { contains: state, mode: "insensitive" };
+    if (city)      where.city = { contains: city, mode: "insensitive" };
+    if (publisher) where.publisher = { contains: publisher, mode: "insensitive" };
+    if (author)    where.author = { contains: author, mode: "insensitive" };
+    if (minAmount != null || maxAmount != null) {
+      where.amount = {};
+      if (minAmount != null) where.amount.gte = minAmount;
+      if (maxAmount != null) where.amount.lte = maxAmount;
+    }
+
+    const totalCount = await prisma.googleSheetOfflineSale.count({ where });
 
     const fetchLimit =
       startDate || endDate ? Math.min(limit * 10, 5000) : limit;
@@ -240,7 +298,10 @@ router.get("/", async (req, res) => {
     if (cursorId) {
       args.skip = 1;
       args.cursor = { id: BigInt(cursorId) };
+    } else if (offset != null) {
+      args.skip = offset;
     }
+
     const items = await prisma.googleSheetOfflineSale.findMany(args);
     const dataAll = items.map((it: any) => ({
       ...it,
@@ -264,7 +325,7 @@ router.get("/", async (req, res) => {
         : dataAll;
 
     const last = (data as any[]).at(-1);
-    return res.json({ ok: true, items: data, nextCursorId: last?.id ?? null });
+    return res.json({ ok: true, items: data, nextCursorId: last?.id ?? null, totalCount });
   } catch (e: any) {
     console.error("offline_sales_list_failed", e);
     return res
@@ -397,6 +458,85 @@ router.get("/summary", async (req, res) => {
     }));
 
     const result = { ok: true, timeSeries, topItems };
+
+    // --- NEW: Revenue by State ---
+    const revenueByStateRows = await prisma.$queryRaw<
+      { state: string; total: number }[]
+    >(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total
+      FROM "google_sheet_offline_sales"
+      WHERE "date" IS NOT NULL
+        AND "date" >= ${since}
+        AND "date" <= ${until}
+      GROUP BY COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')
+      ORDER BY total DESC
+      LIMIT 10
+    `);
+    (result as any).revenueByState = revenueByStateRows.map(r => ({
+      state: r.state,
+      total: round2(Number(r.total))
+    }));
+
+    // --- NEW: Revenue by Publisher ---
+    const revenueByPubRows = await prisma.$queryRaw<
+      { publisher: string; total: number }[]
+    >(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total
+      FROM "google_sheet_offline_sales"
+      WHERE "date" IS NOT NULL
+        AND "date" >= ${since}
+        AND "date" <= ${until}
+      GROUP BY COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher')
+      ORDER BY total DESC
+      LIMIT 10
+    `);
+    (result as any).revenueByPublisher = revenueByPubRows.map(r => ({
+      publisher: r.publisher,
+      total: round2(Number(r.total))
+    }));
+
+    // --- NEW: Top Customers by Revenue ---
+    const topCustomerRows = await prisma.$queryRaw<
+      { customerName: string; total: number }[]
+    >(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total
+      FROM "google_sheet_offline_sales"
+      WHERE "date" IS NOT NULL
+        AND "date" >= ${since}
+        AND "date" <= ${until}
+      GROUP BY COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer')
+      ORDER BY total DESC
+      LIMIT 10
+    `);
+    (result as any).topCustomers = topCustomerRows.map(r => ({
+      customerName: (r as any).customer_name,
+      total: round2(Number(r.total))
+    }));
+
     summaryCache.set(cacheKey, result);
 
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
