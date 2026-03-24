@@ -61,13 +61,17 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
   const byPub      = data.revenueByPublisher ?? [];
   const byCustomer = data.topCustomers ?? [];
 
+  // Deep black for better legibility (Senior citizens)
+  const TEXT_COL = '#111827'; 
+  const BOLD_TEXT = { fontSize: 13, fontWeight: 700, fill: TEXT_COL };
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
         
         {/* Row 1, Col 1: Revenue Trend (Area) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-bold text-gray-800">Revenue Trend (Last {days} Days)</h3>
+          <h3 className="mb-4 text-xl font-bold text-gray-900 border-b pb-2">Revenue Trend (Last {days} Days)</h3>
           {timeSeries.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={timeSeries} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -77,23 +81,23 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
                     <stop offset="95%" stopColor="#0D9488" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                 <XAxis 
                   dataKey="date" 
-                  tick={{ fontSize: 12, fontWeight: 600, fill: '#6B7280' }} 
-                  axisLine={false}
+                  tick={BOLD_TEXT} 
+                  axisLine={{ stroke: '#9CA3AF', strokeWidth: 1 }}
                   tickLine={false}
                   dy={10}
                   interval="preserveStartEnd" 
                 />
                 <YAxis 
-                  tick={{ fontSize: 12, fontWeight: 600, fill: '#6B7280' }} 
+                  tick={BOLD_TEXT} 
                   tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} 
-                  axisLine={false}
+                  axisLine={{ stroke: '#9CA3AF', strokeWidth: 1 }}
                   tickLine={false}
                 />
                 <Tooltip 
-                  contentStyle={{ fontSize: '16px', fontWeight: 'bold', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                  contentStyle={{ fontSize: '18px', fontWeight: 'bold', borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
                   formatter={(v: number) => [fmtINR(v), "Total Revenue"]} 
                 />
                 <Area 
@@ -115,13 +119,13 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
         {/* Row 1, Col 2: Revenue by State (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-bold text-gray-800">Sales by State (Top 10)</h3>
+          <h3 className="mb-4 text-xl font-bold text-gray-900 border-b pb-2">Sales by State (Top 10)</h3>
           {byState.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12, fontWeight: 600, fill: '#6B7280' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="state" width={120} tick={{ fontSize: 14, fontWeight: 700, fill: '#374151' }} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="state" width={120} tick={{ fontSize: 14, fontWeight: 800, fill: TEXT_COL }} />
                 <Tooltip formatter={(v: number) => fmtINR(v)} />
                 <Bar dataKey="total" fill="#3B82F6" radius={[0, 8, 8, 0]} barSize={25} />
               </BarChart>
@@ -133,13 +137,13 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
         {/* Row 2, Col 1: Revenue by Publisher (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-bold text-gray-800">Sales by Publisher (Top 10)</h3>
+          <h3 className="mb-4 text-xl font-bold text-gray-900 border-b pb-2">Sales by Publisher (Top 10)</h3>
           {byPub.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12, fontWeight: 600, fill: '#6B7280' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="publisher" width={120} tick={{ fontSize: 12, fontWeight: 700, fill: '#374151' }} tickFormatter={(v) => v.length > 15 ? v.substring(0, 15) + '...' : v} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="publisher" width={120} tick={{ fontSize: 12, fontWeight: 800, fill: TEXT_COL }} tickFormatter={(v) => v.length > 15 ? v.substring(0, 15) + '...' : v} />
                 <Tooltip formatter={(v: number) => fmtINR(v)} />
                 <Bar dataKey="total" fill="#F59E0B" radius={[0, 8, 8, 0]} barSize={25} />
               </BarChart>
@@ -151,13 +155,13 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
         {/* Row 2, Col 2: Top Customers (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-bold text-gray-800">Top 10 Customers</h3>
+          <h3 className="mb-4 text-xl font-bold text-gray-900 border-b pb-2">Top 10 Customers</h3>
           {byCustomer.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12, fontWeight: 600, fill: '#6B7280' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="customerName" width={120} tick={{ fontSize: 12, fontWeight: 700, fill: '#374151' }} tickFormatter={(v) => v.length > 15 ? v.substring(0, 15) + '...' : v} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="customerName" width={120} tick={{ fontSize: 13, fontWeight: 800, fill: TEXT_COL }} tickFormatter={(v) => v.length > 15 ? v.substring(0, 15) + '...' : v} />
                 <Tooltip formatter={(v: number) => fmtINR(v)} />
                 <Bar dataKey="total" fill="#8B5CF6" radius={[0, 8, 8, 0]} barSize={25} />
               </BarChart>
@@ -171,15 +175,15 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
       {/* Full width: Top Items Table-Chart */}
       <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-xl font-bold text-gray-800">Top 10 Best Selling Items</h3>
+        <h3 className="mb-4 text-xl font-bold text-gray-900 border-b pb-2">Top 10 Best Selling Items</h3>
         {topItems.length > 0 ? (
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={topItems} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="title" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 11, fontWeight: 700, fill: '#374151' }} />
-              <YAxis tick={{ fontSize: 12, fontWeight: 600, fill: '#6B7280' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+              <XAxis dataKey="title" angle={-45} textAnchor="end" height={80} tick={BOLD_TEXT} />
+              <YAxis tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
               <Tooltip formatter={(v: number) => fmtINR(v)} />
-              <Bar dataKey="total" fill="#10B981" radius={[8, 8, 0, 0]} label={{ position: 'top', fontSize: 12, fontWeight: 'bold' }} />
+              <Bar dataKey="total" fill="#10B981" radius={[8, 8, 0, 0]} label={{ position: 'top', fontSize: 13, fontWeight: 'bold', fill: TEXT_COL }} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

@@ -68,7 +68,7 @@ export default function OfflineSheetTable({ rows }: Props) {
               key={col.key}
               title={text}
               style={{ width: col.width }}
-              className="px-3 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-bold text-gray-800"
+              className="px-3 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-bold text-gray-900"
             >
               {text}
             </div>
