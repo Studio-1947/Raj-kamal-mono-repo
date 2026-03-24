@@ -20,7 +20,7 @@ import {
   useTriggerSync,
 } from './offlineSheetService';
 import { useOfflineSheetFilters } from './useOfflineSheetFilters';
-import type { OfflineSheetItem, OfflineSheetFilters } from './offlineSheetTypes';
+import type { OfflineSheetFilters } from './offlineSheetTypes';
 
 // ─── Pagination Component ───────────────────────────────────────────────────
 
@@ -38,9 +38,9 @@ function Pagination({ currentPage, totalCount, pageSize, setPage, isLoading }: P
 
   return (
     <div className="mt-8 flex items-center justify-between border-t-2 border-gray-100 pt-6">
-      <div className="text-xl font-black text-gray-900">
+      <div className="text-xl font-semibold text-black">
         Showing Page <span className="px-1 text-teal-700">{currentPage}</span> of <span className="px-1">{totalPages}</span>
-        <span className="ml-4 text-base font-black text-gray-700">({totalCount.toLocaleString()} total transactions)</span>
+        <span className="ml-4 text-base font-medium text-gray-700">({totalCount.toLocaleString()} total transactions)</span>
       </div>
       <div className="flex items-center gap-3">
         <button
@@ -65,7 +65,7 @@ function Pagination({ currentPage, totalCount, pageSize, setPage, isLoading }: P
 // ─── Filter bar ──────────────────────────────────────────────────────────────
 
 interface FilterBarProps {
-  filters: ReturnType<typeof useOfflineSheetFilters>['filters'];
+  filters: OfflineSheetFilters;
   setDays: (d: number) => void;
   setDateRange: (s: string, e: string) => void;
   clearDateRange: () => void;
@@ -75,6 +75,22 @@ interface FilterBarProps {
   onSync: () => void;
   isSyncing: boolean;
   lastSyncResult?: string | null;
+}
+
+function FilterField({ id, label, placeholder, value, onChange, type = "text", width = "w-48" }: any) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-semibold text-black uppercase tracking-wider">{label}</label>
+      <input
+        id={id}
+        type={type}
+        placeholder={placeholder}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : (type === 'number' ? Number(e.target.value) : e.target.value))}
+        className={`${width} rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-medium text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all`}
+      />
+    </div>
+  );
 }
 
 function FilterBar({
@@ -90,161 +106,136 @@ function FilterBar({
   lastSyncResult,
 }: FilterBarProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border-2 border-teal-100 bg-white p-6 shadow-md">
-      {/* Top row: Search and Sync */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex flex-1 min-w-[300px] items-center gap-3">
-          <label htmlFor="search-input" className="text-xl font-black text-black">Filter by Title / Customer / State / Publisher:</label>
-          <div className="relative flex-1">
+    <div className="flex flex-col gap-6 rounded-2xl border-4 border-gray-200 bg-white p-6 shadow-2xl">
+      {/* Top row: Global Search, Quick Period, and Sync */}
+      <div className="flex flex-wrap items-end gap-6 border-b-2 border-gray-100 pb-6">
+        <div className="flex flex-1 min-w-[350px] flex-col gap-1.5">
+          <label htmlFor="search-input" className="text-sm font-semibold text-black uppercase tracking-wider">Global Search (All columns)</label>
+          <div className="relative">
             <input
               id="search-input"
               type="text"
-              placeholder="Search by Title, Customer, State or Publisher..."
+              placeholder="Search Title, Customer, State, Publisher..."
               defaultValue={filters.q ?? ''}
               onChange={(e) => setQ(e.target.value)}
-              className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 px-5 py-3 text-lg text-gray-900 placeholder:text-gray-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-50/50 transition-all"
+              className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-medium text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {lastSyncResult && (
-            <span className="text-sm font-bold text-teal-600 bg-teal-50 px-3 py-1 rounded-full">{lastSyncResult}</span>
-          )}
-          <button
-            onClick={onSync}
-            disabled={isSyncing}
-            className="flex items-center gap-2 rounded-xl bg-teal-600 px-6 py-3 text-lg font-bold text-white shadow-lg hover:bg-teal-700 active:scale-95 disabled:opacity-60 transition-all"
-          >
-            {isSyncing ? (
-              <>
-                <span className="h-5 w-5 animate-spin rounded-full border-3 border-white border-t-transparent" />
-                Updating Data...
-              </>
-            ) : (
-              <>
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Sync Now
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      <div className="h-px bg-gray-100 w-full" />
-
-      {/* Second row: Presets and Dates */}
-      <div className="flex flex-wrap items-center gap-6">
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-black text-black">Select Period:</span>
-          <div className="flex items-center gap-2 rounded-xl bg-gray-100 p-1.5">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-black uppercase tracking-wider">Quick Period</span>
+          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
             {[30, 90, 180, 365].map((d) => (
               <button
                 key={d}
                 onClick={() => setDays(d)}
-                className={`rounded-lg px-5 py-2 text-base font-bold transition-all ${
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                   filters.days === d && !filters.startDate
-                    ? 'bg-white text-teal-700 shadow-md ring-2 ring-teal-100'
-                    : 'text-black hover:bg-gray-200'
+                    ? 'bg-teal-600 text-white shadow-lg'
+                    : 'text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {d === 30 ? '1 Month' : d === 90 ? '3 Months' : d === 180 ? '6 Months' : '1 Year'}
+                {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-black text-black">Date Range:</span>
+        <div className="flex items-center gap-3 ml-auto">
+          {lastSyncResult && (
+            <span className="text-xs font-semibold text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
+          )}
+          <button
+            onClick={onSync}
+            disabled={isSyncing}
+            className="flex items-center gap-2 rounded-xl bg-black px-6 py-3 text-base font-semibold text-white shadow-xl hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
+          >
+            {isSyncing ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
+            {isSyncing ? 'Syncing...' : 'Sync Data'}
+          </button>
+        </div>
+      </div>
+
+      {/* Second row: Spreadsheet-style Column Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+        <FilterField 
+          id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
+          value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
+        />
+        <FilterField 
+          id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
+          value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
+        />
+        <FilterField 
+          id="f-auth" label="Author" placeholder="e.g. Premchand" 
+          value={filters.author} onChange={(v:any) => updateFilter('author', v)}
+        />
+        <FilterField 
+          id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
+          value={filters.isbn} onChange={(v:any) => updateFilter('isbn', v)}
+        />
+        <FilterField 
+          id="f-state" label="State" placeholder="e.g. Delhi" 
+          value={filters.state} onChange={(v:any) => updateFilter('state', v)}
+          width="w-full"
+        />
+        <FilterField 
+          id="f-city" label="City" placeholder="e.g. Varanasi" 
+          value={filters.city} onChange={(v:any) => updateFilter('city', v)}
+          width="w-full"
+        />
+      </div>
+
+      {/* Third row: Dates, Ranges and Reset */}
+      <div className="flex flex-wrap items-end gap-8 pt-2">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-black uppercase tracking-wider">Date Range</span>
           <div className="flex items-center gap-2">
             <input
               type="date"
-              aria-label="From Date"
-              className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium focus:border-teal-500 focus:outline-none"
+              className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
               value={filters.startDate?.slice(0, 10) ?? ''}
               onChange={(e) => {
                 if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
               }}
             />
-            <span className="text-black font-black px-1">to</span>
+            <span className="text-black font-medium">→</span>
             <input
               type="date"
-              aria-label="To Date"
-              className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium focus:border-teal-500 focus:outline-none"
+              className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
               value={filters.endDate?.slice(0, 10) ?? ''}
               onChange={(e) => {
                 if (e.target.value) setDateRange(filters.startDate || new Date(0).toISOString(), new Date(e.target.value).toISOString());
               }}
             />
-            {(filters.startDate || filters.endDate) && (
-              <button
-                onClick={clearDateRange}
-                className="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-                title="Clear date range"
-              >
-                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            )}
           </div>
         </div>
-      </div>
 
-      <div className="h-px bg-gray-100 w-full" />
-
-      {/* Third row: Advanced Filters */}
-      <div className="flex flex-wrap items-center gap-6">
-        <div className="flex items-center gap-3">
-          <label htmlFor="filter-state" className="text-base font-bold text-gray-700">State:</label>
-          <input
-            id="filter-state"
-            type="text"
-            placeholder="e.g. Delhi"
-            value={filters.state ?? ''}
-            onChange={(e) => updateFilter('state', e.target.value)}
-            className="w-32 rounded-xl border-2 border-gray-200 px-4 py-2 text-base focus:border-teal-500 focus:outline-none"
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <label htmlFor="filter-publisher" className="text-base font-bold text-gray-700">Publisher:</label>
-          <input
-            id="filter-publisher"
-            type="text"
-            placeholder="Search Publisher..."
-            value={filters.publisher ?? ''}
-            onChange={(e) => updateFilter('publisher', e.target.value)}
-            className="w-48 rounded-xl border-2 border-gray-200 px-4 py-2 text-base focus:border-teal-500 focus:outline-none"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 border-l pl-6 border-gray-200">
-          <span className="text-base font-bold text-gray-700">Amount:</span>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-black uppercase tracking-wider">Price Range (₹)</span>
           <div className="flex items-center gap-2">
             <input
               type="number"
               placeholder="Min"
               value={filters.minAmount ?? ''}
               onChange={(e) => updateFilter('minAmount', e.target.value ? Number(e.target.value) : undefined)}
-              className="w-24 rounded-xl border-2 border-gray-200 px-3 py-2 text-base focus:border-teal-500 focus:outline-none"
+              className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
             />
-            <span className="text-gray-400">—</span>
+            <span className="text-gray-400 font-medium">—</span>
             <input
               type="number"
               placeholder="Max"
               value={filters.maxAmount ?? ''}
               onChange={(e) => updateFilter('maxAmount', e.target.value ? Number(e.target.value) : undefined)}
-              className="w-24 rounded-xl border-2 border-gray-200 px-3 py-2 text-base focus:border-teal-500 focus:outline-none"
+              className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
             />
           </div>
         </div>
 
         <button
           onClick={clearAll}
-          className="ml-auto text-base font-bold text-red-600 hover:text-red-700 hover:underline px-4 py-2"
+          className="ml-auto text-base font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
         >
           Reset All Filters
         </button>
@@ -258,7 +249,6 @@ function FilterBar({
 export default function OfflineSheetPage() {
   const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, setPage, clearAll } = useOfflineSheetFilters();
 
-  // Data hooks
   const countsQ  = useOfflineSheetCounts(filters);
   const summaryQ = useOfflineSheetSummary(filters);
   const listQ    = useOfflineSheetList(filters);
@@ -275,25 +265,22 @@ export default function OfflineSheetPage() {
 
   return (
     <AppLayout>
-      {/* Header */}
       <div className="mb-6 flex items-center justify-between pt-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Google Sheet Offline Sales
+          <h1 className="text-3xl font-bold text-black tracking-tight uppercase">
+            Master Sales Dashboard
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Live analysis of ERP-synced offline transactions
+          <p className="mt-1 text-base font-medium text-gray-500">
+            Advanced Spreadsheet-style Filters & Legibility Optimized Data View
           </p>
         </div>
-        {/* Live indicator */}
-        <div className="flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700 ring-1 ring-teal-200">
-          <span className="inline-block h-2 w-2 rounded-full bg-teal-500 animate-pulse" />
-          GSheet Offline Sales
+        <div className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-xl ring-4 ring-teal-500/20">
+          <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse" />
+          Live ERP Data
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="mb-5">
+      <div className="mb-8">
         <FilterBar
           filters={filters}
           setDays={setDays}
@@ -308,52 +295,37 @@ export default function OfflineSheetPage() {
         />
       </div>
 
-      {/* KPI tiles */}
-      <div className="mb-6">
-        <OfflineSheetKPI
-          data={countsQ.data}
-          isLoading={countsQ.isLoading}
+      <div className="mb-8">
+        <OfflineSheetKPI 
+          data={countsQ.data} 
+          isLoading={countsQ.isLoading} 
         />
       </div>
 
-      {/* Charts */}
-      <div className="mb-6">
-        <OfflineSheetCharts
-          data={summaryQ.data}
+      <div className="mb-12">
+        <OfflineSheetCharts 
+          data={summaryQ.data} 
           isLoading={summaryQ.isLoading}
           days={filters.days}
         />
       </div>
 
-      {/* Table header row */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-700">
-          Recent Transactions
-          {allRows.length > 0 && (
-            <span className="ml-3 rounded-full bg-teal-100 px-3 py-1 text-sm font-bold text-teal-800 ring-2 ring-teal-200">
-              {allRows.length.toLocaleString('en-IN')} rows showing
-            </span>
-          )}
-        </h2>
-        {listQ.isLoading && (
-          <p className="text-xs text-gray-400 animate-pulse">Loading records…</p>
-        )}
-        {listQ.isError && !listQ.isLoading && (
-          <p className="text-xs text-red-500">Failed to load records</p>
-        )}
+      <div className="mb-8">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-2xl font-semibold text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
+          <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-lg">
+            {totalCount.toLocaleString()} TOTAL ROWS
+          </span>
+        </div>
+        <OfflineSheetTable rows={allRows} />
+        <Pagination
+          currentPage={filters.page || 1}
+          totalCount={totalCount}
+          pageSize={filters.limit || 100}
+          setPage={setPage}
+          isLoading={listQ.isFetching}
+        />
       </div>
-
-      {/* Virtualised table */}
-      {/* Transactions table and pagination */}
-      <OfflineSheetTable rows={allRows} />
-
-      <Pagination
-        currentPage={filters.page || 1}
-        totalCount={totalCount}
-        pageSize={filters.limit || 100}
-        setPage={setPage}
-        isLoading={listQ.isFetching}
-      />
     </AppLayout>
   );
 }

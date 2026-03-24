@@ -30,10 +30,10 @@ function fmtINR(n: number): string {
 const CustomTooltip = ({ active, payload, label, title }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xl ring-1 ring-black/5">
-        <p className="mb-1 text-sm font-black text-gray-900 uppercase tracking-wider">{label}</p>
+      <div className="rounded-xl border-2 border-gray-200 bg-white p-4 shadow-xl ring-2 ring-black/5">
+        <p className="mb-2 text-base font-semibold text-black uppercase tracking-widest border-b border-gray-100 pb-1">{label}</p>
         {payload.map((entry: any, index: number) => (
-          <p key={index} className="text-lg font-black" style={{ color: entry.color || '#111827' }}>
+          <p key={index} className="text-xl font-bold" style={{ color: entry.color || '#000000' }}>
             {title || entry.name}: {fmtINR(entry.value)}
           </p>
         ))}
@@ -78,9 +78,9 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
   const byPub      = data.revenueByPublisher ?? [];
   const byCustomer = data.topCustomers ?? [];
 
-  // Solid black for maximum legibility (Senior citizens)
+  // Solid black for absolute legibility
   const TEXT_COL = '#000000'; 
-  const BOLD_TEXT = { fontSize: 13, fontWeight: 900, fill: TEXT_COL };
+  const BOLD_TEXT = { fontSize: 13, fontWeight: 600, fill: TEXT_COL };
 
   return (
     <div className="space-y-6">
@@ -88,100 +88,123 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         
         {/* Row 1, Col 1: Revenue Trend (Area) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-black text-gray-900 border-b-2 border-gray-100 pb-2">Revenue Trend (Last {days} Days)</h3>
+          <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-teal-500 pb-2 inline-block">Revenue Trend (Last {days} Days)</h3>
           {timeSeries.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={timeSeries} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={timeSeries} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
                 <defs>
                   <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0D9488" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#0D9488" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#D1D5DB" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                 <XAxis 
                   dataKey="date" 
                   tick={BOLD_TEXT} 
-                  axisLine={{ stroke: '#000000', strokeWidth: 1.5 }}
-                  tickLine={false}
+                  axisLine={{ stroke: '#000000', strokeWidth: 2 }}
+                  tickLine={{ stroke: '#000000', strokeWidth: 2 }}
                   dy={10}
                   interval="preserveStartEnd" 
                 />
                 <YAxis 
                   tick={BOLD_TEXT} 
                   tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} 
-                  axisLine={{ stroke: '#000000', strokeWidth: 1.5 }}
-                  tickLine={false}
+                  axisLine={{ stroke: '#000000', strokeWidth: 2 }}
+                  tickLine={{ stroke: '#000000', strokeWidth: 2 }}
                 />
                 <Tooltip content={<CustomTooltip title="Revenue" />} />
                 <Area 
                   type="monotone" 
                   dataKey="total" 
                   stroke="#0D9488" 
-                  strokeWidth={4} 
+                  strokeWidth={5} 
                   fillOpacity={1} 
                   fill="url(#colorTotal)" 
                   dot={false}
-                  activeDot={{ r: 8, strokeWidth: 0, fill: '#0D9488' }}
+                  activeDot={{ r: 10, strokeWidth: 0, fill: '#0D9488' }}
                 />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-gray-400 font-medium">No sales trend data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-semibold">No sales trend data</div>
           )}
         </div>
 
         {/* Row 1, Col 2: Revenue by State (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-black text-gray-900 border-b-2 border-gray-100 pb-2">Sales by State (Top 10)</h3>
+          <h3 className="mb-4 text-xl font-black text-black border-b-4 border-blue-500 pb-2 inline-block">Sales by State (Top 10)</h3>
           {byState.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#D1D5DB" horizontal={false} />
-                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} />
-                <YAxis type="category" dataKey="state" width={120} tick={{ fontSize: 13, fontWeight: 900, fill: TEXT_COL }} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} />
+              <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+                <YAxis 
+                  type="category" 
+                  dataKey="state" 
+                  width={140} 
+                  tick={{ fontSize: 13, fontWeight: 600, fill: TEXT_COL }} 
+                  axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
+                  interval={0}
+                />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="total" name="Total Revenue" fill="#3B82F6" radius={[0, 8, 8, 0]} barSize={25} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-gray-400 font-medium">No state data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No state data</div>
           )}
         </div>
 
         {/* Row 2, Col 1: Revenue by Publisher (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-black text-gray-900 border-b-2 border-gray-100 pb-2">Sales by Publisher (Top 10)</h3>
+          <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-orange-500 pb-2 inline-block">Sales by Publisher (Top 10)</h3>
           {byPub.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#D1D5DB" horizontal={false} />
-                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} />
-                <YAxis type="category" dataKey="publisher" width={120} tick={{ fontSize: 13, fontWeight: 900, fill: TEXT_COL }} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} tickFormatter={(v) => v.length > 15 ? v.substring(0, 15) + '...' : v} />
+              <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+                <YAxis 
+                  type="category" 
+                  dataKey="publisher" 
+                  width={140} 
+                  tick={{ fontSize: 13, fontWeight: 600, fill: TEXT_COL }} 
+                  axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
+                  interval={0}
+                  tickFormatter={(v) => v.length > 20 ? v.substring(0, 18) + '...' : v} 
+                />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="total" name="Total Revenue" fill="#F59E0B" radius={[0, 8, 8, 0]} barSize={25} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-gray-400 font-medium">No publisher data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No publisher data</div>
           )}
         </div>
 
         {/* Row 2, Col 2: Top Customers (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-black text-gray-900 border-b-2 border-gray-100 pb-2">Top 10 Customers</h3>
+          <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-purple-500 pb-2 inline-block">Top 10 Customers</h3>
           {byCustomer.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#D1D5DB" horizontal={false} />
-                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} />
-                <YAxis type="category" dataKey="customerName" width={120} tick={{ fontSize: 13, fontWeight: 900, fill: TEXT_COL }} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} tickFormatter={(v) => v.length > 15 ? v.substring(0, 15) + '...' : v} />
+              <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+                <YAxis 
+                  type="category" 
+                  dataKey="customerName" 
+                  width={140} 
+                  tick={{ fontSize: 13, fontWeight: 600, fill: TEXT_COL }} 
+                  axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
+                  interval={0}
+                  tickFormatter={(v) => v.length > 20 ? v.substring(0, 18) + '...' : v} 
+                />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="total" name="Total Revenue" fill="#8B5CF6" radius={[0, 8, 8, 0]} barSize={25} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-gray-400 font-medium">No customer data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No customer data</div>
           )}
         </div>
 
@@ -189,19 +212,19 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
       {/* Full width: Top Items Table-Chart */}
       <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-xl font-black text-gray-900 border-b-2 border-gray-100 pb-2">Top 10 Best Selling Items</h3>
+        <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-green-500 pb-2 inline-block">Top 10 Best Selling Items</h3>
         {topItems.length > 0 ? (
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={topItems} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#D1D5DB" />
-              <XAxis dataKey="title" angle={-45} textAnchor="end" height={80} tick={BOLD_TEXT} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} />
-              <YAxis tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 1.5 }} />
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={topItems} margin={{ top: 40, right: 30, left: 20, bottom: 80 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+              <XAxis dataKey="title" angle={-45} textAnchor="end" height={100} tick={BOLD_TEXT} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+              <YAxis tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[8, 8, 0, 0]} label={{ position: 'top', fontSize: 13, fontWeight: 'bold', fill: TEXT_COL }} />
+              <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[8, 8, 0, 0]} label={{ position: 'top', fontSize: 13, fontWeight: 600, fill: TEXT_COL }} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-gray-400 font-medium">No item data</div>
+          <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No item data</div>
         )}
       </div>
     </div>

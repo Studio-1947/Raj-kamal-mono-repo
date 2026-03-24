@@ -69,4 +69,6 @@ export interface OfflineSheetFilters {
   maxAmount?: number;
   page?: number;
   limit?: number;
+  isbn?: string;
+  customerName?: string;
 }

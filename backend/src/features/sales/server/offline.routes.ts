@@ -245,6 +245,8 @@ router.get("/", async (req, res) => {
     author: z.string().optional(),
     minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
   });
   const parsed = Q.safeParse({
     limit: req.query.limit ?? "100",
@@ -259,10 +261,12 @@ router.get("/", async (req, res) => {
     author: req.query.author,
     minAmount: req.query.minAmount,
     maxAmount: req.query.maxAmount,
+    isbn: req.query.isbn,
+    customerName: req.query.customerName,
   });
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: "Invalid query" });
-  const { limit, offset, cursorId, startDate, endDate, q, state, city, publisher, author, minAmount, maxAmount } = parsed.data;
+  const { limit, offset, cursorId, startDate, endDate, q, state, city, publisher, author, minAmount, maxAmount, isbn, customerName } = parsed.data;
 
   try {
     const where: any = {};
@@ -280,6 +284,8 @@ router.get("/", async (req, res) => {
     if (city)      where.city = { contains: city, mode: "insensitive" };
     if (publisher) where.publisher = { contains: publisher, mode: "insensitive" };
     if (author)    where.author = { contains: author, mode: "insensitive" };
+    if (isbn)      where.isbn = { contains: isbn, mode: "insensitive" };
+    if (customerName) where.customerName = { contains: customerName, mode: "insensitive" };
     if (minAmount != null || maxAmount != null) {
       where.amount = {};
       if (minAmount != null) where.amount.gte = minAmount;
@@ -356,9 +362,6 @@ router.get("/", async (req, res) => {
  *         schema:
  *           type: string
  *           format: date-time
- *     responses:
- *       200:
- *         description: Sales summary data
  */
 // GET /api/offline-sales/summary — uses SQL aggregates + server-side cache
 router.get("/summary", async (req, res) => {
@@ -366,11 +369,27 @@ router.get("/summary", async (req, res) => {
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
     startDate: z.string().datetime().optional(),
     endDate: z.string().datetime().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
   });
   const parsed = Q.safeParse({
     days: req.query.days,
     startDate: req.query.startDate,
     endDate: req.query.endDate,
+    state: req.query.state,
+    city: req.query.city,
+    publisher: req.query.publisher,
+    author: req.query.author,
+    isbn: req.query.isbn,
+    customerName: req.query.customerName,
+    minAmount: req.query.minAmount,
+    maxAmount: req.query.maxAmount,
   });
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: "Invalid query" });
@@ -382,8 +401,10 @@ router.get("/summary", async (req, res) => {
     ? new Date(parsed.data.endDate)
     : undefined;
 
+  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount } = parsed.data;
+
   // Cache key based on parameters
-  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}`;
+  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) {
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
@@ -394,6 +415,18 @@ router.get("/summary", async (req, res) => {
   try {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
     const until = endDate ?? new Date();
+
+    const conditions = [Prisma.sql`"date" IS NOT NULL AND "date" >= ${since} AND "date" <= ${until}`];
+    if (state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
+    if (city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
+    if (author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
+    if (isbn)      conditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
+    if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
+    if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
     // SQL aggregate: time series (daily totals)
     const timeSeriesRows = await prisma.$queryRaw<
@@ -409,9 +442,7 @@ router.get("/summary", async (req, res) => {
           END
         ), 0)::float AS total
       FROM "google_sheet_offline_sales"
-      WHERE "date" IS NOT NULL
-        AND "date" >= ${since}
-        AND "date" <= ${until}
+      ${whereClause}
       GROUP BY to_char("date", 'YYYY-MM-DD')
       ORDER BY day ASC
     `);
@@ -431,9 +462,7 @@ router.get("/summary", async (req, res) => {
         ), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty
       FROM "google_sheet_offline_sales"
-      WHERE "date" IS NOT NULL
-        AND "date" >= ${since}
-        AND "date" <= ${until}
+      ${whereClause}
       GROUP BY COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item')
       HAVING SUM(
         CASE
@@ -473,9 +502,7 @@ router.get("/summary", async (req, res) => {
           END
         ), 0)::float AS total
       FROM "google_sheet_offline_sales"
-      WHERE "date" IS NOT NULL
-        AND "date" >= ${since}
-        AND "date" <= ${until}
+      ${whereClause}
       GROUP BY COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')
       ORDER BY total DESC
       LIMIT 10
@@ -499,9 +526,7 @@ router.get("/summary", async (req, res) => {
           END
         ), 0)::float AS total
       FROM "google_sheet_offline_sales"
-      WHERE "date" IS NOT NULL
-        AND "date" >= ${since}
-        AND "date" <= ${until}
+      ${whereClause}
       GROUP BY COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher')
       ORDER BY total DESC
       LIMIT 10
@@ -525,9 +550,7 @@ router.get("/summary", async (req, res) => {
           END
         ), 0)::float AS total
       FROM "google_sheet_offline_sales"
-      WHERE "date" IS NOT NULL
-        AND "date" >= ${since}
-        AND "date" <= ${until}
+      ${whereClause}
       GROUP BY COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer')
       ORDER BY total DESC
       LIMIT 10
@@ -561,19 +584,6 @@ router.get("/summary", async (req, res) => {
  *         name: days
  *         schema:
  *           type: integer
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *     responses:
- *       200:
- *         description: Aggregate sales metrics
  */
 // GET /api/offline-sales/counts — uses SQL aggregates + server-side cache
 router.get("/counts", async (req, res) => {
@@ -581,11 +591,27 @@ router.get("/counts", async (req, res) => {
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
     startDate: z.string().datetime().optional(),
     endDate: z.string().datetime().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
   });
   const parsed = Q.safeParse({
     days: req.query.days,
     startDate: req.query.startDate,
     endDate: req.query.endDate,
+    state: req.query.state,
+    city: req.query.city,
+    publisher: req.query.publisher,
+    author: req.query.author,
+    isbn: req.query.isbn,
+    customerName: req.query.customerName,
+    minAmount: req.query.minAmount,
+    maxAmount: req.query.maxAmount,
   });
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: "Invalid query" });
@@ -600,7 +626,7 @@ router.get("/counts", async (req, res) => {
   }
 
   // Cache key based on parameters
-  const cacheKey = `counts:${days ?? ""}:${startDate ?? ""}:${endDate ?? ""}`;
+  const cacheKey = `counts:${days ?? ""}:${startDate ?? ""}:${endDate ?? ""}:${parsed.data.state ?? ""}:${parsed.data.city ?? ""}:${parsed.data.publisher ?? ""}:${parsed.data.author ?? ""}:${parsed.data.isbn ?? ""}:${parsed.data.customerName ?? ""}:${parsed.data.minAmount ?? ""}:${parsed.data.maxAmount ?? ""}`;
   const cached = countsCache.get(cacheKey);
   if (cached) {
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
@@ -613,12 +639,23 @@ router.get("/counts", async (req, res) => {
     const end = endDate ? new Date(endDate) : null;
 
     // Build dynamic WHERE clause for raw SQL
-    let whereClause = Prisma.sql`WHERE "date" IS NOT NULL`;
-    if (start && end) {
-      whereClause = Prisma.sql`WHERE "date" IS NOT NULL AND "date" >= ${start} AND "date" <= ${end}`;
-    } else if (start) {
-      whereClause = Prisma.sql`WHERE "date" IS NOT NULL AND "date" >= ${start}`;
-    }
+    const conditions = [Prisma.sql`"date" IS NOT NULL`];
+    if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
+    else if (start)   conditions.push(Prisma.sql`"date" >= ${start}`);
+    
+    if (parsed.data.state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + parsed.data.state + '%'}`);
+    if (parsed.data.city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + parsed.data.city + '%'}`);
+    if (parsed.data.publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + parsed.data.publisher + '%'}`);
+    if (parsed.data.author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + parsed.data.author + '%'}`);
+    if (parsed.data.isbn)      conditions.push(Prisma.sql`"isbn" ILIKE ${'%' + parsed.data.isbn + '%'}`);
+    if (parsed.data.customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + parsed.data.customerName + '%'}`);
+    
+    const minA = parsed.data.minAmount;
+    const maxA = parsed.data.maxAmount;
+    if (minA != null) conditions.push(Prisma.sql`"amount" >= ${minA}`);
+    if (maxA != null) conditions.push(Prisma.sql`"amount" <= ${maxA}`);
+
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
     // Single SQL aggregate query for all counts
     const [agg] = await prisma.$queryRaw<
@@ -656,27 +693,6 @@ router.get("/counts", async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/offline-sales/google-sheets:
- *   get:
- *     summary: Get/Sync offline sales from Google Sheets (Direct ERP URL)
- *     tags: [google sheet offline sales]
- *     responses:
- *       200:
- *         description: Sync successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 ok:
- *                   type: boolean
- *                 importedCount:
- *                   type: integer
- *                 skippedCount:
- *                   type: integer
- */
 // GET /api/offline-sales/google-sheets
 router.get("/google-sheets", async (req, res) => {
   try {
@@ -688,39 +704,6 @@ router.get("/google-sheets", async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/offline-sales/push:
- *   post:
- *     summary: Push new sales data from Google Sheets
- *     tags: [google sheet offline sales]
- *     security: []
- *     parameters:
- *       - in: header
- *         name: x-sync-token
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               data:
- *                 type: array
- *                 items:
- *                   type: array
- *                   items: {}
- *     responses:
- *       200:
- *         description: Data processed successfully
- *       401:
- *         description: Unauthorized
- *       400:
- *         description: Invalid data format
- */
 // POST /api/offline-sales/push
 // Accepts { data: any[][] }
 router.post("/push", async (req, res) => {
