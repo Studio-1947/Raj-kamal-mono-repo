@@ -72,7 +72,7 @@ function resolveRowDate(r: any): Date | null {
   let d: Date | null = r.date ? new Date(r.date) : null;
   if (!d) {
     const raw = r.rawJson as Record<string, any> | undefined;
-    if (raw) {
+    if (raw && typeof raw === "object") {
       // Normalize keys by trimming to handle "                                                          "
       const normalizedRaw: Record<string, any> = {};
       for (const [k, v] of Object.entries(raw)) {
@@ -225,6 +225,15 @@ router.get("/summary", async (req, res) => {
           { orderNo: { contains: q, mode: "insensitive" } },
         ],
       });
+
+    // Add DB-side date filter (even if imperfect, it reduces rows massively)
+    andFilters.push({
+      OR: [
+        { date: { gte: since } },
+        { date: null }, // Fallback for rows where date is only in rawJson
+      ],
+    });
+
     const rows = await prisma.onlineSale.findMany({
       where: andFilters.length ? ({ AND: andFilters } as any) : undefined,
       select: {
@@ -236,9 +245,9 @@ router.get("/summary", async (req, res) => {
         rate: true,
         month: true,
         year: true,
-        rawJson: true,
+        // rawJson excluded for performance in bulk summary
       },
-      take: 100000,
+      take: 20000,
     });
 
     const payment = new Map<string, number>();
@@ -264,13 +273,15 @@ router.get("/summary", async (req, res) => {
         // Date resolution
         let d: Date | null = r.date ? new Date(r.date) : null;
         if (!d) {
-          const raw = r.rawJson as Record<string, any> | undefined;
-          const d1 = pick(raw, ["Date", "Txn Date", "Transaction Date"]);
-          if (d1) {
-            const dd = new Date(d1);
-            if (!isNaN(+dd)) d = dd;
+          const raw = (r as any).rawJson as Record<string, any> | undefined;
+          if (raw && typeof raw === "object") {
+             const d1 = pick(raw, ["Date", "Txn Date", "Transaction Date"]);
+             if (d1) {
+               const dd = new Date(d1);
+               if (!isNaN(+dd)) d = dd;
+             }
+             if (!d) d = parseIsoInRow(raw);
           }
-          if (!d) d = parseIsoInRow(raw);
           if (!d) {
             const mi = monthNameToIndex(r.month);
             if (mi != null && r.year && r.year > 0)
@@ -283,23 +294,25 @@ router.get("/summary", async (req, res) => {
         // Amount resolution
         let amt = decToNumber(r.amount);
         if (!amt) {
-          const raw = r.rawJson as Record<string, any> | undefined;
-          const v = pick(raw, [
-            "Selling Price",
-            "Amount",
-            "Total",
-            "amount",
-            "SellingPrice",
-            "Selling_Price",
-          ]);
-          const n = numSafe(v);
-          if (n != null) amt = n;
-          else amt = (numSafe(r.rate as any) || 0) * (r.qty ?? 0);
+          const raw = (r as any).rawJson as Record<string, any> | undefined;
+          if (raw && typeof raw === "object") {
+            const v = pick(raw, [
+              "Selling Price",
+              "Amount",
+              "Total",
+              "amount",
+              "SellingPrice",
+              "Selling_Price",
+            ]);
+            const n = numSafe(v);
+            if (n != null) amt = n;
+            else amt = (numSafe(r.rate as any) || 0) * (r.qty ?? 0);
+          }
         }
 
         let pm = r.paymentMode as any as string | undefined;
-        if (!pm) {
-          const raw = r.rawJson as Record<string, any> | undefined;
+        if (!pm && (r as any).rawJson && typeof (r as any).rawJson === "object") {
+          const raw = (r as any).rawJson as Record<string, any>;
           const v = pick(raw, [
             "Payment Mode",
             "paymentMode",
@@ -317,27 +330,30 @@ router.get("/summary", async (req, res) => {
         }
 
         // Better title extraction - try multiple fields
-        const raw = r.rawJson as Record<string, any> | undefined;
         let title = r.title as string | null | undefined;
 
         if (!title || (typeof title === "string" && title.trim() === "")) {
-          const rawTitle = pick(raw, [
-            "Title",
-            "title",
-            "Book",
-            "book",
-            "Product",
-            "Item",
-            "Title ",
-            "Product Name",
-            "Item Name",
-          ]);
-          title =
-            typeof rawTitle === "string" && rawTitle.trim() ? rawTitle : null;
+          if ((r as any).rawJson && typeof (r as any).rawJson === "object") {
+            const raw = (r as any).rawJson as Record<string, any>;
+            const rawTitle = pick(raw, [
+              "Title",
+              "title",
+              "Book",
+              "book",
+              "Product",
+              "Item",
+              "Title ",
+              "Product Name",
+              "Item Name",
+            ]);
+            title =
+              typeof rawTitle === "string" && rawTitle.trim() ? rawTitle : null;
+          }
         }
 
         // If still no title, check if we have any identifying info in rawJson
-        if (!title && raw) {
+        if (!title && (r as any).rawJson && typeof (r as any).rawJson === "object") {
+          const raw = (r as any).rawJson as Record<string, any>;
           // Try to find ANY field that might be a title
           for (const key of Object.keys(raw)) {
             if (
@@ -359,10 +375,16 @@ router.get("/summary", async (req, res) => {
             : "Untitled Item";
         const cur = top.get(tkey) || { total: 0, qty: 0 };
         cur.total += amt;
-        cur.qty += r.qty ?? 0;
+        cur.qty +=
+          r.qty ||
+          ((r as any).rawJson && typeof (r as any).rawJson === "object"
+            ? numSafe(pick((r as any).rawJson as any, ["Qty", "Quantity", "qty"])) || 0
+            : 0);
+        top.set(tkey, cur);
 
         // Extract additional book details from rawJson - with type safety
-        if (raw && !cur.isbn) {
+        if ((r as any).rawJson && typeof (r as any).rawJson === "object" && !cur.isbn) {
+          const raw = (r as any).rawJson as Record<string, any>;
           const isbnRaw = pick(raw, ["ISBN", "isbn", "ISBN13", "Isbn"]);
           const authorRaw = pick(raw, ["Author", "author", "Writer", "writer"]);
           const langRaw = pick(raw, ["Language", "language", "Lang"]);
@@ -378,7 +400,6 @@ router.get("/summary", async (req, res) => {
           }
         }
 
-        top.set(tkey, cur);
         processedCount++;
       } catch (rowError: any) {
         // Log individual row errors but continue processing
@@ -485,20 +506,29 @@ router.get("/counts", async (req, res) => {
   }
 
   try {
-    const where: any = {};
-    // Don't filter by DB date; many rows lack a stored date.
-    if (paymentMode) where.paymentMode = paymentMode;
+    const start = startDate ? new Date(startDate) : null;
+    const andFilters: any[] = [];
+    if (paymentMode) andFilters.push({ paymentMode });
     if (q) {
       const contains = q.toString();
-      where.OR = [
-        { title: { contains, mode: "insensitive" } },
-        { customerName: { contains, mode: "insensitive" } },
-        { isbn: { contains, mode: "insensitive" } },
-        { orderNo: { contains, mode: "insensitive" } },
-      ];
+      andFilters.push({
+        OR: [
+          { title: { contains, mode: "insensitive" } },
+          { customerName: { contains, mode: "insensitive" } },
+          { isbn: { contains, mode: "insensitive" } },
+          { orderNo: { contains, mode: "insensitive" } },
+        ],
+      });
     }
+
+    if (start) {
+      andFilters.push({
+        OR: [{ date: { gte: start } }, { date: null }],
+      });
+    }
+
     const items = await prisma.onlineSale.findMany({
-      where,
+      where: andFilters.length ? ({ AND: andFilters } as any) : {},
       select: {
         amount: true,
         qty: true,
@@ -512,10 +542,9 @@ router.get("/counts", async (req, res) => {
         month: true,
         year: true,
       },
-      take: 100000,
+      take: 20000,
     });
 
-    const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
 
     let totalAmount = 0;
@@ -529,10 +558,11 @@ router.get("/counts", async (req, res) => {
       count++;
       // amount aggregation
       const v = decToNumber(r.amount);
+      let amt = 0;
       if (v) {
-        totalAmount += v;
-      } else {
-        const raw = r.rawJson as Record<string, any> | undefined;
+        amt = v;
+      } else if ((r as any).rawJson && typeof (r as any).rawJson === "object") {
+        const raw = (r as any).rawJson as Record<string, any>;
         const y = numSafe(
           pick(raw, [
             "Selling Price",
@@ -543,16 +573,19 @@ router.get("/counts", async (req, res) => {
             "Selling_Price",
           ]),
         );
-        if (y != null) totalAmount += y;
-        else totalAmount += (numSafe(r.rate as any) || 0) * (r.qty ?? 0);
+        if (y != null) amt = y;
+        else amt = (numSafe(r.rate as any) || 0) * (r.qty ?? 0);
       }
+      totalAmount += amt;
 
       // refunds
       const st =
         (r.orderStatus as any as string) ||
-        String(
-          pick(r.rawJson as any, ["Order Status", "Status"]) || "",
-        ).toLowerCase();
+        ((r as any).rawJson && typeof (r as any).rawJson === "object"
+          ? String(
+              pick((r as any).rawJson as any, ["Order Status", "Status"]) || "",
+            ).toLowerCase()
+          : "");
       if (st && st.toLowerCase() === "refunded") refundCount++;
 
       // customer uniqueness heuristic

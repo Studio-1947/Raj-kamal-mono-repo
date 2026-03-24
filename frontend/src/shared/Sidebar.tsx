@@ -27,6 +27,7 @@ type Item = {
   label: string;
   to: string;
   icon: JSX.Element;
+  disabled?: boolean;
 };
 
 function LangMenuItems({ onSelect }: { onSelect: () => void }) {
@@ -76,10 +77,10 @@ export default function Sidebar() {
     { label: t("home"), to: "/", icon: <span /> },
     { label: t("sales"), to: "/dashboard", icon: <span /> },
     { label: "GSheet Offline Sales", to: "/offline-sheet-sales", icon: <span /> },
-    { label: t("geo_insights"), to: "/inventory", icon: <span /> },
-    { label: t("inventory"), to: "/stock", icon: <span /> },
-    { label: t("rankings"), to: "/rankings", icon: <span /> },
-    { label: t("social_media"), to: "/social", icon: <span /> },
+    { label: t("geo_insights"), to: "/inventory", icon: <span />, disabled: true },
+    { label: t("inventory"), to: "/stock", icon: <span />, disabled: true },
+    { label: t("rankings"), to: "/rankings", icon: <span />, disabled: true },
+    { label: t("social_media"), to: "/social", icon: <span />, disabled: true },
   ];
 
   // Bottom menus handled explicitly (Amod, Settings, Language)
@@ -186,13 +187,15 @@ export default function Sidebar() {
                   it.icon
                 );
               return (
-                <li key={it.label}>
+                <li key={it.label} className={it.disabled ? "cursor-not-allowed" : ""}>
                   <Link
-                    to={it.to}
+                    to={it.disabled ? "#" : it.to}
+                    onClick={(e) => it.disabled && e.preventDefault()}
                     title={collapsed ? it.label : undefined}
                     className={
                       // Common
                       "flex items-center text-sm transition-all " +
+                      (it.disabled ? "opacity-50 pointer-events-none " : "") +
                       // Expanded styles
                       (!collapsed
                         ? `gap-3 rounded-lg px-3 py-2 h-[50px] max-w-[200px] ${

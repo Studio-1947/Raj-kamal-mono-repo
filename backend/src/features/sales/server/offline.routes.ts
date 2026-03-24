@@ -313,15 +313,17 @@ router.get("/summary", async (req, res) => {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
 
     const rows = await prisma.googleSheetOfflineSale.findMany({
+      where: {
+        OR: [{ date: { gte: since } }, { date: null }],
+      },
       select: {
         date: true,
         amount: true,
         qty: true,
         rate: true,
         title: true,
-        rawJson: true,
       },
-      take: 100000,
+      take: 20000,
     });
 
     const ts = new Map<string, number>();
@@ -334,8 +336,8 @@ router.get("/summary", async (req, res) => {
 
       // Calculate amount
       let amt = decToNumber(r.amount);
-      if (!amt) {
-        const raw = r.rawJson as Record<string, any> | undefined;
+      if (!amt && (r as any).rawJson && typeof (r as any).rawJson === "object") {
+        const raw = (r as any).rawJson as Record<string, any>;
         const v = numSafe(
           pick(raw, ["Selling Price", "Amount", "Total", "amount", "BOOKRATE"]),
         );
@@ -357,20 +359,21 @@ router.get("/summary", async (req, res) => {
       }
 
       // Top items
-      const raw = r.rawJson as Record<string, any> | undefined;
+      const raw = (r as any).rawJson as Record<string, any> | undefined;
       let title = r.title as string | null | undefined;
       if (!title || (typeof title === "string" && title.trim() === "")) {
-        const rawTitle = pick(raw, [
-          "Title",
-          "title",
-          "BookName",
-          "Book",
-          "book",
-          "Product",
-          "Item",
-        ]);
-        title =
-          typeof rawTitle === "string" && rawTitle.trim() ? rawTitle : null;
+        if ((r as any).rawJson && typeof (r as any).rawJson === "object") {
+          const rawTitle = pick((r as any).rawJson as any, [
+            "Title",
+            "title",
+            "BookName",
+            "Book",
+            "book",
+            "Product",
+            "Item",
+          ]);
+          title = typeof rawTitle === "string" && rawTitle.trim() ? rawTitle : null;
+        }
       }
       const tkey =
         title && typeof title === "string" && title.trim()
@@ -378,7 +381,11 @@ router.get("/summary", async (req, res) => {
           : "Untitled Item";
       const cur = top.get(tkey) || { total: 0, qty: 0 };
       cur.total += amt;
-      cur.qty += r.qty || numSafe(pick(raw, ["Qty", "OUT"])) || 0;
+      cur.qty +=
+        r.qty ||
+        ((r as any).rawJson && typeof (r as any).rawJson === "object"
+          ? numSafe(pick((r as any).rawJson as any, ["Qty", "OUT"])) || 0
+          : 0);
       top.set(tkey, cur);
     }
 
@@ -456,20 +463,25 @@ router.get("/counts", async (req, res) => {
   }
 
   try {
+    const start = startDate ? new Date(startDate) : null;
+
     const items = await prisma.googleSheetOfflineSale.findMany({
+      where: start
+        ? {
+            OR: [{ date: { gte: start } }, { date: null }],
+          }
+        : {},
       select: {
         amount: true,
         qty: true,
         rate: true,
-        rawJson: true,
         customerName: true,
         date: true,
         title: true,
       },
-      take: 100000,
+      take: 20000,
     });
 
-    const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
 
     let totalAmount = 0;
@@ -489,8 +501,8 @@ router.get("/counts", async (req, res) => {
 
       // Calculate amount from available fields
       let amt = decToNumber(r.amount);
-      if (!amt) {
-        const raw = r.rawJson as Record<string, any> | undefined;
+      if (!amt && (r as any).rawJson && typeof (r as any).rawJson === "object") {
+        const raw = (r as any).rawJson as Record<string, any>;
         const v = numSafe(
           pick(raw, ["Selling Price", "Amount", "Total", "amount", "BOOKRATE"]),
         );
@@ -507,14 +519,18 @@ router.get("/counts", async (req, res) => {
       totalAmount += amt;
 
       const st = String(
-        pick(r.rawJson as any, ["Order Status", "Status"]) || "",
+        pick((r as any).rawJson as any, ["Order Status", "Status"]) || "",
       ).toLowerCase();
       if (st && st.toLowerCase() === "refunded") refundCount++;
 
       const name = (r.customerName || "").trim().toLowerCase();
-      const raw = r.rawJson as Record<string, any> | undefined;
-      const email = normalizeText(pick(raw, ["Email", "email"])) || "";
-      const mobile = normalizeText(pick(raw, ["Mobile", "mobile", "Phone", "phone"])) || "";
+      let email = "";
+      let mobile = "";
+      if ((r as any).rawJson && typeof (r as any).rawJson === "object") {
+        const raw = (r as any).rawJson as Record<string, any>;
+        email = normalizeText(pick(raw, ["Email", "email"])) || "";
+        mobile = normalizeText(pick(raw, ["Mobile", "mobile", "Phone", "phone"])) || "";
+      }
       const key = [email || null, mobile || null, name || null]
         .filter(Boolean)
         .join("|");
