@@ -245,7 +245,15 @@ const GenericSalesWidget: React.FC<Props> = ({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={series}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 12 }} 
+                minTickGap={50}
+                tickFormatter={(val) => {
+                  const date = new Date(val);
+                  return isNaN(date.getTime()) ? val : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }}
+              />
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip formatter={(value: any) => formatINR(Number(value))} />
               <Line

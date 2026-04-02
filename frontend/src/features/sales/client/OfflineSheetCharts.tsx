@@ -29,6 +29,7 @@ function fmtINR(n: number): string {
 // ─── Custom Tooltip (Black Text) ───────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label, title }: any) => {
   if (active && payload && payload.length) {
+    const originalData = payload[0]?.payload;
     return (
       <div className="rounded-xl border-2 border-gray-200 bg-white p-4 shadow-xl ring-2 ring-black/5">
         <p className="mb-2 text-base font-medium text-black uppercase tracking-widest border-b border-gray-100 pb-1">{label}</p>
@@ -37,6 +38,11 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
             {title || entry.name}: {fmtINR(entry.value)}
           </p>
         ))}
+        {originalData?.avgCost ? (
+          <p className="mt-2 text-sm font-medium text-gray-700">
+            Per Book Cost: {fmtINR(originalData.avgCost)}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -105,7 +111,11 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
                   axisLine={{ stroke: '#000000', strokeWidth: 2 }}
                   tickLine={{ stroke: '#000000', strokeWidth: 2 }}
                   dy={10}
-                  interval="preserveStartEnd" 
+                  minTickGap={50}
+                  tickFormatter={(val) => {
+                    const date = new Date(val);
+                    return isNaN(date.getTime()) ? val : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  }}
                 />
                 <YAxis 
                   tick={BOLD_TEXT} 

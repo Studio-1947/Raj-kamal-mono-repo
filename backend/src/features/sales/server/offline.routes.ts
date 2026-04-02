@@ -480,11 +480,16 @@ router.get("/summary", async (req, res) => {
       total: round2(Number(r.total)),
     }));
 
-    const topItems = topItemsRows.map((r) => ({
-      title: r.title || "Untitled",
-      total: round2(Number(r.total)),
-      qty: Number(r.qty) || 0,
-    }));
+    const topItems = topItemsRows.map((r) => {
+      const total = Number(r.total) || 0;
+      const qty = Number(r.qty) || 0;
+      return {
+        title: r.title || "Untitled",
+        total: round2(total),
+        qty,
+        avgCost: qty > 0 ? round2(total / qty) : 0,
+      };
+    });
 
     const result = { ok: true, timeSeries, topItems };
 
@@ -714,12 +719,16 @@ router.post("/push", async (req, res) => {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
-  const { data } = req.body;
+  const { data, isFirstBatch } = req.body;
   if (!data || !Array.isArray(data)) {
     return res.status(400).json({ ok: false, error: "Invalid data format. Expected { data: any[][] }" });
   }
 
   try {
+    if (isFirstBatch) {
+      await prisma.googleSheetOfflineSale.deleteMany({});
+      console.log("Wiped offline sales table for fresh sync since isFirstBatch=true");
+    }
     const result = await offlineSyncService.processData(data);
     return res.json({ ok: true, ...result });
   } catch (e: any) {
