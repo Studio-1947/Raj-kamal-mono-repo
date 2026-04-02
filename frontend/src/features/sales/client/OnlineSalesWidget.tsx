@@ -135,7 +135,7 @@ const OnlineSalesWidget: React.FC<Props> = ({ days: daysProp, onDaysChange }) =>
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-sm text-gray-500">Revenue Overview</div>
-          <div className="mt-1 text-3xl font-semibold text-gray-900">{formatINR(totalAmt)}</div>
+          <div className="mt-1 text-3xl font-medium text-gray-900">{formatINR(totalAmt)}</div>
           <div className="mt-1 text-xs text-gray-600">
             <span className={growth.dir === 'down' ? 'text-red-600' : 'text-green-600'}>
               {growth.pct >= 0 ? '+' : ''}{growth.pct.toFixed(2)}%
@@ -143,11 +143,11 @@ const OnlineSalesWidget: React.FC<Props> = ({ days: daysProp, onDaysChange }) =>
             <span className="ml-1">vs previous period</span>
           </div>
           <div className="mt-1 text-sm text-gray-800">
-            {projectionLabel}: <span className="font-semibold text-gray-900">{formatINR(projection365)}</span>
+            {projectionLabel}: <span className="font-medium text-gray-900">{formatINR(projection365)}</span>
           </div>
           {actual365Total != null && (
             <div className="mt-1 text-sm text-gray-800">
-              Last 365 days total: <span className="font-semibold text-gray-900">{formatINR(actual365Total)}</span>
+              Last 365 days total: <span className="font-medium text-gray-900">{formatINR(actual365Total)}</span>
             </div>
           )}
           <div className="mt-1 text-xs text-gray-500">{since.toLocaleDateString()} – {now.toLocaleDateString()}</div>

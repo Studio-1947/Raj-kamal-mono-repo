@@ -31,9 +31,9 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="rounded-xl border-2 border-gray-200 bg-white p-4 shadow-xl ring-2 ring-black/5">
-        <p className="mb-2 text-base font-semibold text-black uppercase tracking-widest border-b border-gray-100 pb-1">{label}</p>
+        <p className="mb-2 text-base font-medium text-black uppercase tracking-widest border-b border-gray-100 pb-1">{label}</p>
         {payload.map((entry: any, index: number) => (
-          <p key={index} className="text-xl font-bold" style={{ color: entry.color || '#000000' }}>
+          <p key={index} className="text-xl font-medium" style={{ color: entry.color || '#000000' }}>
             {title || entry.name}: {fmtINR(entry.value)}
           </p>
         ))}
@@ -80,7 +80,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
   // Solid black for absolute legibility
   const TEXT_COL = '#000000'; 
-  const BOLD_TEXT = { fontSize: 13, fontWeight: 600, fill: TEXT_COL };
+  const BOLD_TEXT = { fontSize: 13, fontWeight: 500, fill: TEXT_COL };
 
   return (
     <div className="space-y-6">
@@ -88,7 +88,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         
         {/* Row 1, Col 1: Revenue Trend (Area) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-teal-500 pb-2 inline-block">Revenue Trend (Last {days} Days)</h3>
+          <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-teal-500 pb-2 inline-block">Revenue Trend (Last {days} Days)</h3>
           {timeSeries.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={timeSeries} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
@@ -127,13 +127,13 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-semibold">No sales trend data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No sales trend data</div>
           )}
         </div>
 
         {/* Row 1, Col 2: Revenue by State (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-black text-black border-b-4 border-blue-500 pb-2 inline-block">Sales by State (Top 10)</h3>
+          <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-blue-500 pb-2 inline-block">Sales by State (Top 10)</h3>
           {byState.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
@@ -143,7 +143,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
                   type="category" 
                   dataKey="state" 
                   width={140} 
-                  tick={{ fontSize: 13, fontWeight: 600, fill: TEXT_COL }} 
+                  tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
                   axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
                   interval={0}
                 />
@@ -152,13 +152,13 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No state data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No state data</div>
           )}
         </div>
 
         {/* Row 2, Col 1: Revenue by Publisher (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-orange-500 pb-2 inline-block">Sales by Publisher (Top 10)</h3>
+          <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-orange-500 pb-2 inline-block">Sales by Publisher (Top 10)</h3>
           {byPub.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
@@ -168,7 +168,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
                   type="category" 
                   dataKey="publisher" 
                   width={140} 
-                  tick={{ fontSize: 13, fontWeight: 600, fill: TEXT_COL }} 
+                  tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
                   axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
                   interval={0}
                   tickFormatter={(v) => v.length > 20 ? v.substring(0, 18) + '...' : v} 
@@ -178,13 +178,13 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No publisher data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No publisher data</div>
           )}
         </div>
 
         {/* Row 2, Col 2: Top Customers (Bar) */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-purple-500 pb-2 inline-block">Top 10 Customers</h3>
+          <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-purple-500 pb-2 inline-block">Top 10 Customers</h3>
           {byCustomer.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
@@ -194,7 +194,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
                   type="category" 
                   dataKey="customerName" 
                   width={140} 
-                  tick={{ fontSize: 13, fontWeight: 600, fill: TEXT_COL }} 
+                  tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
                   axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
                   interval={0}
                   tickFormatter={(v) => v.length > 20 ? v.substring(0, 18) + '...' : v} 
@@ -204,7 +204,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No customer data</div>
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No customer data</div>
           )}
         </div>
 
@@ -212,7 +212,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
       {/* Full width: Top Items Table-Chart */}
       <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-xl font-semibold text-black border-b-4 border-green-500 pb-2 inline-block">Top 10 Best Selling Items</h3>
+        <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-green-500 pb-2 inline-block">Top 10 Best Selling Items</h3>
         {topItems.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
             <BarChart data={topItems} margin={{ top: 40, right: 30, left: 20, bottom: 80 }}>
@@ -220,11 +220,11 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
               <XAxis dataKey="title" angle={-45} textAnchor="end" height={100} tick={BOLD_TEXT} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
               <YAxis tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[8, 8, 0, 0]} label={{ position: 'top', fontSize: 13, fontWeight: 600, fill: TEXT_COL }} />
+              <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[8, 8, 0, 0]} label={{ position: 'top', fontSize: 13, fontWeight: 500, fill: TEXT_COL }} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-black">No item data</div>
+          <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No item data</div>
         )}
       </div>
     </div>

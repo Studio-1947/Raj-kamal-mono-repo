@@ -36,8 +36,8 @@ interface TileProps {
 function KpiTile({ label, value, sub, accent = 'text-gray-900' }: TileProps) {
   return (
     <div className="rounded-2xl border-2 border-teal-100 bg-white p-7 shadow-md transition-transform hover:scale-[1.02]">
-      <p className="text-sm font-semibold uppercase tracking-wider text-gray-900">{label}</p>
-      <p className={`mt-3 text-4xl font-bold ${accent}`}>{value}</p>
+      <p className="text-sm font-medium uppercase tracking-wider text-gray-900">{label}</p>
+      <p className={`mt-3 text-4xl font-medium ${accent}`}>{value}</p>
       {sub && <p className="mt-2 text-sm font-medium text-gray-900">{sub}</p>}
     </div>
   );

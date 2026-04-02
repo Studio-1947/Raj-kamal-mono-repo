@@ -199,7 +199,7 @@ const GenericSalesWidget: React.FC<Props> = ({
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-sm text-gray-500">{title}</div>
-          <div className="mt-1 text-3xl font-semibold text-gray-900">{formatINR(totalAmt)}</div>
+          <div className="mt-1 text-3xl font-medium text-gray-900">{formatINR(totalAmt)}</div>
           <div className="mt-1 text-sm text-gray-600">{totalOrders.toLocaleString('en-IN')} orders</div>
           {series.length > 0 && (
             <div className="mt-1 text-xs text-gray-600">
@@ -212,12 +212,12 @@ const GenericSalesWidget: React.FC<Props> = ({
           )}
           <div className="mt-1 text-sm text-gray-800">
             {projectionLabel}:{' '}
-            <span className="font-semibold text-gray-900">{formatINR(projection365)}</span>
+            <span className="font-medium text-gray-900">{formatINR(projection365)}</span>
           </div>
           {actual365Total != null && (
             <div className="mt-1 text-sm text-gray-800">
               Last 365 days:{' '}
-              <span className="font-semibold text-gray-900">{formatINR(actual365Total)}</span>
+              <span className="font-medium text-gray-900">{formatINR(actual365Total)}</span>
             </div>
           )}
           <div className="mt-1 text-xs text-gray-500">
