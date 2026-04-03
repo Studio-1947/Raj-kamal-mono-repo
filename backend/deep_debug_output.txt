@@ -1,0 +1,39 @@
+
+Checking Title: E-RAMVILAS SHARMA RACHANAWALI : VOLS. 1-19
+Found 4 rows.
+Row 1:
+  DB Amount: 49061.7, DB Rate: 24530.85, DB Qty: 2
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+Row 2:
+  DB Amount: 51760.76, DB Rate: 51760.76, DB Qty: 1
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+Row 3:
+  DB Amount: 686863.8, DB Rate: 24530.85, DB Qty: 28
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+Row 4:
+  DB Amount: 724650.64, DB Rate: 51760.76, DB Qty: 14
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+
+Checking Title: E-DINKAR RACHANAWALI (1-14 VOL)
+Found 2 rows.
+Row 1:
+  DB Amount: 637802.1, DB Rate: 24530.85, DB Qty: 26
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+Row 2:
+  DB Amount: 672889.88, DB Rate: 51760.76, DB Qty: 13
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+
+Checking Title: E-RAJKAMAL CHOUDHARY RACHANAWALI : VOLS. 1-8
+Found 4 rows.
+Row 1:
+  DB Amount: 49061.7, DB Rate: 24530.85, DB Qty: 2
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+Row 2:
+  DB Amount: 51760.76, DB Rate: 51760.76, DB Qty: 1
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+Row 3:
+  DB Amount: 294370.2, DB Rate: 24530.85, DB Qty: 12
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?
+Row 4:
+  DB Amount: 310564.56, DB Rate: 51760.76, DB Qty: 6
+  RAW Amount: ?, RAW Rate: ?, RAW Qty: ?

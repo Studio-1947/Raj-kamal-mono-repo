@@ -26,6 +26,14 @@ function fmtINR(n: number): string {
   }
 }
 
+function fmtChartAxis(v: number): string {
+  const absV = Math.abs(v);
+  if (absV === 0) return '₹0';
+  if (absV < 1000) return `₹${v}`;
+  if (absV < 100000) return `₹${(v / 1000).toFixed(1)}k`;
+  return `₹${(v / 1000).toFixed(0)}k`;
+}
+
 // ─── Custom Tooltip (Black Text) ───────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label, title }: any) => {
   if (active && payload && payload.length) {
@@ -38,9 +46,9 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
             {title || entry.name}: {fmtINR(entry.value)}
           </p>
         ))}
-        {originalData?.avgCost ? (
+        {originalData?.rate ? (
           <p className="mt-2 text-sm font-medium text-gray-700">
-            Per Book Cost: {fmtINR(originalData.avgCost)}
+            Book Rate: {fmtINR(originalData.rate)}
           </p>
         ) : null}
       </div>
@@ -120,7 +128,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
                 />
                 <YAxis 
                   tick={BOLD_TEXT} 
-                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} 
+                  tickFormatter={fmtChartAxis} 
                   axisLine={{ stroke: '#000000', strokeWidth: 2 }}
                   tickLine={{ stroke: '#000000', strokeWidth: 2 }}
                 />
@@ -149,7 +157,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
                 <YAxis 
                   type="category" 
                   dataKey="state" 
@@ -174,7 +182,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
                 <YAxis 
                   type="category" 
                   dataKey="publisher" 
@@ -200,7 +208,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
                 <YAxis 
                   type="category" 
                   dataKey="customerName" 
@@ -240,7 +248,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
               />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[0, 8, 8, 0]} barSize={22}
-                label={{ position: 'right', fontSize: 12, fontWeight: 600, fill: TEXT_COL, formatter: (v: any) => `₹${(Number(v) / 1000).toFixed(1)}k` }}
+                label={{ position: 'right', fontSize: 12, fontWeight: 600, fill: TEXT_COL, formatter: (v: any) => fmtChartAxis(Number(v)) }}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -257,7 +265,13 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
           <ResponsiveContainer width="100%" height={Math.max(300, bottomItems.length * 42)}>
             <BarChart data={bottomItems} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-              <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+              <XAxis 
+                type="number" 
+                tick={BOLD_TEXT} 
+                tickFormatter={fmtChartAxis} 
+                axisLine={{ stroke: '#000000', strokeWidth: 2 }}
+                domain={[ (dataMin: number) => Math.min(0, dataMin) * 1.1, (dataMax: number) => Math.max(0, dataMax) * 1.1 ]}
+              />
               <YAxis
                 type="category"
                 dataKey="title"
@@ -268,8 +282,31 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
                 tickFormatter={(v) => v.length > 30 ? v.substring(0, 28) + '…' : v}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="total" name="Total Revenue" fill="#EF4444" radius={[0, 8, 8, 0]} barSize={22}
-                label={{ position: 'right', fontSize: 12, fontWeight: 600, fill: TEXT_COL, formatter: (v: any) => `₹${(Number(v) / 1000).toFixed(1)}k` }}
+              <Bar 
+                dataKey="total" 
+                name="Total Revenue" 
+                fill="#EF4444" 
+                radius={[0, 8, 8, 0]} 
+                barSize={22}
+                label={(props: any) => {
+                  const { x, y, width, height, value } = props;
+                  const isNegative = value < 0;
+                  const labelX = isNegative ? x - 5 : x + width + 5;
+                  const textAnchor = isNegative ? 'end' : 'start';
+                  return (
+                    <text 
+                      x={labelX} 
+                      y={y + height / 2} 
+                      dy={4} 
+                      fill={TEXT_COL} 
+                      fontSize={12} 
+                      fontWeight={600} 
+                      textAnchor={textAnchor}
+                    >
+                      {fmtChartAxis(Number(value))}
+                    </text>
+                  );
+                }}
               />
             </BarChart>
           </ResponsiveContainer>

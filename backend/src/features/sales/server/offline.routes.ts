@@ -465,7 +465,7 @@ router.get("/summary", async (req, res) => {
 
     // SQL aggregate: top 10 items by total amount
     const topItemsRows = await prisma.$queryRaw<
-      { title: string; total: number; qty: number }[]
+      { title: string; total: number; qty: number; rate: number }[]
     >(Prisma.sql`
       SELECT
         COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item') AS title,
@@ -476,7 +476,8 @@ router.get("/summary", async (req, res) => {
             ELSE 0
           END
         ), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${itemsWhereClause}
       GROUP BY COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item')
@@ -503,7 +504,7 @@ router.get("/summary", async (req, res) => {
         title: r.title || "Untitled",
         total: round2(total),
         qty,
-        avgCost: qty > 0 ? round2(total / qty) : 0,
+        rate: round2(Number(r.rate) || 0),
       };
     });
 
@@ -515,7 +516,7 @@ router.get("/summary", async (req, res) => {
       : Prisma.sql`WHERE TRIM("title") IS NOT NULL AND TRIM("title") != ''`;
 
     const bottomItemsRows = await prisma.$queryRaw<
-      { title: string; total: number; qty: number }[]
+      { title: string; total: number; qty: number; rate: number }[]
     >(Prisma.sql`
       SELECT
         TRIM("title") AS title,
@@ -526,7 +527,8 @@ router.get("/summary", async (req, res) => {
             ELSE 0
           END
         ), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${bottomItemsTitleFilter}
       GROUP BY TRIM("title")
@@ -550,7 +552,7 @@ router.get("/summary", async (req, res) => {
         title: r.title || "Untitled",
         total: round2(total),
         qty,
-        avgCost: qty > 0 ? round2(total / qty) : 0,
+        rate: round2(Number(r.rate) || 0),
       };
     });
 
