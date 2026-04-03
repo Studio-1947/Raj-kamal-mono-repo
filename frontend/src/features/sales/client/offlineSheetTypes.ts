@@ -34,6 +34,7 @@ export interface OfflineSheetSummaryResponse {
   ok: boolean;
   timeSeries: { date: string; total: number }[];
   topItems: { title: string; total: number; qty: number; avgCost?: number }[];
+  bottomItems?: { title: string; total: number; qty: number; avgCost?: number }[];
   paymentMode?: { paymentMode: string; total: number }[];
   revenueByState?: { state: string; total: number }[];
   revenueByPublisher?: { publisher: string; total: number }[];

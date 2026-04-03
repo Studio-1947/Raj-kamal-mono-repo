@@ -447,6 +447,22 @@ router.get("/summary", async (req, res) => {
       ORDER BY day ASC
     `);
 
+    // Separate WHERE clause for topItems / bottomItems: does NOT require "date IS NOT NULL"
+    // so ALL book records with title data are included (not just dated rows).
+    // Dimension filters (state, publisher, etc.) are still applied if active.
+    const itemConditions: any[] = [];
+    if (state)     itemConditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
+    if (city)      itemConditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
+    if (publisher) itemConditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
+    if (author)    itemConditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
+    if (isbn)      itemConditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
+    if (customerName) itemConditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
+    if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
+    if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+    const itemsWhereClause = itemConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}`
+      : Prisma.sql``;
+
     // SQL aggregate: top 10 items by total amount
     const topItemsRows = await prisma.$queryRaw<
       { title: string; total: number; qty: number }[]
@@ -462,7 +478,7 @@ router.get("/summary", async (req, res) => {
         ), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty
       FROM "google_sheet_offline_sales"
-      ${whereClause}
+      ${itemsWhereClause}
       GROUP BY COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item')
       HAVING SUM(
         CASE
@@ -491,7 +507,54 @@ router.get("/summary", async (req, res) => {
       };
     });
 
-    const result = { ok: true, timeSeries, topItems };
+    // SQL aggregate: bottom 10 items by total amount (worst performing, titled books only)
+    // Note: filter out empty/null titles in WHERE (not HAVING) to avoid PostgreSQL
+    // "column must appear in GROUP BY or aggregate" error.
+    const bottomItemsTitleFilter = itemConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')} AND TRIM("title") IS NOT NULL AND TRIM("title") != ''`
+      : Prisma.sql`WHERE TRIM("title") IS NOT NULL AND TRIM("title") != ''`;
+
+    const bottomItemsRows = await prisma.$queryRaw<
+      { title: string; total: number; qty: number }[]
+    >(Prisma.sql`
+      SELECT
+        TRIM("title") AS title,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty
+      FROM "google_sheet_offline_sales"
+      ${bottomItemsTitleFilter}
+      GROUP BY TRIM("title")
+      HAVING (
+        SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ) > 0 OR SUM("qty") > 0
+      )
+      ORDER BY total ASC
+      LIMIT 10
+    `);
+
+    const bottomItems = bottomItemsRows.map((r) => {
+      const total = Number(r.total) || 0;
+      const qty = Number(r.qty) || 0;
+      return {
+        title: r.title || "Untitled",
+        total: round2(total),
+        qty,
+        avgCost: qty > 0 ? round2(total / qty) : 0,
+      };
+    });
+
+    const result = { ok: true, timeSeries, topItems, bottomItems };
 
     // --- NEW: Revenue by State ---
     const revenueByStateRows = await prisma.$queryRaw<

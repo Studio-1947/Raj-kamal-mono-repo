@@ -80,6 +80,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
   const timeSeries = data.timeSeries ?? [];
   const topItems   = data.topItems   ?? [];
+  const bottomItems = data.bottomItems ?? [];
   const byState    = data.revenueByState ?? [];
   const byPub      = data.revenueByPublisher ?? [];
   const byCustomer = data.topCustomers ?? [];
@@ -145,7 +146,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-blue-500 pb-2 inline-block">Sales by State (Top 10)</h3>
           {byState.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
                 <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
@@ -170,7 +171,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-orange-500 pb-2 inline-block">Sales by Publisher (Top 10)</h3>
           {byPub.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
                 <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
@@ -196,7 +197,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-purple-500 pb-2 inline-block">Top 10 Customers</h3>
           {byCustomer.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
                 <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
@@ -220,17 +221,56 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
 
       </div>
 
-      {/* Full width: Top Items Table-Chart */}
+      {/* Full width: Top 10 Best Selling Books */}
       <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-green-500 pb-2 inline-block">Top 10 Best Selling Items</h3>
         {topItems.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={topItems} margin={{ top: 40, right: 30, left: 20, bottom: 80 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-              <XAxis dataKey="title" angle={-45} textAnchor="end" height={100} tick={BOLD_TEXT} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
-              <YAxis tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+          <ResponsiveContainer width="100%" height={Math.max(300, topItems.length * 42)}>
+            <BarChart data={topItems} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+              <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+              <YAxis
+                type="category"
+                dataKey="title"
+                width={200}
+                tick={{ fontSize: 12, fontWeight: 500, fill: TEXT_COL }}
+                axisLine={{ stroke: '#000000', strokeWidth: 2 }}
+                interval={0}
+                tickFormatter={(v) => v.length > 30 ? v.substring(0, 28) + '…' : v}
+              />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[8, 8, 0, 0]} label={{ position: 'top', fontSize: 13, fontWeight: 500, fill: TEXT_COL }} />
+              <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[0, 8, 8, 0]} barSize={22}
+                label={{ position: 'right', fontSize: 12, fontWeight: 600, fill: TEXT_COL, formatter: (v: any) => `₹${(Number(v) / 1000).toFixed(1)}k` }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No item data</div>
+        )}
+      </div>
+
+      {/* Full width: Bottom 10 Worst Performing Books */}
+      <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
+        <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-red-400 pb-2 inline-block">Bottom 10 Worst Performing Items</h3>
+        <p className="mb-4 text-sm text-gray-500">Books with the lowest total revenue in the selected period</p>
+        {bottomItems.length > 0 ? (
+          <ResponsiveContainer width="100%" height={Math.max(300, bottomItems.length * 42)}>
+            <BarChart data={bottomItems} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+              <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+              <YAxis
+                type="category"
+                dataKey="title"
+                width={200}
+                tick={{ fontSize: 12, fontWeight: 500, fill: TEXT_COL }}
+                axisLine={{ stroke: '#000000', strokeWidth: 2 }}
+                interval={0}
+                tickFormatter={(v) => v.length > 30 ? v.substring(0, 28) + '…' : v}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="total" name="Total Revenue" fill="#EF4444" radius={[0, 8, 8, 0]} barSize={22}
+                label={{ position: 'right', fontSize: 12, fontWeight: 600, fill: TEXT_COL, formatter: (v: any) => `₹${(Number(v) / 1000).toFixed(1)}k` }}
+              />
             </BarChart>
           </ResponsiveContainer>
         ) : (
