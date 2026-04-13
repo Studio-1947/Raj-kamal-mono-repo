@@ -35,6 +35,9 @@ function buildQs(filters: OfflineSheetFilters, extra?: Record<string, string>): 
   if (filters.city)      p.set('city', filters.city);
   if (filters.publisher) p.set('publisher', filters.publisher);
   if (filters.author)    p.set('author', filters.author);
+  if (filters.isbn)      p.set('isbn', filters.isbn);
+  if (filters.customerName) p.set('customerName', filters.customerName);
+  if (filters.binding)   p.set('binding', filters.binding);
   if (filters.minAmount) p.set('minAmount', String(filters.minAmount));
   if (filters.maxAmount) p.set('maxAmount', String(filters.maxAmount));
   

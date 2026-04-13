@@ -38,7 +38,7 @@ function Pagination({ currentPage, totalCount, pageSize, setPage, isLoading }: P
 
   return (
     <div className="mt-8 flex items-center justify-between border-t-2 border-gray-100 pt-6">
-      <div className="text-xl font-semibold text-black">
+      <div className="text-xl font-medium text-black">
         Showing Page <span className="px-1 text-teal-700">{currentPage}</span> of <span className="px-1">{totalPages}</span>
         <span className="ml-4 text-base font-medium text-gray-700">({totalCount.toLocaleString()} total transactions)</span>
       </div>
@@ -46,14 +46,14 @@ function Pagination({ currentPage, totalCount, pageSize, setPage, isLoading }: P
         <button
           onClick={() => setPage(currentPage - 1)}
           disabled={currentPage === 1 || isLoading}
-          className="rounded-xl border-2 border-gray-200 bg-white px-6 py-2 text-lg font-bold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 transition-all active:scale-95"
+          className="rounded-xl border-2 border-gray-200 bg-white px-6 py-2 text-lg font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 transition-all active:scale-95"
         >
           ← Previous
         </button>
         <button
           onClick={() => setPage(currentPage + 1)}
           disabled={currentPage >= totalPages || isLoading}
-          className="rounded-xl border-2 border-teal-600 bg-teal-600 px-8 py-2 text-lg font-bold text-white shadow-md hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-95"
+          className="rounded-xl border-2 border-teal-600 bg-teal-600 px-8 py-2 text-lg font-medium text-white shadow-md hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-95"
         >
           Next Page →
         </button>
@@ -80,7 +80,7 @@ interface FilterBarProps {
 function FilterField({ id, label, placeholder, value, onChange, type = "text", width = "w-48" }: any) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-semibold text-black uppercase tracking-wider">{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-black uppercase tracking-wider">{label}</label>
       <input
         id={id}
         type={type}
@@ -110,7 +110,7 @@ function FilterBar({
       {/* Top row: Global Search, Quick Period, and Sync */}
       <div className="flex flex-wrap items-end gap-6 border-b-2 border-gray-100 pb-6">
         <div className="flex flex-1 min-w-[350px] flex-col gap-1.5">
-          <label htmlFor="search-input" className="text-sm font-semibold text-black uppercase tracking-wider">Global Search (All columns)</label>
+          <label htmlFor="search-input" className="text-sm font-medium text-black uppercase tracking-wider">Global Search (All columns)</label>
           <div className="relative">
             <input
               id="search-input"
@@ -124,7 +124,7 @@ function FilterBar({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-black uppercase tracking-wider">Quick Period</span>
+          <span className="text-sm font-medium text-black uppercase tracking-wider">Quick Period</span>
           <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
             {[30, 90, 180, 365].map((d) => (
               <button
@@ -144,12 +144,12 @@ function FilterBar({
 
         <div className="flex items-center gap-3 ml-auto">
           {lastSyncResult && (
-            <span className="text-xs font-semibold text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
+            <span className="text-xs font-medium text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
           )}
           <button
             onClick={onSync}
             disabled={isSyncing}
-            className="flex items-center gap-2 rounded-xl bg-black px-6 py-3 text-base font-semibold text-white shadow-xl hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
+            className="flex items-center gap-2 rounded-xl bg-black px-6 py-3 text-base font-medium text-white shadow-xl hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
           >
             {isSyncing ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
             {isSyncing ? 'Syncing...' : 'Sync Data'}
@@ -158,22 +158,26 @@ function FilterBar({
       </div>
 
       {/* Second row: Spreadsheet-style Column Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
         <FilterField 
           id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
           value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
           value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-auth" label="Author" placeholder="e.g. Premchand" 
           value={filters.author} onChange={(v:any) => updateFilter('author', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
           value={filters.isbn} onChange={(v:any) => updateFilter('isbn', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-state" label="State" placeholder="e.g. Delhi" 
@@ -185,12 +189,17 @@ function FilterBar({
           value={filters.city} onChange={(v:any) => updateFilter('city', v)}
           width="w-full"
         />
+        <FilterField 
+          id="f-binding" label="Binding" placeholder="Paperback/Hardcover" 
+          value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
+          width="w-full"
+        />
       </div>
 
       {/* Third row: Dates, Ranges and Reset */}
       <div className="flex flex-wrap items-end gap-8 pt-2">
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-black uppercase tracking-wider">Date Range</span>
+          <span className="text-sm font-medium text-black uppercase tracking-wider">Date Range</span>
           <div className="flex items-center gap-2">
             <input
               type="date"
@@ -213,7 +222,7 @@ function FilterBar({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-black uppercase tracking-wider">Price Range (₹)</span>
+          <span className="text-sm font-medium text-black uppercase tracking-wider">Price Range (₹)</span>
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -235,7 +244,7 @@ function FilterBar({
 
         <button
           onClick={clearAll}
-          className="ml-auto text-base font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
+          className="ml-auto text-base font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
         >
           Reset All Filters
         </button>
@@ -267,14 +276,14 @@ export default function OfflineSheetPage() {
     <AppLayout>
       <div className="mb-6 flex items-center justify-between pt-6">
         <div>
-          <h1 className="text-3xl font-bold text-black tracking-tight uppercase">
+          <h1 className="text-3xl font-medium text-black tracking-tight uppercase">
             Master Sales Dashboard
           </h1>
           <p className="mt-1 text-base font-medium text-gray-500">
             Advanced Spreadsheet-style Filters & Legibility Optimized Data View
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-xl ring-4 ring-teal-500/20">
+        <div className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-xl ring-4 ring-teal-500/20">
           <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse" />
           Live ERP Data
         </div>
@@ -312,12 +321,16 @@ export default function OfflineSheetPage() {
 
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-2xl font-semibold text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
+          <h3 className="text-2xl font-medium text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
           <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-lg">
             {totalCount.toLocaleString()} TOTAL ROWS
           </span>
         </div>
-        <OfflineSheetTable rows={allRows} />
+        <OfflineSheetTable 
+          rows={allRows} 
+          filters={filters} 
+          onFilterChange={updateFilter} 
+        />
         <Pagination
           currentPage={filters.page || 1}
           totalCount={totalCount}

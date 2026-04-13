@@ -35,9 +35,9 @@ interface TileProps {
 
 function KpiTile({ label, value, sub, accent = 'text-gray-900' }: TileProps) {
   return (
-    <div className="rounded-2xl border-2 border-teal-100 bg-white p-7 shadow-md transition-transform hover:scale-[1.02]">
-      <p className="text-sm font-semibold uppercase tracking-wider text-gray-900">{label}</p>
-      <p className={`mt-3 text-4xl font-bold ${accent}`}>{value}</p>
+    <div className="rounded-2xl border-2 border-teal-100 bg-white p-5 shadow-md transition-transform hover:scale-[1.02]">
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">{label}</p>
+      <p className={`mt-2 text-xl lg:text-2xl font-medium ${accent}`}>{value}</p>
       {sub && <p className="mt-2 text-sm font-medium text-gray-900">{sub}</p>}
     </div>
   );
@@ -52,14 +52,14 @@ interface Props {
 export default function OfflineSheetKPI({ data, isLoading }: Props) {
   if (isLoading || !data) {
     return (
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => <KpiSkeleton key={i} />)}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {[1, 2, 3, 4, 5].map((i) => <KpiSkeleton key={i} />)}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
       <KpiTile
         label="Total Sales"
         value={fmtINR(data.totalAmount ?? 0)}
@@ -73,6 +73,11 @@ export default function OfflineSheetKPI({ data, isLoading }: Props) {
       <KpiTile
         label="Unique Customers"
         value={(data.uniqueCustomers ?? 0).toLocaleString('en-IN')}
+      />
+      <KpiTile
+        label="Top Binding"
+        value={data.topBinding ?? 'N/A'}
+        accent="text-pink-600"
       />
       <KpiTile
         label="Refunds"

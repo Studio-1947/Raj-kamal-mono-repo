@@ -1,0 +1,72 @@
+﻿[
+  {
+    "title": "E-RAMVILAS SHARMA RACHANAWALI : VOLS. 1-19",
+    "total": 1512336.9,
+    "qty": 45,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "E-DINKAR RACHANAWALI (1-14 VOL)",
+    "total": 1310691.98,
+    "qty": 39,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "E-MOHAN RAKESH RACHNAWALI-V-1-13",
+    "total": 1109047.06,
+    "qty": 33,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "E-HAZARI PRASAD DWIVEDI GRANTHAWALI : VOLS. 1-12",
+    "total": 1008224.6,
+    "qty": 30,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "E-BACHCHAN RACHANAWALI : VOLS. 1-11",
+    "total": 1008224.6,
+    "qty": 30,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "E-RAJENDRA YADAV RACHNAWALI  (1-15)",
+    "total": 806579.68,
+    "qty": 24,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "E-SHRIKANT VERMA RACHANAWALI : VOLS. 1-8",
+    "total": 806579.68,
+    "qty": 24,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "E-RAMCHANDRA SHUKLA RACHANAWALI : VOLS. 1-8",
+    "total": 806579.68,
+    "qty": 24,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  },
+  {
+    "title": "RET KI MACHALI     (PB)",
+    "total": 727205.07,
+    "qty": 3811,
+    "rate": 299,
+    "calculatedAvg": 190.82
+  },
+  {
+    "title": "E-RAJKAMAL CHOUDHARY RACHANAWALI : VOLS. 1-8",
+    "total": 705757.22,
+    "qty": 21,
+    "rate": 51760.76,
+    "calculatedAvg": 33607.49
+  }
+]

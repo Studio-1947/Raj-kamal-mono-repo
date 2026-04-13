@@ -30,7 +30,10 @@ export class OfflineSyncService {
     const dataRows = rows.slice(1);
     const headerMap: Record<string, number> = {};
     headers.forEach((h: any, i: number) => {
-      if (h) headerMap[String(h).trim()] = i;
+      if (h) {
+        const normalized = String(h).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (normalized) headerMap[normalized] = i;
+      }
     });
 
     let importedCount = 0;
@@ -42,13 +45,17 @@ export class OfflineSyncService {
       const customerName = this.getVal(row, headerMap, "CustomerName");
 
       const slNo = parseInt(this.getVal(row, headerMap, "sl/no") || "0");
-      const docNo = this.getVal(row, headerMap, "TrnsdocNo") || this.getVal(row, headerMap, "Doc No") || this.getVal(row, headerMap, "Vch No");
+      const docNo = this.getVal(row, headerMap, "TrnsdocNo") || this.getVal(row, headerMap, "Doc No");
       const dateStr = this.getVal(row, headerMap, "TrnsdocdateStr") || this.getVal(row, headerMap, "DateStr");
-      const isbn = this.getVal(row, headerMap, "BookCode") || this.getVal(row, headerMap, "ISBN") || this.getVal(row, headerMap, "ItemCode");
-      const title = this.getVal(row, headerMap, "Title") || this.getVal(row, headerMap, "ItemName");
-      const author = this.getVal(row, headerMap, "Author");
+      const isbn = this.getVal(row, headerMap, "BookCode") || this.getVal(row, headerMap, "ISBN");
+      const title = 
+        this.getVal(row, headerMap, "BookName") || 
+        this.getVal(row, headerMap, "ItemName") || 
+        this.getVal(row, headerMap, "Title") || 
+        this.getVal(row, headerMap, "Name");
+      const author = this.getVal(row, headerMap, "Author") || this.getVal(row, headerMap, "DisplayAuthorName");
       const binding = this.getVal(row, headerMap, "Binding");
-      const pubYear = parseInt(this.getVal(row, headerMap, "Pub-year") || "0");
+      const pubYear = parseInt(this.getVal(row, headerMap, "Pub-Year") || this.getVal(row, headerMap, "Pub-year") || "0");
       const publisher = this.getVal(row, headerMap, "Publisher");
       const qty = parseInt(this.getVal(row, headerMap, "OUT") || this.getVal(row, headerMap, "Qty") || "0");
       const inQty = parseInt(this.getVal(row, headerMap, "IN") || "0");
@@ -173,7 +180,8 @@ export class OfflineSyncService {
   }
 
   private getVal(row: any[], map: Record<string, number>, key: string): string {
-    const index = map[key];
+    const normalizedKey = key.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const index = map[normalizedKey];
     if (index === undefined || index >= row.length) return "";
     return String(row[index] || "").trim();
   }

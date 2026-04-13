@@ -33,10 +33,12 @@ export interface OfflineSheetListResponse {
 export interface OfflineSheetSummaryResponse {
   ok: boolean;
   timeSeries: { date: string; total: number }[];
-  topItems: { title: string; total: number; qty: number }[];
+  topItems: { title: string; total: number; qty: number; rate?: number }[];
+  bottomItems?: { title: string; total: number; qty: number; rate?: number }[];
   paymentMode?: { paymentMode: string; total: number }[];
   revenueByState?: { state: string; total: number }[];
   revenueByPublisher?: { publisher: string; total: number }[];
+  revenueByBinding?: { binding: string; total: number; qty: number }[];
   topCustomers?: { customerName: string; total: number }[];
 }
 
@@ -46,6 +48,7 @@ export interface OfflineSheetCountsResponse {
   totalAmount: number;
   uniqueCustomers: number;
   refundCount: number;
+  topBinding?: string;
 }
 
 export interface OfflineSheetSyncResponse {
@@ -71,4 +74,5 @@ export interface OfflineSheetFilters {
   limit?: number;
   isbn?: string;
   customerName?: string;
+  binding?: string;
 }
