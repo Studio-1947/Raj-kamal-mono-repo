@@ -7,7 +7,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
-import type { OfflineSheetItem } from './offlineSheetTypes';
+import type { OfflineSheetItem, OfflineSheetFilters } from './offlineSheetTypes';
 
 const ROW_H = 55;
 const TABLE_H = 650;
@@ -52,9 +52,11 @@ const TOTAL_W = COLUMNS.reduce((acc, c) => acc + c.width, 0);
 
 interface Props {
   rows: OfflineSheetItem[];
+  filters: OfflineSheetFilters;
+  onFilterChange: (key: any, value: any) => void;
 }
 
-export default function OfflineSheetTable({ rows }: Props) {
+export default function OfflineSheetTable({ rows, filters, onFilterChange }: Props) {
   const Row = useCallback(({ index, style }: ListChildComponentProps) => {
     const row = rows[index];
     const isEven = index % 2 === 0;
@@ -87,17 +89,51 @@ export default function OfflineSheetTable({ rows }: Props) {
       style={{ width: TOTAL_W }}
       className="flex bg-gray-100 border-b-4 border-black sticky top-0 z-10"
     >
-      {COLUMNS.map((col) => (
-        <div
-          key={col.key}
-          style={{ width: col.width }}
-          className="px-4 py-4 text-xs font-medium text-black uppercase tracking-widest bg-gray-100 border-r border-gray-200 last:border-r-0"
-        >
-          {col.label}
-        </div>
-      ))}
+      {COLUMNS.map((col) => {
+        // Map table column key to filter key if exists
+        const filterKeyMap: any = {
+          'customerName': 'customerName',
+          'publisher': 'publisher',
+          'author': 'author',
+          'isbn': 'isbn',
+          'state': 'state',
+          'city': 'city',
+          'binding': 'binding',
+          'docNoDisplay': 'q', // Map Doc No search to global search for now or leave as is
+        };
+        const fKey = filterKeyMap[col.key];
+        const isFiltered = fKey && filters[fKey as keyof OfflineSheetFilters];
+
+        return (
+          <div
+            key={col.key}
+            style={{ width: col.width }}
+            className={`flex flex-col px-3 py-3 text-xs font-medium uppercase tracking-widest border-r border-gray-200 last:border-r-0 ${isFiltered ? 'bg-teal-50' : 'bg-gray-100'}`}
+          >
+            <div className="mb-2 text-black font-bold flex items-center justify-between">
+              {col.label}
+              {isFiltered && <div className="h-2 w-2 rounded-full bg-teal-600 animate-pulse" />}
+            </div>
+            {fKey ? (
+              <input
+                type="text"
+                placeholder={`Filter...`}
+                value={(filters[fKey as keyof OfflineSheetFilters] as string) ?? ''}
+                onChange={(e) => onFilterChange(fKey as any, e.target.value)}
+                className={`w-full rounded-md border-2 px-2 py-1 text-[11px] font-medium transition-all focus:outline-none focus:ring-4 focus:ring-teal-500/10 ${
+                  isFiltered 
+                    ? 'border-teal-500 bg-white text-teal-900 placeholder:text-teal-200' 
+                    : 'border-gray-300 bg-gray-50/50 text-gray-700 placeholder:text-gray-300 focus:border-black focus:bg-white'
+                }`}
+              />
+            ) : (
+              <div className="h-[25px]" /> // Spacer for non-filterable cols
+            )}
+          </div>
+        );
+      })}
     </div>
-  ), []);
+  ), [filters, onFilterChange]);
 
   if (rows.length === 0) {
     return (

@@ -508,20 +508,21 @@ router.get("/summary", async (req, res) => {
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${itemsWhereClause}
-      GROUP BY COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item')
-      HAVING SUM(
-        CASE
-          WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-          WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-          ELSE 0
-        END
-      ) > 0 OR SUM("qty") > 0
       GROUP BY 
         CASE
           WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
           WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
           ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
         END
+      HAVING (
+        SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ) > 0 OR SUM("qty") > 0
+      )
       ORDER BY total DESC
       LIMIT 10
     `);
@@ -568,14 +569,21 @@ router.get("/summary", async (req, res) => {
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${bottomItemsTitleFilter}
-        ) > 0 OR SUM("qty") > 0
-      )
       GROUP BY 
         CASE
           WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
           WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
           ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
         END
+      HAVING (
+        SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ) > 0 OR SUM("qty") > 0
+      )
       ORDER BY total ASC
       LIMIT 10
     `);

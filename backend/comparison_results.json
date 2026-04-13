@@ -1,0 +1,62 @@
+[
+  {
+    "title": "RAJKAMAL CHOUDHARY RACHANAWALI",
+    "data": {
+      "_sum": {
+        "amount": "705757.22",
+        "qty": 21
+      },
+      "_max": {
+        "rate": "51760.76"
+      },
+      "_count": {
+        "_all": 4
+      }
+    }
+  },
+  {
+    "title": "SHRIKANT VERMA RACHANAWALI",
+    "data": {
+      "_sum": {
+        "amount": "806579.68",
+        "qty": 24
+      },
+      "_max": {
+        "rate": "51760.76"
+      },
+      "_count": {
+        "_all": 4
+      }
+    }
+  },
+  {
+    "title": "RAJENDRA YADAV RACHNAWALI",
+    "data": {
+      "_sum": {
+        "amount": "806579.68",
+        "qty": 24
+      },
+      "_max": {
+        "rate": "51760.76"
+      },
+      "_count": {
+        "_all": 2
+      }
+    }
+  },
+  {
+    "title": "RAMCHANDRA SHUKLA RACHANAWALI",
+    "data": {
+      "_sum": {
+        "amount": "806579.68",
+        "qty": 24
+      },
+      "_max": {
+        "rate": "51760.76"
+      },
+      "_count": {
+        "_all": 4
+      }
+    }
+  }
+]

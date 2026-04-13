@@ -326,7 +326,11 @@ export default function OfflineSheetPage() {
             {totalCount.toLocaleString()} TOTAL ROWS
           </span>
         </div>
-        <OfflineSheetTable rows={allRows} />
+        <OfflineSheetTable 
+          rows={allRows} 
+          filters={filters} 
+          onFilterChange={updateFilter} 
+        />
         <Pagination
           currentPage={filters.page || 1}
           totalCount={totalCount}

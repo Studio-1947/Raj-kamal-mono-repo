@@ -45,19 +45,17 @@ export class OfflineSyncService {
       const customerName = this.getVal(row, headerMap, "CustomerName");
 
       const slNo = parseInt(this.getVal(row, headerMap, "sl/no") || "0");
-      const docNo = this.getVal(row, headerMap, "TrnsdocNo") || this.getVal(row, headerMap, "Doc No") || this.getVal(row, headerMap, "Vch No");
+      const docNo = this.getVal(row, headerMap, "TrnsdocNo") || this.getVal(row, headerMap, "Doc No");
       const dateStr = this.getVal(row, headerMap, "TrnsdocdateStr") || this.getVal(row, headerMap, "DateStr");
-      const isbn = this.getVal(row, headerMap, "BookCode") || this.getVal(row, headerMap, "ISBN") || this.getVal(row, headerMap, "ItemCode");
+      const isbn = this.getVal(row, headerMap, "BookCode") || this.getVal(row, headerMap, "ISBN");
       const title = 
         this.getVal(row, headerMap, "BookName") || 
         this.getVal(row, headerMap, "ItemName") || 
         this.getVal(row, headerMap, "Title") || 
-        this.getVal(row, headerMap, "Name") || 
-        this.getVal(row, headerMap, "Book Title") ||
-        this.getVal(row, headerMap, "Item");
+        this.getVal(row, headerMap, "Name");
       const author = this.getVal(row, headerMap, "Author") || this.getVal(row, headerMap, "DisplayAuthorName");
       const binding = this.getVal(row, headerMap, "Binding");
-      const pubYear = parseInt(this.getVal(row, headerMap, "Pub-year") || "0");
+      const pubYear = parseInt(this.getVal(row, headerMap, "Pub-Year") || this.getVal(row, headerMap, "Pub-year") || "0");
       const publisher = this.getVal(row, headerMap, "Publisher");
       const qty = parseInt(this.getVal(row, headerMap, "OUT") || this.getVal(row, headerMap, "Qty") || "0");
       const inQty = parseInt(this.getVal(row, headerMap, "IN") || "0");

@@ -1,0 +1,605 @@
+{
+  "ok": true,
+  "timeSeries": [
+    {
+      "date": "2026-01-13",
+      "total": 507760.45
+    },
+    {
+      "date": "2026-01-14",
+      "total": 340947.45
+    },
+    {
+      "date": "2026-01-15",
+      "total": 416987.4
+    },
+    {
+      "date": "2026-01-16",
+      "total": 142112.7
+    },
+    {
+      "date": "2026-01-17",
+      "total": 143450.8
+    },
+    {
+      "date": "2026-01-19",
+      "total": 77820.95
+    },
+    {
+      "date": "2026-01-20",
+      "total": 1350108.79
+    },
+    {
+      "date": "2026-01-21",
+      "total": 10858745.42
+    },
+    {
+      "date": "2026-01-22",
+      "total": 57795.7
+    },
+    {
+      "date": "2026-01-23",
+      "total": 29589
+    },
+    {
+      "date": "2026-01-24",
+      "total": 164883.9
+    },
+    {
+      "date": "2026-01-25",
+      "total": 174310.1
+    },
+    {
+      "date": "2026-01-27",
+      "total": 200012.25
+    },
+    {
+      "date": "2026-01-28",
+      "total": 146597.22
+    },
+    {
+      "date": "2026-01-29",
+      "total": 328575.86
+    },
+    {
+      "date": "2026-01-30",
+      "total": 150304.5
+    },
+    {
+      "date": "2026-01-31",
+      "total": 285577.5
+    },
+    {
+      "date": "2026-02-02",
+      "total": 433213.33
+    },
+    {
+      "date": "2026-02-03",
+      "total": 332697.15
+    },
+    {
+      "date": "2026-02-04",
+      "total": 166596.61
+    },
+    {
+      "date": "2026-02-05",
+      "total": 185574.6
+    },
+    {
+      "date": "2026-02-06",
+      "total": 169634.3
+    },
+    {
+      "date": "2026-02-07",
+      "total": 275255.5
+    },
+    {
+      "date": "2026-02-09",
+      "total": 830408
+    },
+    {
+      "date": "2026-02-10",
+      "total": 339504.83
+    },
+    {
+      "date": "2026-02-11",
+      "total": 853503.98
+    },
+    {
+      "date": "2026-02-12",
+      "total": 157305.6
+    },
+    {
+      "date": "2026-02-13",
+      "total": 122398.25
+    },
+    {
+      "date": "2026-02-14",
+      "total": 162459.6
+    },
+    {
+      "date": "2026-02-16",
+      "total": 213062.7
+    },
+    {
+      "date": "2026-02-17",
+      "total": 94795.55
+    },
+    {
+      "date": "2026-02-18",
+      "total": 208509.62
+    },
+    {
+      "date": "2026-02-19",
+      "total": 507159.55
+    },
+    {
+      "date": "2026-02-20",
+      "total": 458976.55
+    },
+    {
+      "date": "2026-02-21",
+      "total": 334874.82
+    },
+    {
+      "date": "2026-02-22",
+      "total": 184348.8
+    },
+    {
+      "date": "2026-02-23",
+      "total": 562493.15
+    },
+    {
+      "date": "2026-02-24",
+      "total": 159484.7
+    },
+    {
+      "date": "2026-02-25",
+      "total": 363991.85
+    },
+    {
+      "date": "2026-02-26",
+      "total": 143005.85
+    },
+    {
+      "date": "2026-02-27",
+      "total": 118649.95
+    },
+    {
+      "date": "2026-02-28",
+      "total": 285066.65
+    },
+    {
+      "date": "2026-03-02",
+      "total": 182962.45
+    },
+    {
+      "date": "2026-03-03",
+      "total": 120545.7
+    },
+    {
+      "date": "2026-03-05",
+      "total": 858480.4
+    },
+    {
+      "date": "2026-03-06",
+      "total": 232833.15
+    },
+    {
+      "date": "2026-03-07",
+      "total": 1363122.95
+    },
+    {
+      "date": "2026-03-09",
+      "total": 200374.1
+    },
+    {
+      "date": "2026-03-10",
+      "total": 242130.35
+    },
+    {
+      "date": "2026-03-11",
+      "total": 431236.85
+    },
+    {
+      "date": "2026-03-12",
+      "total": 134854.2
+    },
+    {
+      "date": "2026-03-13",
+      "total": 376352.15
+    },
+    {
+      "date": "2026-03-14",
+      "total": 995674.75
+    },
+    {
+      "date": "2026-03-16",
+      "total": 252492.45
+    },
+    {
+      "date": "2026-03-17",
+      "total": 108470
+    },
+    {
+      "date": "2026-03-18",
+      "total": 177331.35
+    },
+    {
+      "date": "2026-03-19",
+      "total": 675530.96
+    },
+    {
+      "date": "2026-03-20",
+      "total": 467476.55
+    },
+    {
+      "date": "2026-03-21",
+      "total": 382698.65
+    },
+    {
+      "date": "2026-03-23",
+      "total": 148147.2
+    },
+    {
+      "date": "2026-03-24",
+      "total": 602586.15
+    },
+    {
+      "date": "2026-03-25",
+      "total": 166870.6
+    },
+    {
+      "date": "2026-03-26",
+      "total": 785327.95
+    },
+    {
+      "date": "2026-03-28",
+      "total": 1601192.77
+    },
+    {
+      "date": "2026-03-29",
+      "total": 1425029.6
+    },
+    {
+      "date": "2026-03-30",
+      "total": 6549335.29
+    },
+    {
+      "date": "2026-03-31",
+      "total": 108179428.1
+    },
+    {
+      "date": "2026-04-01",
+      "total": 3412.8
+    },
+    {
+      "date": "2026-04-02",
+      "total": 2929.6
+    },
+    {
+      "date": "2026-04-03",
+      "total": 6409.3
+    },
+    {
+      "date": "2026-04-04",
+      "total": 9184.9
+    },
+    {
+      "date": "2026-04-06",
+      "total": 13097.7
+    },
+    {
+      "date": "2026-04-07",
+      "total": 60490.9
+    },
+    {
+      "date": "2026-04-08",
+      "total": 73047.63
+    },
+    {
+      "date": "2026-04-09",
+      "total": 98299.05
+    },
+    {
+      "date": "2026-04-10",
+      "total": 466169.6
+    },
+    {
+      "date": "2026-04-11",
+      "total": 36687.9
+    }
+  ],
+  "topItems": [
+    {
+      "title": "E-RAMVILAS SHARMA RACHANAWALI : VOLS. 1-19",
+      "total": 1512336.9,
+      "qty": 45,
+      "rate": 33607.49
+    },
+    {
+      "title": "E-DINKAR RACHANAWALI (1-14 VOL)",
+      "total": 1310691.98,
+      "qty": 39,
+      "rate": 33607.49
+    },
+    {
+      "title": "E-MOHAN RAKESH RACHNAWALI-V-1-13",
+      "total": 1109047.06,
+      "qty": 33,
+      "rate": 33607.49
+    },
+    {
+      "title": "E-HAZARI PRASAD DWIVEDI GRANTHAWALI : VOLS. 1-12",
+      "total": 1008224.6,
+      "qty": 30,
+      "rate": 33607.49
+    },
+    {
+      "title": "E-BACHCHAN RACHANAWALI : VOLS. 1-11",
+      "total": 1008224.6,
+      "qty": 30,
+      "rate": 33607.49
+    },
+    {
+      "title": "E-RAMCHANDRA SHUKLA RACHANAWALI : VOLS. 1-8",
+      "total": 806579.68,
+      "qty": 24,
+      "rate": 33607.49
+    },
+    {
+      "title": "E-RAJENDRA YADAV RACHNAWALI  (1-15)",
+      "total": 806579.68,
+      "qty": 24,
+      "rate": 33607.49
+    },
+    {
+      "title": "E-SHRIKANT VERMA RACHANAWALI : VOLS. 1-8",
+      "total": 806579.68,
+      "qty": 24,
+      "rate": 33607.49
+    },
+    {
+      "title": "[No Title] ISBN: 9789389742169",
+      "total": 754952.27,
+      "qty": 3973,
+      "rate": 190.02
+    },
+    {
+      "title": "E-RAJKAMAL CHOUDHARY RACHANAWALI : VOLS. 1-8",
+      "total": 705757.22,
+      "qty": 21,
+      "rate": 33607.49
+    }
+  ],
+  "bottomItems": [
+    {
+      "title": "CANCELLED",
+      "total": 0,
+      "qty": 3,
+      "rate": 0
+    },
+    {
+      "title": "[No Title] ISBN: CANCELLED",
+      "total": 0,
+      "qty": 4,
+      "rate": 0
+    },
+    {
+      "title": "[No Title] ISBN: 9788126709724E",
+      "total": 0.48,
+      "qty": 1,
+      "rate": 0.48
+    },
+    {
+      "title": "[No Title] ISBN: 9788195099504E",
+      "total": 1.02,
+      "qty": 1,
+      "rate": 1.02
+    },
+    {
+      "title": "[No Title] ISBN: 9788126720729E",
+      "total": 1.17,
+      "qty": 1,
+      "rate": 1.17
+    },
+    {
+      "title": "[No Title] ISBN: 9788126717330E",
+      "total": 1.55,
+      "qty": 1,
+      "rate": 1.55
+    },
+    {
+      "title": "[No Title] ISBN: 9789389598834E",
+      "total": 1.55,
+      "qty": 1,
+      "rate": 1.55
+    },
+    {
+      "title": "[No Title] ISBN: 9788126730063E",
+      "total": 1.55,
+      "qty": 1,
+      "rate": 1.55
+    },
+    {
+      "title": "[No Title] ISBN: 9788119835034E",
+      "total": 1.57,
+      "qty": 1,
+      "rate": 1.57
+    },
+    {
+      "title": "[No Title] ISBN: 9789360861162E",
+      "total": 1.63,
+      "qty": 1,
+      "rate": 1.63
+    }
+  ],
+  "revenueByState": [
+    {
+      "state": "USA",
+      "total": 106770985.14
+    },
+    {
+      "state": "DELHI",
+      "total": 25137599.76
+    },
+    {
+      "state": "PUNJAB",
+      "total": 6564565.49
+    },
+    {
+      "state": "UTTAR PRADESH",
+      "total": 3996787.5
+    },
+    {
+      "state": "RAJASTHAN",
+      "total": 2143330.7
+    },
+    {
+      "state": "Singapore",
+      "total": 1130386.87
+    },
+    {
+      "state": "MADHYA PRADESH",
+      "total": 945709.4
+    },
+    {
+      "state": "MAHARASHTRA",
+      "total": 752171.52
+    },
+    {
+      "state": "UTTRAKHAND",
+      "total": 696976.45
+    },
+    {
+      "state": "KARNATAKA",
+      "total": 481264
+    }
+  ],
+  "revenueByPublisher": [
+    {
+      "publisher": "Unknown Publisher",
+      "total": 117059019.32
+    },
+    {
+      "publisher": "Rajkamal Prakashan",
+      "total": 19669167.82
+    },
+    {
+      "publisher": "Lokbharti Prakashan",
+      "total": 7562768.11
+    },
+    {
+      "publisher": "Radhakrishna Prakashan",
+      "total": 5357968.24
+    },
+    {
+      "publisher": "Sarthak (An imprint of Rajkamal Prakashan)",
+      "total": 238209.38
+    },
+    {
+      "publisher": "Rajkamal Prakashan, Raza Foundation",
+      "total": 106302.31
+    },
+    {
+      "publisher": "Remadhav Publications",
+      "total": 86674.85
+    },
+    {
+      "publisher": "Funda (An imprint of Radhakrishna Prakashan)",
+      "total": 69263.43
+    },
+    {
+      "publisher": "Rajkamal Prakashan, Rekhta Books",
+      "total": 49895.06
+    },
+    {
+      "publisher": "Lokbharti Prakashan, Sahitya Bhawan",
+      "total": 47375.52
+    }
+  ],
+  "topCustomers": [
+    {
+      "customerName": "ALPHABET CAPITAL US LLC TREASURY",
+      "total": 106770985.14
+    },
+    {
+      "customerName": "BOOK FAIR (2022-23)",
+      "total": 11483186.21
+    },
+    {
+      "customerName": "REFREAD SOLUTIONS PVT. LTD.",
+      "total": 6175600.19
+    },
+    {
+      "customerName": "CHAWALA BOOK DEPOT , MEERUT",
+      "total": 3015221.85
+    },
+    {
+      "customerName": "AADHUNIK PRAKASHAN, DELHI",
+      "total": 2701203.4
+    },
+    {
+      "customerName": "Blue Ink International Publishers & Distributors",
+      "total": 1166672
+    },
+    {
+      "customerName": "KINDLE (E-BOOKS)",
+      "total": 1130386.87
+    },
+    {
+      "customerName": "L.D.S MARKETING SEEKOSITY BOOKS",
+      "total": 989770.65
+    },
+    {
+      "customerName": "BY REGISTERED",
+      "total": 757091.25
+    },
+    {
+      "customerName": "QUICK OFFSET - DELHI",
+      "total": 682028.8
+    }
+  ],
+  "revenueByBinding": [
+    {
+      "binding": "Unknown Binding",
+      "total": 117058840.22,
+      "qty": 34371
+    },
+    {
+      "binding": "Paperback",
+      "total": 21935763.05,
+      "qty": 107351
+    },
+    {
+      "binding": "Hardcover",
+      "total": 9927233.96,
+      "qty": 27638
+    },
+    {
+      "binding": "Text Book",
+      "total": 1428833.45,
+      "qty": 7028
+    },
+    {
+      "binding": "CH",
+      "total": 88445.59,
+      "qty": 1447
+    },
+    {
+      "binding": "Textbook",
+      "total": 27560.74,
+      "qty": 184
+    },
+    {
+      "binding": "paperback",
+      "total": 1760.62,
+      "qty": 9
+    },
+    {
+      "binding": "Magazine",
+      "total": 327.9,
+      "qty": 4
+    }
+  ]
+}
