@@ -286,10 +286,19 @@ router.get("/", async (req, res) => {
     if (author)    where.author = { contains: author, mode: "insensitive" };
     if (isbn)      where.isbn = { contains: isbn, mode: "insensitive" };
     if (customerName) where.customerName = { contains: customerName, mode: "insensitive" };
+
+    // Exclude negative amounts/rates/qty (bugs from data source)
+    where.AND = [
+      { OR: [{ amount: null }, { amount: { gte: 0 } }] },
+      { OR: [{ rate: null }, { rate: { gte: 0 } }] },
+      { OR: [{ qty: null }, { qty: { gte: 0 } }] },
+    ];
+    
     if (minAmount != null || maxAmount != null) {
-      where.amount = {};
-      if (minAmount != null) where.amount.gte = minAmount;
-      if (maxAmount != null) where.amount.lte = maxAmount;
+      const amountCond: any = {};
+      if (minAmount != null) amountCond.gte = minAmount;
+      if (maxAmount != null) amountCond.lte = maxAmount;
+      where.AND.push({ amount: amountCond });
     }
 
     const totalCount = await prisma.googleSheetOfflineSale.count({ where });
@@ -416,7 +425,12 @@ router.get("/summary", async (req, res) => {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
     const until = endDate ?? new Date();
 
-    const conditions = [Prisma.sql`"date" IS NOT NULL AND "date" >= ${since} AND "date" <= ${until}`];
+    const conditions = [
+      Prisma.sql`"date" IS NOT NULL AND "date" >= ${since} AND "date" <= ${until}`,
+      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+    ];
     if (state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
     if (city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
     if (publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
@@ -450,7 +464,11 @@ router.get("/summary", async (req, res) => {
     // Separate WHERE clause for topItems / bottomItems: does NOT require "date IS NOT NULL"
     // so ALL book records with title data are included (not just dated rows).
     // Dimension filters (state, publisher, etc.) are still applied if active.
-    const itemConditions: any[] = [];
+    const itemConditions: any[] = [
+      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+    ];
     if (state)     itemConditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
     if (city)      itemConditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
     if (publisher) itemConditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
@@ -709,7 +727,12 @@ router.get("/counts", async (req, res) => {
     const end = endDate ? new Date(endDate) : null;
 
     // Build dynamic WHERE clause for raw SQL
-    const conditions = [Prisma.sql`"date" IS NOT NULL`];
+    const conditions = [
+      Prisma.sql`"date" IS NOT NULL`,
+      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+    ];
     if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
     else if (start)   conditions.push(Prisma.sql`"date" >= ${start}`);
     
