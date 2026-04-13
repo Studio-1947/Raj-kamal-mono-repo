@@ -247,6 +247,7 @@ router.get("/", async (req, res) => {
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     isbn: z.string().optional(),
     customerName: z.string().optional(),
+    binding: z.string().optional(),
   });
   const parsed = Q.safeParse({
     limit: req.query.limit ?? "100",
@@ -263,10 +264,11 @@ router.get("/", async (req, res) => {
     maxAmount: req.query.maxAmount,
     isbn: req.query.isbn,
     customerName: req.query.customerName,
+    binding: req.query.binding,
   });
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: "Invalid query" });
-  const { limit, offset, cursorId, startDate, endDate, q, state, city, publisher, author, minAmount, maxAmount, isbn, customerName } = parsed.data;
+  const { limit, offset, cursorId, startDate, endDate, q, state, city, publisher, author, minAmount, maxAmount, isbn, customerName, binding } = parsed.data;
 
   try {
     const where: any = {};
@@ -286,6 +288,7 @@ router.get("/", async (req, res) => {
     if (author)    where.author = { contains: author, mode: "insensitive" };
     if (isbn)      where.isbn = { contains: isbn, mode: "insensitive" };
     if (customerName) where.customerName = { contains: customerName, mode: "insensitive" };
+    if (binding)   where.binding = { contains: binding, mode: "insensitive" };
 
     // Exclude negative amounts/rates/qty (bugs from data source)
     where.AND = [
@@ -386,6 +389,7 @@ router.get("/summary", async (req, res) => {
     customerName: z.string().optional(),
     minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    binding: z.string().optional(),
   });
   const parsed = Q.safeParse({
     days: req.query.days,
@@ -399,6 +403,7 @@ router.get("/summary", async (req, res) => {
     customerName: req.query.customerName,
     minAmount: req.query.minAmount,
     maxAmount: req.query.maxAmount,
+    binding: req.query.binding,
   });
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: "Invalid query" });
@@ -410,10 +415,10 @@ router.get("/summary", async (req, res) => {
     ? new Date(parsed.data.endDate)
     : undefined;
 
-  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount } = parsed.data;
+  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding } = parsed.data;
 
   // Cache key based on parameters
-  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}`;
+  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) {
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
@@ -437,6 +442,7 @@ router.get("/summary", async (req, res) => {
     if (author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
     if (isbn)      conditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
     if (customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
+    if (binding)   conditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
@@ -475,18 +481,22 @@ router.get("/summary", async (req, res) => {
     if (author)    itemConditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
     if (isbn)      itemConditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
     if (customerName) itemConditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
+    if (binding)   itemConditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
     if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
     const itemsWhereClause = itemConditions.length > 0
       ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}`
       : Prisma.sql``;
 
-    // SQL aggregate: top 10 items by total amount
     const topItemsRows = await prisma.$queryRaw<
       { title: string; total: number; qty: number; rate: number }[]
     >(Prisma.sql`
       SELECT
-        COALESCE(NULLIF(TRIM("title"), ''), 'Untitled Item') AS title,
+        CASE
+          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
+          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
+          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
+        END AS title,
         COALESCE(SUM(
           CASE
             WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
@@ -506,6 +516,12 @@ router.get("/summary", async (req, res) => {
           ELSE 0
         END
       ) > 0 OR SUM("qty") > 0
+      GROUP BY 
+        CASE
+          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
+          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
+          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
+        END
       ORDER BY total DESC
       LIMIT 10
     `);
@@ -526,18 +542,21 @@ router.get("/summary", async (req, res) => {
       };
     });
 
-    // SQL aggregate: bottom 10 items by total amount (worst performing, titled books only)
-    // Note: filter out empty/null titles in WHERE (not HAVING) to avoid PostgreSQL
-    // "column must appear in GROUP BY or aggregate" error.
+    // SQL aggregate: bottom 10 items by total amount (worst performing)
+    // We now allow untitled items but label them descriptively so they can be identified.
     const bottomItemsTitleFilter = itemConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')} AND TRIM("title") IS NOT NULL AND TRIM("title") != ''`
-      : Prisma.sql`WHERE TRIM("title") IS NOT NULL AND TRIM("title") != ''`;
+      ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}`
+      : Prisma.sql``;
 
     const bottomItemsRows = await prisma.$queryRaw<
       { title: string; total: number; qty: number; rate: number }[]
     >(Prisma.sql`
       SELECT
-        TRIM("title") AS title,
+        CASE
+          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
+          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
+          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
+        END AS title,
         COALESCE(SUM(
           CASE
             WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
@@ -549,16 +568,14 @@ router.get("/summary", async (req, res) => {
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${bottomItemsTitleFilter}
-      GROUP BY TRIM("title")
-      HAVING (
-        SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
         ) > 0 OR SUM("qty") > 0
       )
+      GROUP BY 
+        CASE
+          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
+          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
+          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
+        END
       ORDER BY total ASC
       LIMIT 10
     `);
@@ -648,6 +665,30 @@ router.get("/summary", async (req, res) => {
       total: round2(Number(r.total))
     }));
 
+    const revenueByBindingRows = await prisma.$queryRaw<
+      { binding: string; total: number; qty: number }[]
+    >(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding,
+        COALESCE(SUM(
+          CASE
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0
+          END
+        ), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty
+      FROM "google_sheet_offline_sales"
+      ${whereClause}
+      GROUP BY COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding')
+      ORDER BY total DESC
+    `);
+    (result as any).revenueByBinding = revenueByBindingRows.map(r => ({
+      binding: r.binding,
+      total: round2(Number(r.total)),
+      qty: Number(r.qty) || 0
+    }));
+
     summaryCache.set(cacheKey, result);
 
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
@@ -687,6 +728,7 @@ router.get("/counts", async (req, res) => {
     customerName: z.string().optional(),
     minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    binding: z.string().optional(),
   });
   const parsed = Q.safeParse({
     days: req.query.days,
@@ -700,6 +742,7 @@ router.get("/counts", async (req, res) => {
     customerName: req.query.customerName,
     minAmount: req.query.minAmount,
     maxAmount: req.query.maxAmount,
+    binding: req.query.binding,
   });
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: "Invalid query" });
@@ -714,7 +757,7 @@ router.get("/counts", async (req, res) => {
   }
 
   // Cache key based on parameters
-  const cacheKey = `counts:${days ?? ""}:${startDate ?? ""}:${endDate ?? ""}:${parsed.data.state ?? ""}:${parsed.data.city ?? ""}:${parsed.data.publisher ?? ""}:${parsed.data.author ?? ""}:${parsed.data.isbn ?? ""}:${parsed.data.customerName ?? ""}:${parsed.data.minAmount ?? ""}:${parsed.data.maxAmount ?? ""}`;
+  const cacheKey = `counts:${days ?? ""}:${startDate ?? ""}:${endDate ?? ""}:${parsed.data.state ?? ""}:${parsed.data.city ?? ""}:${parsed.data.publisher ?? ""}:${parsed.data.author ?? ""}:${parsed.data.isbn ?? ""}:${parsed.data.customerName ?? ""}:${parsed.data.minAmount ?? ""}:${parsed.data.maxAmount ?? ""}:${parsed.data.binding ?? ""}`;
   const cached = countsCache.get(cacheKey);
   if (cached) {
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
@@ -742,6 +785,7 @@ router.get("/counts", async (req, res) => {
     if (parsed.data.author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + parsed.data.author + '%'}`);
     if (parsed.data.isbn)      conditions.push(Prisma.sql`"isbn" ILIKE ${'%' + parsed.data.isbn + '%'}`);
     if (parsed.data.customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + parsed.data.customerName + '%'}`);
+    if (parsed.data.binding)      conditions.push(Prisma.sql`"binding" ILIKE ${'%' + parsed.data.binding + '%'}`);
     
     const minA = parsed.data.minAmount;
     const maxA = parsed.data.maxAmount;
@@ -750,9 +794,8 @@ router.get("/counts", async (req, res) => {
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
-    // Single SQL aggregate query for all counts
     const [agg] = await prisma.$queryRaw<
-      { count: bigint; total_amount: number; unique_customers: bigint }[]
+      { count: bigint; total_amount: number; unique_customers: bigint; top_binding: string }[]
     >(Prisma.sql`
       SELECT
         COUNT(*)::bigint AS count,
@@ -763,7 +806,15 @@ router.get("/counts", async (req, res) => {
             ELSE 0
           END
         ), 0)::float AS total_amount,
-        COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers
+        COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers,
+        (
+          SELECT TRIM("binding")
+          FROM "google_sheet_offline_sales"
+          ${whereClause} AND ("binding" IS NOT NULL AND TRIM("binding") != '')
+          GROUP BY TRIM("binding")
+          ORDER BY COUNT(*) DESC
+          LIMIT 1
+        ) AS top_binding
       FROM "google_sheet_offline_sales"
       ${whereClause}
     `);
@@ -774,6 +825,7 @@ router.get("/counts", async (req, res) => {
       totalAmount: round2(Number(agg?.total_amount ?? 0)),
       uniqueCustomers: Number(agg?.unique_customers ?? 0),
       refundCount: 0,
+      topBinding: agg?.top_binding ?? 'N/A'
     };
     countsCache.set(cacheKey, result);
 

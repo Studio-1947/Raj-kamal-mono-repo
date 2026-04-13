@@ -16,6 +16,7 @@ export function useOfflineSheetFilters() {
     author: s.get('author') || undefined,
     isbn: s.get('isbn') || undefined,
     customerName: s.get('customerName') || undefined,
+    binding: s.get('binding') || undefined,
     minAmount: s.get('minAmount') ? Number(s.get('minAmount')) : undefined,
     maxAmount: s.get('maxAmount') ? Number(s.get('maxAmount')) : undefined,
     page: s.get('page') ? Number(s.get('page')) : 1,
@@ -85,7 +86,7 @@ export function useOfflineSheetFilters() {
   }, [setS]);
 
   const isFiltered = useMemo(() => {
-    return !!(filters.q || filters.state || filters.city || filters.publisher || filters.author || filters.isbn || filters.customerName || filters.minAmount || filters.maxAmount || filters.startDate);
+    return !!(filters.q || filters.state || filters.city || filters.publisher || filters.author || filters.isbn || filters.customerName || filters.binding || filters.minAmount || filters.maxAmount || filters.startDate);
   }, [filters]);
 
   return { filters, setDays, setDateRange, clearDateRange, setQ, setPage, updateFilter, clearAll, isFiltered };

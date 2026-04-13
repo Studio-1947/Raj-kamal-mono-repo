@@ -46,8 +46,13 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
             {title || entry.name}: {fmtINR(entry.value)}
           </p>
         ))}
+        {originalData?.qty ? (
+          <p className="mt-1 text-sm font-medium text-gray-700">
+            Total Quantity: {originalData.qty.toLocaleString('en-IN')} Units
+          </p>
+        ) : null}
         {originalData?.rate ? (
-          <p className="mt-2 text-sm font-medium text-gray-700">
+          <p className="mt-1 text-sm font-medium text-gray-700">
             Book Rate: {fmtINR(originalData.rate)}
           </p>
         ) : null}
@@ -82,6 +87,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         <ChartSkeleton title="Top 10 States" />
         <ChartSkeleton title="Top 10 Publishers" />
         <ChartSkeleton title="Top 10 Customers" />
+        <ChartSkeleton title="Sales by Binding" />
       </div>
     );
   }
@@ -91,6 +97,7 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
   const bottomItems = data.bottomItems ?? [];
   const byState    = data.revenueByState ?? [];
   const byPub      = data.revenueByPublisher ?? [];
+  const byBinding  = data.revenueByBinding ?? [];
   const byCustomer = data.topCustomers ?? [];
 
   // Solid black for absolute legibility
@@ -227,11 +234,39 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
           )}
         </div>
 
+        {/* Row 3, Col 1: Revenue by Binding (Bar) */}
+        <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
+          <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-pink-500 pb-2 inline-block">Sales by Binding</h3>
+          {byBinding.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={byBinding} layout="vertical" margin={{ left: 20, right: 40, top: 10, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
+                <YAxis 
+                  type="category" 
+                  dataKey="binding" 
+                  width={140} 
+                  tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
+                  axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
+                  interval={0}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="total" name="Total Revenue" fill="#EC4899" radius={[0, 8, 8, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No binding data</div>
+          )}
+        </div>
+
       </div>
 
       {/* Full width: Top 10 Best Selling Books */}
       <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-green-500 pb-2 inline-block">Top 10 Best Selling Items</h3>
+        <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-green-500 pb-2 inline-block">Top 10 Best Selling Items</h3>
+        <p className="mb-4 text-sm text-gray-500">
+          <span className="italic">Note: Items labeled "[No Title]" are records missing a Title in source data. ISBN/Doc No are shown for identification.</span>
+        </p>
         {topItems.length > 0 ? (
           <ResponsiveContainer width="100%" height={Math.max(300, topItems.length * 42)}>
             <BarChart data={topItems} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
@@ -260,7 +295,9 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
       {/* Full width: Bottom 10 Worst Performing Books */}
       <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm">
         <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-red-400 pb-2 inline-block">Bottom 10 Worst Performing Items</h3>
-        <p className="mb-4 text-sm text-gray-500">Books with the lowest total revenue in the selected period</p>
+        <p className="mb-4 text-sm text-gray-500">
+          Books with the lowest total revenue. <span className="italic">[No Title] entries are identifying records with missing title data.</span>
+        </p>
         {bottomItems.length > 0 ? (
           <ResponsiveContainer width="100%" height={Math.max(300, bottomItems.length * 42)}>
             <BarChart data={bottomItems} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>

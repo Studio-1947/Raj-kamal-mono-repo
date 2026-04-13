@@ -158,22 +158,26 @@ function FilterBar({
       </div>
 
       {/* Second row: Spreadsheet-style Column Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
         <FilterField 
           id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
           value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
           value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-auth" label="Author" placeholder="e.g. Premchand" 
           value={filters.author} onChange={(v:any) => updateFilter('author', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
           value={filters.isbn} onChange={(v:any) => updateFilter('isbn', v)}
+          width="w-full"
         />
         <FilterField 
           id="f-state" label="State" placeholder="e.g. Delhi" 
@@ -183,6 +187,11 @@ function FilterBar({
         <FilterField 
           id="f-city" label="City" placeholder="e.g. Varanasi" 
           value={filters.city} onChange={(v:any) => updateFilter('city', v)}
+          width="w-full"
+        />
+        <FilterField 
+          id="f-binding" label="Binding" placeholder="Paperback/Hardcover" 
+          value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
           width="w-full"
         />
       </div>
