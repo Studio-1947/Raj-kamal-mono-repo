@@ -697,7 +697,55 @@ router.get("/summary", async (req, res) => {
       qty: Number(r.qty) || 0
     }));
 
+    // --- Projection Logic (Year 2026) ---
+    const currentYear = 2026;
+    const yearStart = new Date(`${currentYear}-01-01T00:00:00Z`);
+    const yearEnd = new Date(`${currentYear}-12-31T23:59:59Z`);
+    const now = new Date(); 
+    
+    // Hardcode 'now' to April 14, 2026 for consistent run-rate during this demo session if needed, 
+    // but using actual Date() is better for real-time.
+    
+    const yearSoFarConditions = [
+      Prisma.sql`"date" IS NOT NULL AND "date" >= ${yearStart} AND "date" <= ${now}`,
+      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+    ];
+    const yearSoFarWhere = Prisma.sql`WHERE ${Prisma.join(yearSoFarConditions, ' AND ')}`;
+
+    const [yearStats] = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT 
+        COALESCE(SUM(
+          CASE 
+            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+            ELSE 0 
+          END
+        ), 0)::float as total
+      FROM "google_sheet_offline_sales"
+      ${yearSoFarWhere}
+    `);
+
+    const totalSoFar = Number(yearStats?.total ?? 0);
+    const diffTime = Math.max(1, now.getTime() - yearStart.getTime());
+    const daysElapsed = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const dailyAvg = totalSoFar / daysElapsed;
+    const remainingDays = Math.max(0, Math.ceil((yearEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    const projectedRemaining = dailyAvg * remainingDays;
+
+    (result as any).projection = {
+      year: currentYear,
+      totalSoFar: round2(totalSoFar),
+      daysElapsed,
+      dailyAvg: round2(dailyAvg),
+      remainingDays,
+      projectedRemaining: round2(projectedRemaining),
+      totalProjected: round2(totalSoFar + projectedRemaining)
+    };
+
     summaryCache.set(cacheKey, result);
+
 
     res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
     res.set("X-Cache", "MISS");

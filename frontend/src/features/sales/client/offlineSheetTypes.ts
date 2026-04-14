@@ -40,6 +40,15 @@ export interface OfflineSheetSummaryResponse {
   revenueByPublisher?: { publisher: string; total: number }[];
   revenueByBinding?: { binding: string; total: number; qty: number }[];
   topCustomers?: { customerName: string; total: number }[];
+  projection?: {
+    year: number;
+    totalSoFar: number;
+    daysElapsed: number;
+    dailyAvg: number;
+    remainingDays: number;
+    projectedRemaining: number;
+    totalProjected: number;
+  };
 }
 
 export interface OfflineSheetCountsResponse {

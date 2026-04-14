@@ -74,9 +74,9 @@ export default function Sidebar() {
   }
 
   const items: Item[] = [
-    { label: t("home"), to: "/", icon: <span /> },
-    { label: t("sales"), to: "/dashboard", icon: <span /> },
+    { label: t("home"), to: "/", icon: <span />, disabled: true },
     { label: "Offline Sales", to: "/offline-sheet-sales", icon: <span /> },
+    { label: t("sales"), to: "/dashboard", icon: <span /> },
     { label: t("geo_insights"), to: "/inventory", icon: <span />, disabled: true },
     { label: t("inventory"), to: "/stock", icon: <span />, disabled: true },
     { label: t("rankings"), to: "/rankings", icon: <span />, disabled: true },
@@ -148,6 +148,16 @@ export default function Sidebar() {
                   ) : (
                     <IconHomeDefault className="h-5 w-5" />
                   )
+                ) : it.to === "/offline-sheet-sales" ? (
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                 ) : it.to === "/dashboard" ? (
                   active ? (
                     <IconSalesActive className="h-5 w-5" />
@@ -172,16 +182,6 @@ export default function Sidebar() {
                   ) : (
                     <IconSocialDefault className="h-5 w-5" />
                   )
-                ) : it.to === "/offline-sheet-sales" ? (
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
                 ) : (
                   it.icon
                 );

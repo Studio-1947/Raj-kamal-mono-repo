@@ -26,7 +26,7 @@ const AppRoutes: React.FC = () => {
         path="/"
         element={
           <ProtectedRoute>
-            <Home />
+            <Navigate to="/offline-sheet-sales" replace />
           </ProtectedRoute>
         }
       />
