@@ -106,12 +106,29 @@ function FilterBar({
   isSyncing,
   lastSyncResult,
 }: FilterBarProps) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  // Helper to count active filters excluding defaults
+  const activeFilters = Object.entries(filters).filter(([key, value]) => {
+    if (key === 'page' || key === 'limit') return false;
+    if (key === 'days' && value === 10000) return false; // All time is default
+    return value !== undefined && value !== '' && value !== null;
+  });
+
   return (
-    <div className="flex flex-col gap-6 rounded-2xl border-4 border-gray-200 bg-white p-6 shadow-2xl">
+    <div className="flex flex-col gap-6 rounded-2xl border-4 border-gray-200 bg-white p-6 shadow-2xl transition-all duration-300">
       {/* Top row: Global Search, Quick Period, and Sync */}
       <div className="flex flex-wrap items-end gap-6 border-b-2 border-gray-100 pb-6">
         <div className="flex flex-1 min-w-[350px] flex-col gap-1.5">
-          <label htmlFor="search-input" className="text-sm font-medium text-black uppercase tracking-wider">Global Search (All columns)</label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="search-input" className="text-sm font-medium text-black uppercase tracking-wider">Global Search (All columns)</label>
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-xs font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 bg-teal-50 px-2 py-1 rounded-md border border-teal-100 transition-colors"
+            >
+              {isExpanded ? 'Collapse Filters ↑' : `Manage Advanced Filters (${activeFilters.length}) ↓`}
+            </button>
+          </div>
           <div className="relative">
             <input
               id="search-input"
@@ -122,6 +139,25 @@ function FilterBar({
               className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-medium text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
             />
           </div>
+          
+          {/* Quick reference for active filters when collapsed */}
+          {!isExpanded && activeFilters.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2 animate-fadeIn">
+              {activeFilters.map(([key, value]) => (
+                <span key={key} className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 border border-gray-200">
+                  <span className="opacity-50 uppercase text-[10px]">{key}:</span>
+                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  <button onClick={() => updateFilter(key as any, undefined)} className="text-gray-400 hover:text-red-500">×</button>
+                </span>
+              ))}
+              <button 
+                onClick={clearAll}
+                className="text-[10px] font-bold text-red-600 uppercase hover:underline"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -158,97 +194,104 @@ function FilterBar({
         </div>
       </div>
 
-      {/* Second row: Spreadsheet-style Column Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
-        <FilterField 
-          id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
-          value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
-          width="w-full"
-        />
-        <FilterField 
-          id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
-          value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
-          width="w-full"
-        />
-        <FilterField 
-          id="f-auth" label="Author" placeholder="e.g. Premchand" 
-          value={filters.author} onChange={(v:any) => updateFilter('author', v)}
-          width="w-full"
-        />
-        <FilterField 
-          id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
-          value={filters.isbn} onChange={(v:any) => updateFilter('isbn', v)}
-          width="w-full"
-        />
-        <FilterField 
-          id="f-state" label="State" placeholder="e.g. Delhi" 
-          value={filters.state} onChange={(v:any) => updateFilter('state', v)}
-          width="w-full"
-        />
-        <FilterField 
-          id="f-city" label="City" placeholder="e.g. Varanasi" 
-          value={filters.city} onChange={(v:any) => updateFilter('city', v)}
-          width="w-full"
-        />
-        <FilterField 
-          id="f-binding" label="Binding" placeholder="Paperback/Hardcover" 
-          value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
-          width="w-full"
-        />
-      </div>
-
-      {/* Third row: Dates, Ranges and Reset */}
-      <div className="flex flex-wrap items-end gap-8 pt-2">
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-black uppercase tracking-wider">Date Range</span>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
-              value={filters.startDate?.slice(0, 10) ?? ''}
-              onChange={(e) => {
-                if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
-              }}
-            />
-            <span className="text-black font-medium">→</span>
-            <input
-              type="date"
-              className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
-              value={filters.endDate?.slice(0, 10) ?? ''}
-              onChange={(e) => {
-                if (e.target.value) setDateRange(filters.startDate || new Date(0).toISOString(), new Date(e.target.value).toISOString());
-              }}
-            />
-          </div>
+      {/* Advanced Filters Section - Collapsible */}
+      <div className={`space-y-6 overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+        {/* Second row: Spreadsheet-style Column Filters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
+          <FilterField 
+            id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
+            value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
+            width="w-full"
+          />
+          <FilterField 
+            id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
+            value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
+            width="w-full"
+          />
+          <FilterField 
+            id="f-auth" label="Author" placeholder="e.g. Premchand" 
+            value={filters.author} onChange={(v:any) => updateFilter('author', v)}
+            width="w-full"
+          />
+          <FilterField 
+            id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
+            value={filters.isbn} onChange={(v:any) => updateFilter('isbn', v)}
+            width="w-full"
+          />
+          <FilterField 
+            id="f-state" label="State" placeholder="e.g. Delhi" 
+            value={filters.state} onChange={(v:any) => updateFilter('state', v)}
+            width="w-full"
+          />
+          <FilterField 
+            id="f-city" label="City" placeholder="e.g. Varanasi" 
+            value={filters.city} onChange={(v:any) => updateFilter('city', v)}
+            width="w-full"
+          />
+          <FilterField 
+            id="f-binding" label="Binding" placeholder="Paperback/Hardcover" 
+            value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
+            width="w-full"
+          />
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-black uppercase tracking-wider">Price Range (₹)</span>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              placeholder="Min"
-              value={filters.minAmount ?? ''}
-              onChange={(e) => updateFilter('minAmount', e.target.value ? Number(e.target.value) : undefined)}
-              className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
-            />
-            <span className="text-gray-400 font-medium">—</span>
-            <input
-              type="number"
-              placeholder="Max"
-              value={filters.maxAmount ?? ''}
-              onChange={(e) => updateFilter('maxAmount', e.target.value ? Number(e.target.value) : undefined)}
-              className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
-            />
+        {/* Third row: Dates, Ranges and Reset */}
+        <div className="flex flex-wrap items-end gap-8 pt-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-black uppercase tracking-wider">Date Range</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                title="Start Date"
+                aria-label="Start Date"
+                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+                value={filters.startDate?.slice(0, 10) ?? ''}
+                onChange={(e) => {
+                  if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
+                }}
+              />
+              <span className="text-black font-medium">→</span>
+              <input
+                type="date"
+                title="End Date"
+                aria-label="End Date"
+                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+                value={filters.endDate?.slice(0, 10) ?? ''}
+                onChange={(e) => {
+                  if (e.target.value) setDateRange(filters.startDate || new Date(0).toISOString(), new Date(e.target.value).toISOString());
+                }}
+              />
+            </div>
           </div>
-        </div>
 
-        <button
-          onClick={clearAll}
-          className="ml-auto text-base font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
-        >
-          Reset All Filters
-        </button>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-black uppercase tracking-wider">Price Range (₹)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                placeholder="Min"
+                value={filters.minAmount ?? ''}
+                onChange={(e) => updateFilter('minAmount', e.target.value ? Number(e.target.value) : undefined)}
+                className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+              />
+              <span className="text-gray-400 font-medium">—</span>
+              <input
+                type="number"
+                placeholder="Max"
+                value={filters.maxAmount ?? ''}
+                onChange={(e) => updateFilter('maxAmount', e.target.value ? Number(e.target.value) : undefined)}
+                className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={clearAll}
+            className="ml-auto text-base font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
+          >
+            Reset All Filters
+          </button>
+        </div>
       </div>
     </div>
   );
