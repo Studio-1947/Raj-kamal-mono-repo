@@ -13,6 +13,7 @@ import AppLayout from '../../../shared/AppLayout';
 import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
 import OfflineSheetTable  from './OfflineSheetTable';
+import OfflineSheetProjection from './OfflineSheetProjection';
 import {
   useOfflineSheetCounts,
   useOfflineSheetSummary,
@@ -308,6 +309,13 @@ export default function OfflineSheetPage() {
         <OfflineSheetKPI 
           data={countsQ.data} 
           isLoading={countsQ.isLoading} 
+        />
+      </div>
+
+      <div className="mb-12">
+        <OfflineSheetProjection
+          data={summaryQ.data}
+          isLoading={summaryQ.isLoading}
         />
       </div>
 
