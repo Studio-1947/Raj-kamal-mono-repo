@@ -364,9 +364,7 @@ export default function OfflineSheetPage() {
 
       <div className="mb-12">
         <OfflineSheetCharts 
-          data={summaryQ.data} 
-          isLoading={summaryQ.isLoading}
-          days={filters.days}
+          filters={filters} 
         />
       </div>
 

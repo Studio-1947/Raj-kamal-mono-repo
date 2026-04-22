@@ -7,7 +7,8 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts';
-import type { OfflineSheetSummaryResponse } from './offlineSheetTypes';
+import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
+import { apiClient } from '../../../lib/apiClient';
 
 // DnD Kit imports
 import {
@@ -36,9 +37,7 @@ const COLORS = [
 function fmtINR(n: number): string {
   try {
     return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
+      style: 'currency', currency: 'INR', maximumFractionDigits: 0,
     }).format(n);
   } catch {
     return `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -53,11 +52,9 @@ function fmtChartAxis(v: number): string {
   return `₹${(v / 1000).toFixed(0)}k`;
 }
 
-// Solid black for absolute legibility
 const TEXT_COL = '#000000'; 
 const BOLD_TEXT = { fontSize: 13, fontWeight: 500, fill: TEXT_COL };
 
-// ─── Custom Tooltip (Black Text) ───────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label, title }: any) => {
   if (active && payload && payload.length) {
     const originalData = payload[0]?.payload;
@@ -70,14 +67,7 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
           </p>
         ))}
         {originalData?.qty ? (
-          <p className="mt-1 text-sm font-medium text-gray-700">
-            Total Quantity: {originalData.qty.toLocaleString('en-IN')} Units
-          </p>
-        ) : null}
-        {originalData?.rate ? (
-          <p className="mt-1 text-sm font-medium text-gray-700">
-            Book Rate: {fmtINR(originalData.rate)}
-          </p>
+          <p className="mt-1 text-sm font-medium text-gray-700">Quantity: {originalData.qty.toLocaleString('en-IN')}</p>
         ) : null}
       </div>
     );
@@ -85,13 +75,144 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
   return null;
 };
 
-// ─── Skeleton ──────────────────────────────────────────────────────────────
-function ChartSkeleton({ title }: { title: string }) {
+// ─── Block Filter Components ────────────────────────────────────────────────
+
+function BlockFilterField({ label, value, onChange, placeholder, type = "text" }: any) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 animate-pulse h-[300px]">
-      <div className="h-4 bg-gray-200 rounded w-40 mb-4" />
-      <div className="h-[224px] bg-gray-100 rounded" />
-      <p className="text-xs text-gray-400 mt-2">{title}</p>
+    <div className="flex flex-col gap-1">
+      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{label}</label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : (type === 'number' ? Number(e.target.value) : e.target.value))}
+        className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300"
+      />
+    </div>
+  );
+}
+
+// ─── Chart Block Component ──────────────────────────────────────────────────
+interface ChartBlockProps {
+  id: string;
+  title: string;
+  globalFilters: OfflineSheetFilters;
+  render: (data: OfflineSheetSummaryResponse) => React.ReactNode;
+}
+
+function ChartBlock({ id, title, globalFilters, render }: ChartBlockProps) {
+  const [localFilters, setLocalFilters] = useState<OfflineSheetFilters>(() => {
+    const saved = localStorage.getItem(`rk_chart_filters_${id}`);
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return { days: globalFilters.days || 90 };
+  });
+
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [data, setData] = useState<OfflineSheetSummaryResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchChart() {
+      setLoading(true);
+      try {
+        const p = new URLSearchParams();
+        Object.entries(localFilters).forEach(([k, v]) => {
+          if (v !== undefined && v !== '' && v !== null) p.set(k, String(v));
+        });
+        const resp = await apiClient.get<OfflineSheetSummaryResponse>(`offline-sales/summary?${p.toString()}`);
+        setData(resp);
+        localStorage.setItem(`rk_chart_filters_${id}`, JSON.stringify(localFilters));
+      } catch (e) {
+        console.error(`Failed to fetch chart ${id}`, e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchChart();
+  }, [id, localFilters]);
+
+  const updateF = (key: keyof OfflineSheetFilters, val: any) => {
+    setLocalFilters(prev => ({ ...prev, [key]: val }));
+  };
+
+  const activeFilterCount = Object.entries(localFilters).filter(([k, v]) => k !== 'days' && v !== undefined && v !== '').length;
+
+  return (
+    <div className="flex flex-col h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-teal-500/30 hover:shadow-xl transition-all duration-300 relative group/block">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <h3 className="text-xl font-medium text-black border-b-4 border-teal-500 pb-1 inline-block uppercase tracking-tight">{title}</h3>
+          {activeFilterCount > 0 && (
+            <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700 border border-teal-200">
+              {activeFilterCount} ACTIVE FILTERS
+            </span>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {/* Quick Days Selector */}
+          <div className="flex items-center gap-1 rounded-xl bg-gray-50 p-1 border border-gray-100">
+            {[30, 90, 180, 365].map((d) => (
+              <button
+                key={d}
+                onClick={() => updateF('days', d)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  localFilters.days === d
+                    ? 'bg-teal-600 text-white shadow-md'
+                    : 'text-gray-500 hover:bg-white hover:text-teal-600'
+                }`}
+              >
+                {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className={`rounded-xl border-2 p-2 transition-all ${
+              isFilterOpen ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-gray-100 bg-white text-gray-400 hover:border-teal-300 hover:text-teal-600'
+            }`}
+            title="Drill-down filters"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Advanced Block Filters */}
+      <div className={`overflow-hidden transition-all duration-300 ${isFilterOpen ? 'max-h-[500px] mb-6 opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="rounded-xl border-2 border-teal-100 bg-teal-50/30 p-4 grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
+          <BlockFilterField label="Customer" value={localFilters.customerName} onChange={(v:any) => updateF('customerName', v)} placeholder="Search name..." />
+          <BlockFilterField label="Publisher" value={localFilters.publisher} onChange={(v:any) => updateF('publisher', v)} placeholder="All publishers" />
+          <BlockFilterField label="State" value={localFilters.state} onChange={(v:any) => updateF('state', v)} placeholder="e.g. Delhi" />
+          <BlockFilterField label="Binding" value={localFilters.binding} onChange={(v:any) => updateF('binding', v)} placeholder="All bindings" />
+          <BlockFilterField label="ISBN" value={localFilters.isbn} onChange={(v:any) => updateF('isbn', v)} placeholder="Code..." />
+          <div className="flex gap-2 items-end">
+             <div className="flex-1"><BlockFilterField label="Min ₹" type="number" value={localFilters.minAmount} onChange={(v:any) => updateF('minAmount', v)} /></div>
+             <div className="flex-1"><BlockFilterField label="Max ₹" type="number" value={localFilters.maxAmount} onChange={(v:any) => updateF('maxAmount', v)} /></div>
+          </div>
+          <div className="col-span-full pt-2 flex justify-between items-center border-t border-teal-100">
+             <button onClick={() => setLocalFilters({ days: 90 })} className="text-[10px] font-bold text-red-600 uppercase hover:underline">Reset Block Filters</button>
+             <button onClick={() => setIsFilterOpen(false)} className="text-[10px] font-bold text-teal-700 uppercase hover:underline text-right">Close Panel ↑</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-[300px]">
+        {loading ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" />
+          </div>
+        ) : data ? (
+          render(data)
+        ) : (
+          <div className="flex h-full items-center justify-center text-gray-400">No data found with individual block filters</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -107,12 +228,7 @@ interface SortableItemProps {
 
 function SortableItem({ id, children, className, isStretched, onToggleStretch }: SortableItemProps) {
   const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id });
 
   const style = {
@@ -122,40 +238,20 @@ function SortableItem({ id, children, className, isStretched, onToggleStretch }:
   };
 
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
-      className={`relative group ${className || ''} ${isDragging ? 'opacity-20 z-50' : ''}`}
-    >
-      <div className="absolute right-4 top-4 z-20 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-        {/* Resize Toggle Button */}
+    <div ref={setNodeRef} style={style} className={`relative group ${className || ''} ${isDragging ? 'opacity-20 z-50' : ''}`}>
+      <div className="absolute right-4 top-4 z-30 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
         <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleStretch(id);
-          }}
-          className="rounded-lg bg-white/80 p-2 text-gray-500 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-teal-600 border border-gray-100"
-          title={isStretched ? "Shrink to Half Width" : "Stretch to Full Width"}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleStretch(id); }}
+          className="rounded-lg bg-white/90 p-2 text-gray-500 shadow-lg backdrop-blur-md transition-all hover:bg-white hover:text-teal-600 border border-gray-200"
         >
           {isStretched ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 14h6v6"/><path d="M10 14l-6 6"/><path d="M20 10h-6V4"/><path d="M14 10l6-6"/>
-            </svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 14h6v6M10 14l-6 6M20 10h-6V4M14 10l6-6"/></svg>
           ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 3h6v6"/><path d="M21 3l-6 6"/><path d="M9 21H3v-6"/><path d="M3 21l6-6"/>
-            </svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 3h6v6M21 3l-6 6M9 21H3v-6M3 21l6-6"/></svg>
           )}
         </button>
-
-        {/* Drag Handle */}
-        <div 
-          {...attributes} 
-          {...listeners}
-          className="cursor-grab rounded-lg bg-white/80 p-2 text-gray-500 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-gray-900 border border-gray-100 active:cursor-grabbing"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <div {...attributes} {...listeners} className="cursor-grab rounded-lg bg-white/90 p-2 text-gray-400 shadow-lg backdrop-blur-md border border-gray-200">
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="9" cy="5" r="1.25" fill="currentColor"/><circle cx="9" cy="12" r="1.25" fill="currentColor"/><circle cx="9" cy="19" r="1.25" fill="currentColor"/>
             <circle cx="15" cy="5" r="1.25" fill="currentColor"/><circle cx="15" cy="12" r="1.25" fill="currentColor"/><circle cx="15" cy="19" r="1.25" fill="currentColor"/>
           </svg>
@@ -167,29 +263,19 @@ function SortableItem({ id, children, className, isStretched, onToggleStretch }:
 }
 
 interface Props {
-  data?: OfflineSheetSummaryResponse;
-  isLoading: boolean;
-  days: number;
+  filters: OfflineSheetFilters;
 }
 
-const DEFAULT_ORDER = [
-  'revenue-trend',
-  'sales-by-state',
-  'sales-by-publisher',
-  'top-customers',
-  'sales-by-binding',
-  'top-items',
-  'bottom-items'
-];
+const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'bottom-items'];
 
-export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
+export default function OfflineSheetCharts({ filters: globalFilters }: Props) {
   const [items, setItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('rk_offline_charts_order');
     if (saved) {
-      try {
+      try { 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length >= DEFAULT_ORDER.length) return parsed;
-      } catch (e) {}
+      } catch {}
     }
     return DEFAULT_ORDER;
   });
@@ -197,28 +283,21 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
   const [stretchedItems, setStretchedItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('rk_offline_charts_stretched');
     if (saved) {
-      try {
+      try { 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
-      } catch (e) {}
+      } catch {}
     }
-    return ['top-items', 'bottom-items']; // Default stretched ones
+    return ['revenue-trend', 'top-items', 'bottom-items']; 
   });
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-
     if (over && active.id !== over.id) {
       setItems((items) => {
         const oldIndex = items.indexOf(active.id as string);
@@ -238,304 +317,119 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
     });
   }
 
-  if (isLoading || !data) {
-    return (
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ChartSkeleton title="Revenue Trend" />
-        <ChartSkeleton title="Top 10 States" />
-        <ChartSkeleton title="Top 10 Publishers" />
-        <ChartSkeleton title="Top 10 Customers" />
-        <ChartSkeleton title="Sales by Binding" />
-      </div>
-    );
-  }
-
-  const timeSeries = data.timeSeries ?? [];
-  const topItems   = data.topItems   ?? [];
-  const bottomItems = data.bottomItems ?? [];
-  const byState    = data.revenueByState ?? [];
-  const byPub      = data.revenueByPublisher ?? [];
-  const byBinding  = data.revenueByBinding ?? [];
-  const byCustomer = data.topCustomers ?? [];
-
-  const renderChart = (id: string) => {
-    switch (id) {
-      case 'revenue-trend':
-        return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-teal-500/30 hover:shadow-xl transition-all duration-300">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-teal-500 pb-2 inline-block uppercase tracking-tight">Revenue Trend (Last {days} Days)</h3>
-            {timeSeries.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={timeSeries} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
-                  <defs>
-                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0D9488" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#0D9488" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={BOLD_TEXT} 
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }}
-                    tickLine={{ stroke: '#000000', strokeWidth: 2 }}
-                    dy={10}
-                    minTickGap={50}
-                    tickFormatter={(val) => {
-                      const date = new Date(val);
-                      return isNaN(date.getTime()) ? val : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    }}
-                  />
-                  <YAxis 
-                    tick={BOLD_TEXT} 
-                    tickFormatter={fmtChartAxis} 
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }}
-                    tickLine={{ stroke: '#000000', strokeWidth: 2 }}
-                  />
-                  <Tooltip content={<CustomTooltip title="Revenue" />} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="total" 
-                    stroke="#0D9488" 
-                    strokeWidth={5} 
-                    fillOpacity={1} 
-                    fill="url(#colorTotal)" 
-                    dot={false}
-                    activeDot={{ r: 10, strokeWidth: 0, fill: '#0D9488' }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No sales trend data</div>
-            )}
-          </div>
-        );
-      case 'sales-by-state':
-        return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-blue-500/30 hover:shadow-xl transition-all duration-300">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-blue-500 pb-2 inline-block uppercase tracking-tight">Sales by State (Top 10)</h3>
-            {byState.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                  <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="state" 
-                    width={140} 
-                    tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
-                    interval={0}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="total" name="Total Revenue" fill="#3B82F6" radius={[0, 8, 8, 0]} barSize={25} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No state data</div>
-            )}
-          </div>
-        );
-      case 'sales-by-publisher':
-        return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-orange-500/30 hover:shadow-xl transition-all duration-300">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-orange-500 pb-2 inline-block uppercase tracking-tight">Sales by Publisher (Top 10)</h3>
-            {byPub.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                  <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="publisher" 
-                    width={140} 
-                    tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
-                    interval={0}
-                    tickFormatter={(v) => v.length > 20 ? v.substring(0, 18) + '...' : v} 
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="total" name="Total Revenue" fill="#F59E0B" radius={[0, 8, 8, 0]} barSize={25} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No publisher data</div>
-            )}
-          </div>
-        );
-      case 'top-customers':
-        return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-purple-500/30 hover:shadow-xl transition-all duration-300">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-purple-500 pb-2 inline-block uppercase tracking-tight">Top 10 Customers</h3>
-            {byCustomer.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                  <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="customerName" 
-                    width={140} 
-                    tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
-                    interval={0}
-                    tickFormatter={(v) => v.length > 20 ? v.substring(0, 18) + '...' : v} 
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="total" name="Total Revenue" fill="#8B5CF6" radius={[0, 8, 8, 0]} barSize={25} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[400px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No customer data</div>
-            )}
-          </div>
-        );
-      case 'sales-by-binding':
-        return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-pink-500/30 hover:shadow-xl transition-all duration-300">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-pink-500 pb-2 inline-block uppercase tracking-tight">Sales by Binding</h3>
-            {byBinding.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={byBinding} layout="vertical" margin={{ left: 20, right: 40, top: 10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                  <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="binding" 
-                    width={140} 
-                    tick={{ fontSize: 13, fontWeight: 500, fill: TEXT_COL }} 
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }} 
-                    interval={0}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="total" name="Total Revenue" fill="#EC4899" radius={[0, 8, 8, 0]} barSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No binding data</div>
-            )}
-          </div>
-        );
-      case 'top-items':
-        return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-green-500/30 hover:shadow-xl transition-all duration-300">
-            <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-green-500 pb-2 inline-block uppercase tracking-tight">Top 10 Best Selling Items</h3>
-            <p className="mb-4 text-sm text-gray-500">
-              <span className="italic">Note: Items labeled "[No Title]" are records missing a Title in source data. ISBN/Doc No are shown for identification.</span>
-            </p>
-            {topItems.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, topItems.length * 42)}>
-                <BarChart data={topItems} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                  <XAxis type="number" tick={BOLD_TEXT} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#000000', strokeWidth: 2 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="title"
-                    width={200}
-                    tick={{ fontSize: 12, fontWeight: 500, fill: TEXT_COL }}
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }}
-                    interval={0}
-                    tickFormatter={(v) => v.length > 30 ? v.substring(0, 28) + '…' : v}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="total" name="Total Revenue" fill="#10B981" radius={[0, 8, 8, 0]} barSize={22}
-                    label={{ position: 'right', fontSize: 12, fontWeight: 600, fill: TEXT_COL, formatter: (v: any) => fmtChartAxis(Number(v)) }}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No item data</div>
-            )}
-          </div>
-        );
-      case 'bottom-items':
-        return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-red-400/30 hover:shadow-xl transition-all duration-300">
-            <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-red-400 pb-2 inline-block uppercase tracking-tight">Bottom 10 Worst Performing Items</h3>
-            <p className="mb-4 text-sm text-gray-500">
-              Books with the lowest total revenue. <span className="italic">[No Title] entries are identifying records with missing title data.</span>
-            </p>
-            {bottomItems.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, bottomItems.length * 42)}>
-                <BarChart data={bottomItems} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                  <XAxis 
-                    type="number" 
-                    tick={BOLD_TEXT} 
-                    tickFormatter={fmtChartAxis} 
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }}
-                    domain={[ (dataMin: number) => Math.min(0, dataMin) * 1.1, (dataMax: number) => Math.max(0, dataMax) * 1.1 ]}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="title"
-                    width={200}
-                    tick={{ fontSize: 12, fontWeight: 500, fill: TEXT_COL }}
-                    axisLine={{ stroke: '#000000', strokeWidth: 2 }}
-                    interval={0}
-                    tickFormatter={(v) => v.length > 30 ? v.substring(0, 28) + '…' : v}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar 
-                    dataKey="total" 
-                    name="Total Revenue" 
-                    fill="#EF4444" 
-                    radius={[0, 8, 8, 0]} 
-                    barSize={22}
-                    label={(props: any) => {
-                      const { x, y, width, height, value } = props;
-                      const isNegative = value < 0;
-                      const labelX = isNegative ? x - 5 : x + width + 5;
-                      const textAnchor = isNegative ? 'end' : 'start';
-                      return (
-                        <text 
-                          x={labelX} 
-                          y={y + height / 2} 
-                          dy={4} 
-                          fill={TEXT_COL} 
-                          fontSize={12} 
-                          fontWeight={600} 
-                          textAnchor={textAnchor}
-                        >
-                          {fmtChartAxis(Number(value))}
-                        </text>
-                      );
-                    }}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-100 text-lg text-black font-medium">No item data</div>
-            )}
-          </div>
-        );
-      default:
-        return null;
+  const chartConfigs: Record<string, { title: string; render: (data: OfflineSheetSummaryResponse) => React.ReactNode }> = {
+    'revenue-trend': {
+      title: 'Revenue Trend',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={300}>
+          <AreaChart data={data.timeSeries || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <defs><linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0D9488" stopOpacity={0.3}/><stop offset="95%" stopColor="#0D9488" stopOpacity={0}/></linearGradient></defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="date" tick={BOLD_TEXT} minTickGap={50} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
+            <YAxis tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <Tooltip content={<CustomTooltip title="Revenue" />} />
+            <Area type="monotone" dataKey="total" stroke="#0D9488" strokeWidth={4} fill="url(#colorTrend)" dot={false} activeDot={{ r: 8 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      )
+    },
+    'sales-by-state': {
+      title: 'Sales by State',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.revenueByState || []} layout="vertical" margin={{ left: 20, right: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="state" width={120} tick={BOLD_TEXT} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'sales-by-publisher': {
+      title: 'Sales by Publisher',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.revenueByPublisher || []} layout="vertical" margin={{ left: 20, right: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="publisher" width={120} tick={BOLD_TEXT} tickFormatter={(v) => v.length > 15 ? v.substring(0, 13) + '..' : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#F59E0B" radius={[0, 4, 4, 0]} barSize={20} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'top-customers': {
+      title: 'Top 10 Customers',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.topCustomers || []} layout="vertical" margin={{ left: 20, right: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="customerName" width={120} tick={BOLD_TEXT} tickFormatter={(v) => v.length > 15 ? v.substring(0, 13) + '..' : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={20} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'sales-by-binding': {
+      title: 'Sales by Binding',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.revenueByBinding || []} layout="vertical" margin={{ left: 20, right: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="binding" width={100} tick={BOLD_TEXT} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#EC4899" radius={[0, 4, 4, 0]} barSize={30} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'top-items': {
+      title: 'Top Selling Items',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.topItems || []} layout="vertical" margin={{ left: 20, right: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#10B981" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600, formatter: (v: any) => fmtChartAxis(Number(v)) }} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'bottom-items': {
+      title: 'Least Selling Items',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.bottomItems || []} layout="vertical" margin={{ left: 20, right: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600, formatter: (v: any) => fmtChartAxis(Number(v)) }} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
     }
   };
 
   return (
-    <DndContext 
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext 
-        items={items}
-        strategy={rectSortingStrategy}
-      >
-        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={items} strategy={rectSortingStrategy}>
+        <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
           {items.map((id) => {
+            const config = chartConfigs[id];
+            if (!config) return null;
             const isStretched = stretchedItems.includes(id);
             return (
-              <SortableItem 
-                key={id} 
-                id={id} 
-                isStretched={isStretched}
-                onToggleStretch={toggleStretch}
-                className={isStretched ? 'lg:col-span-2' : ''}
-              >
-                {renderChart(id)}
+              <SortableItem key={id} id={id} isStretched={isStretched} onToggleStretch={toggleStretch} className={isStretched ? 'lg:col-span-2' : ''}>
+                <ChartBlock id={id} title={config.title} globalFilters={globalFilters} render={config.render} />
               </SortableItem>
             );
           })}
