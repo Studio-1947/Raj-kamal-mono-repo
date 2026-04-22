@@ -12,12 +12,12 @@ const STORAGE_KEY = "rk_lang";
 
 const translations = {
   en: {
-    home: "Home",
+    home: "Total Sales",
     dashboard: "Dashboard",
-    sales: "Sales",
+    sales: "Online Sales",
     inventory: "Inventory",
     geo_insights: "Geo Insights",
-    rankings: "Rankings",
+    rankings: "Rankings of Books",
     social_media: "Social Media",
     settings: "Settings",
     language: "Language",
@@ -45,12 +45,12 @@ const translations = {
     current_language: "Current language",
   },
   hi: {
-    home: "होम",
+    home: "कुल बिक्री",
     dashboard: "डैशबोर्ड",
-    sales: "बिक्री",
+    sales: "ऑनलाइन बिक्री",
     inventory: "इन्वेंटरी",
     geo_insights: "भू अंतर्दृष्टि",
-    rankings: "रैंकिंग",
+    rankings: "पुस्तकों की रैंकिंग",
     social_media: "सोशल मीडिया",
     settings: "सेटिंग्स",
     language: "भाषा",
