@@ -49,9 +49,11 @@ interface SortableItemProps {
   id: string;
   children: React.ReactNode;
   className?: string;
+  isStretched: boolean;
+  onToggleStretch: (id: string) => void;
 }
 
-function SortableItem({ id, children, className }: SortableItemProps) {
+function SortableItem({ id, children, className, isStretched, onToggleStretch }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -73,15 +75,39 @@ function SortableItem({ id, children, className }: SortableItemProps) {
       style={style} 
       className={`relative group ${className || ''} ${isDragging ? 'opacity-20 z-50' : ''}`}
     >
-      <div 
-        {...attributes} 
-        {...listeners}
-        className="absolute right-0 top-6 z-20 cursor-grab rounded-lg bg-gray-50 p-2 text-gray-400 opacity-0 shadow-sm transition-all hover:bg-gray-100 hover:text-gray-900 group-hover:opacity-100 active:cursor-grabbing"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="9" cy="5" r="1.25" fill="currentColor"/><circle cx="9" cy="12" r="1.25" fill="currentColor"/><circle cx="9" cy="19" r="1.25" fill="currentColor"/>
-          <circle cx="15" cy="5" r="1.25" fill="currentColor"/><circle cx="15" cy="12" r="1.25" fill="currentColor"/><circle cx="15" cy="19" r="1.25" fill="currentColor"/>
-        </svg>
+      <div className="absolute right-0 top-6 z-20 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+        {/* Resize Toggle Button */}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleStretch(id);
+          }}
+          className="rounded-lg bg-white/80 p-2 text-gray-400 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-teal-600 border border-gray-100"
+          title={isStretched ? "Shrink to Half" : "Stretch to Full"}
+        >
+          {isStretched ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 14h6v6"/><path d="M10 14l-6 6"/><path d="M20 10h-6V4"/><path d="M14 10l6-6"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h6v6"/><path d="M21 3l-6 6"/><path d="M9 21H3v-6"/><path d="M3 21l6-6"/>
+            </svg>
+          )}
+        </button>
+
+        {/* Drag Handle */}
+        <div 
+          {...attributes} 
+          {...listeners}
+          className="cursor-grab rounded-lg bg-white/80 p-2 text-gray-400 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-gray-900 border border-gray-100 active:cursor-grabbing"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="5" r="1.25" fill="currentColor"/><circle cx="9" cy="12" r="1.25" fill="currentColor"/><circle cx="9" cy="19" r="1.25" fill="currentColor"/>
+            <circle cx="15" cy="5" r="1.25" fill="currentColor"/><circle cx="15" cy="12" r="1.25" fill="currentColor"/><circle cx="15" cy="19" r="1.25" fill="currentColor"/>
+          </svg>
+        </div>
       </div>
       {children}
     </div>
@@ -416,6 +442,17 @@ export default function Dashboard() {
     return ['overall', 'channels', 'analytics', 'authors', 'titles-publishers', 'recent'];
   });
 
+  const [stretchedSections, setStretchedSections] = useState<string[]>(() => {
+    const saved = localStorage.getItem('rk_dash_sections_stretched');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return ['overall', 'analytics', 'authors', 'titles-publishers', 'recent']; // Most are full width by default
+  });
+
   const sectionSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -434,11 +471,20 @@ export default function Dashboard() {
     }
   }
 
+  function toggleSectionStretch(id: string) {
+    setStretchedSections((prev) => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem('rk_dash_sections_stretched', JSON.stringify(next));
+      return next;
+    });
+  }
+
   const renderSection = (id: string) => {
+    const isStretched = stretchedSections.includes(id);
     switch (id) {
       case 'overall':
         return (
-          <SortableItem id="overall" key="overall">
+          <SortableItem id="overall" key="overall" isStretched={isStretched} onToggleStretch={toggleSectionStretch} className={isStretched ? 'lg:col-span-2' : ''}>
             <CollapsibleSection title="Overall Sales (All Channels)" storageKey="rk_dash_sec_overall" className="mt-6">
               {loading ? (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -447,7 +493,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className={`grid gap-4 ${isStretched ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2'}`}>
                   <StatCard
                     label={t("total_sales")}
                     value={fmtINR(metrics.totalAmount)}
@@ -469,7 +515,7 @@ export default function Dashboard() {
         );
       case 'channels':
         return (
-          <SortableItem id="channels" key="channels">
+          <SortableItem id="channels" key="channels" isStretched={isStretched} onToggleStretch={toggleSectionStretch} className={isStretched ? 'lg:col-span-2' : ''}>
             <CollapsibleSection title="Sales by Channel" storageKey="rk_dash_sec_channels" className="mt-8">
               {loading ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -478,7 +524,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className={`grid gap-4 ${isStretched ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2'}`}>
                   {SALE_TYPES.map((saleType) => {
                     const data = saleTypeMetrics[saleType.name];
                     if (!data) return null;
@@ -518,7 +564,7 @@ export default function Dashboard() {
         );
       case 'analytics':
         return (
-          <SortableItem id="analytics" key="analytics">
+          <SortableItem id="analytics" key="analytics" isStretched={isStretched} onToggleStretch={toggleSectionStretch} className={isStretched ? 'lg:col-span-2' : ''}>
             <CollapsibleSection title="Detailed Sales Analytics" storageKey="rk_dash_sec_analytics" className="mt-8">
               <div className="space-y-8">
                 {SALE_TYPES.map((saleType) => (
@@ -539,7 +585,7 @@ export default function Dashboard() {
         );
       case 'authors':
         return (
-          <SortableItem id="authors" key="authors">
+          <SortableItem id="authors" key="authors" isStretched={isStretched} onToggleStretch={toggleSectionStretch} className={isStretched ? 'lg:col-span-2' : ''}>
             <CollapsibleSection title="Authors" storageKey="rk_dash_sec_authors" className="mt-8">
               <AuthorsPanel days={days} />
             </CollapsibleSection>
@@ -547,7 +593,7 @@ export default function Dashboard() {
         );
       case 'titles-publishers':
         return (
-          <SortableItem id="titles-publishers" key="titles-publishers">
+          <SortableItem id="titles-publishers" key="titles-publishers" isStretched={isStretched} onToggleStretch={toggleSectionStretch} className={isStretched ? 'lg:col-span-2' : ''}>
             <CollapsibleSection title="Titles by Publisher (Offline & Events)" storageKey="rk_dash_sec_titles_publishers" className="mt-8">
               <TitlesPublishersPanel days={days} />
             </CollapsibleSection>
@@ -555,7 +601,7 @@ export default function Dashboard() {
         );
       case 'recent':
         return (
-          <SortableItem id="recent" key="recent">
+          <SortableItem id="recent" key="recent" isStretched={isStretched} onToggleStretch={toggleSectionStretch} className={isStretched ? 'lg:col-span-2' : ''}>
             <CollapsibleSection title="Recent Online Sales" storageKey="rk_dash_sec_recent" className="mt-8">
               <OnlineSalesList days={days} />
             </CollapsibleSection>
@@ -584,7 +630,7 @@ export default function Dashboard() {
           items={sectionOrder}
           strategy={rectSortingStrategy}
         >
-          <div className="space-y-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-0">
             {sectionOrder.map((id) => renderSection(id))}
           </div>
         </SortableContext>

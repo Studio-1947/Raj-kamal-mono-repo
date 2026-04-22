@@ -101,9 +101,11 @@ interface SortableItemProps {
   id: string;
   children: React.ReactNode;
   className?: string;
+  isStretched: boolean;
+  onToggleStretch: (id: string) => void;
 }
 
-function SortableItem({ id, children, className }: SortableItemProps) {
+function SortableItem({ id, children, className, isStretched, onToggleStretch }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -125,15 +127,39 @@ function SortableItem({ id, children, className }: SortableItemProps) {
       style={style} 
       className={`relative group ${className || ''} ${isDragging ? 'opacity-20 z-50' : ''}`}
     >
-      <div 
-        {...attributes} 
-        {...listeners}
-        className="absolute right-4 top-4 z-20 cursor-grab rounded-lg bg-gray-50 p-2 text-gray-400 opacity-0 shadow-sm transition-all hover:bg-gray-100 hover:text-gray-900 group-hover:opacity-100 active:cursor-grabbing"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="9" cy="5" r="1.25" fill="currentColor"/><circle cx="9" cy="12" r="1.25" fill="currentColor"/><circle cx="9" cy="19" r="1.25" fill="currentColor"/>
-          <circle cx="15" cy="5" r="1.25" fill="currentColor"/><circle cx="15" cy="12" r="1.25" fill="currentColor"/><circle cx="15" cy="19" r="1.25" fill="currentColor"/>
-        </svg>
+      <div className="absolute right-4 top-4 z-20 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+        {/* Resize Toggle Button */}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleStretch(id);
+          }}
+          className="rounded-lg bg-white/80 p-2 text-gray-500 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-teal-600 border border-gray-100"
+          title={isStretched ? "Shrink to Half Width" : "Stretch to Full Width"}
+        >
+          {isStretched ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 14h6v6"/><path d="M10 14l-6 6"/><path d="M20 10h-6V4"/><path d="M14 10l6-6"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h6v6"/><path d="M21 3l-6 6"/><path d="M9 21H3v-6"/><path d="M3 21l6-6"/>
+            </svg>
+          )}
+        </button>
+
+        {/* Drag Handle */}
+        <div 
+          {...attributes} 
+          {...listeners}
+          className="cursor-grab rounded-lg bg-white/80 p-2 text-gray-500 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-gray-900 border border-gray-100 active:cursor-grabbing"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="5" r="1.25" fill="currentColor"/><circle cx="9" cy="12" r="1.25" fill="currentColor"/><circle cx="9" cy="19" r="1.25" fill="currentColor"/>
+            <circle cx="15" cy="5" r="1.25" fill="currentColor"/><circle cx="15" cy="12" r="1.25" fill="currentColor"/><circle cx="15" cy="19" r="1.25" fill="currentColor"/>
+          </svg>
+        </div>
       </div>
       {children}
     </div>
@@ -162,11 +188,21 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Ensure all default items are present, handle migration
         if (Array.isArray(parsed) && parsed.length >= DEFAULT_ORDER.length) return parsed;
       } catch (e) {}
     }
     return DEFAULT_ORDER;
+  });
+
+  const [stretchedItems, setStretchedItems] = useState<string[]>(() => {
+    const saved = localStorage.getItem('rk_offline_charts_stretched');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return ['top-items', 'bottom-items']; // Default stretched ones
   });
 
   const sensors = useSensors(
@@ -194,6 +230,14 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
     }
   }
 
+  function toggleStretch(id: string) {
+    setStretchedItems((prev) => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem('rk_offline_charts_stretched', JSON.stringify(next));
+      return next;
+    });
+  }
+
   if (isLoading || !data) {
     return (
       <div className="grid gap-6 lg:grid-cols-2">
@@ -218,8 +262,8 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
     switch (id) {
       case 'revenue-trend':
         return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-teal-500 pb-2 inline-block">Revenue Trend (Last {days} Days)</h3>
+          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-teal-500/30 hover:shadow-xl transition-all duration-300">
+            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-teal-500 pb-2 inline-block uppercase tracking-tight">Revenue Trend (Last {days} Days)</h3>
             {timeSeries.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={timeSeries} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
@@ -268,8 +312,8 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         );
       case 'sales-by-state':
         return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-blue-500 pb-2 inline-block">Sales by State (Top 10)</h3>
+          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-blue-500/30 hover:shadow-xl transition-all duration-300">
+            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-blue-500 pb-2 inline-block uppercase tracking-tight">Sales by State (Top 10)</h3>
             {byState.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={byState} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
@@ -294,8 +338,8 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         );
       case 'sales-by-publisher':
         return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-orange-500 pb-2 inline-block">Sales by Publisher (Top 10)</h3>
+          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-orange-500/30 hover:shadow-xl transition-all duration-300">
+            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-orange-500 pb-2 inline-block uppercase tracking-tight">Sales by Publisher (Top 10)</h3>
             {byPub.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={byPub} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
@@ -321,8 +365,8 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         );
       case 'top-customers':
         return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-purple-500 pb-2 inline-block">Top 10 Customers</h3>
+          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-purple-500/30 hover:shadow-xl transition-all duration-300">
+            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-purple-500 pb-2 inline-block uppercase tracking-tight">Top 10 Customers</h3>
             {byCustomer.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={byCustomer} layout="vertical" margin={{ left: 20, right: 40, top: 30, bottom: 10 }}>
@@ -348,8 +392,8 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         );
       case 'sales-by-binding':
         return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-pink-500 pb-2 inline-block">Sales by Binding</h3>
+          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-pink-500/30 hover:shadow-xl transition-all duration-300">
+            <h3 className="mb-4 text-xl font-medium text-black border-b-4 border-pink-500 pb-2 inline-block uppercase tracking-tight">Sales by Binding</h3>
             {byBinding.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={byBinding} layout="vertical" margin={{ left: 20, right: 40, top: 10, bottom: 10 }}>
@@ -374,8 +418,8 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         );
       case 'top-items':
         return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-green-500 pb-2 inline-block">Top 10 Best Selling Items</h3>
+          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-green-500/30 hover:shadow-xl transition-all duration-300">
+            <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-green-500 pb-2 inline-block uppercase tracking-tight">Top 10 Best Selling Items</h3>
             <p className="mb-4 text-sm text-gray-500">
               <span className="italic">Note: Items labeled "[No Title]" are records missing a Title in source data. ISBN/Doc No are shown for identification.</span>
             </p>
@@ -406,8 +450,8 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
         );
       case 'bottom-items':
         return (
-          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-red-400 pb-2 inline-block">Bottom 10 Worst Performing Items</h3>
+          <div className="h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-red-400/30 hover:shadow-xl transition-all duration-300">
+            <h3 className="mb-2 text-xl font-medium text-black border-b-4 border-red-400 pb-2 inline-block uppercase tracking-tight">Bottom 10 Worst Performing Items</h3>
             <p className="mb-4 text-sm text-gray-500">
               Books with the lowest total revenue. <span className="italic">[No Title] entries are identifying records with missing title data.</span>
             </p>
@@ -482,10 +526,15 @@ export default function OfflineSheetCharts({ data, isLoading, days }: Props) {
       >
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
           {items.map((id) => {
-            // Determine if the chart should be full width (last two usually are)
-            const isFullWidth = id === 'top-items' || id === 'bottom-items';
+            const isStretched = stretchedItems.includes(id);
             return (
-              <SortableItem key={id} id={id} className={isFullWidth ? 'lg:col-span-2' : ''}>
+              <SortableItem 
+                key={id} 
+                id={id} 
+                isStretched={isStretched}
+                onToggleStretch={toggleStretch}
+                className={isStretched ? 'lg:col-span-2' : ''}
+              >
                 {renderChart(id)}
               </SortableItem>
             );
