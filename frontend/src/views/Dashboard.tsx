@@ -25,6 +25,69 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from 'react';
 import { apiClient } from "../lib/apiClient";
 
+// DnD Kit imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// ─── Sortable Wrapper Component ─────────────────────────────────────────────
+interface SortableItemProps {
+  id: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+function SortableItem({ id, children, className }: SortableItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className={`relative group ${className || ''} ${isDragging ? 'opacity-20 z-50' : ''}`}
+    >
+      <div 
+        {...attributes} 
+        {...listeners}
+        className="absolute right-0 top-6 z-20 cursor-grab rounded-lg bg-gray-50 p-2 text-gray-400 opacity-0 shadow-sm transition-all hover:bg-gray-100 hover:text-gray-900 group-hover:opacity-100 active:cursor-grabbing"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="9" cy="5" r="1.25" fill="currentColor"/><circle cx="9" cy="12" r="1.25" fill="currentColor"/><circle cx="9" cy="19" r="1.25" fill="currentColor"/>
+          <circle cx="15" cy="5" r="1.25" fill="currentColor"/><circle cx="15" cy="12" r="1.25" fill="currentColor"/><circle cx="15" cy="19" r="1.25" fill="currentColor"/>
+        </svg>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 /**
  * Type definition for different sale channels
  */
@@ -341,6 +404,168 @@ export default function Dashboard() {
     [metrics, prevMetrics]
   );
 
+  // DnD state for sections
+  const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
+    const saved = localStorage.getItem('rk_dash_sections_order');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 6) return parsed;
+      } catch {}
+    }
+    return ['overall', 'channels', 'analytics', 'authors', 'titles-publishers', 'recent'];
+  });
+
+  const sectionSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleSectionDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setSectionOrder((order) => {
+        const oldIndex = order.indexOf(active.id as string);
+        const newIndex = order.indexOf(over.id as string);
+        const nextOrder = arrayMove(order, oldIndex, newIndex);
+        localStorage.setItem('rk_dash_sections_order', JSON.stringify(nextOrder));
+        return nextOrder;
+      });
+    }
+  }
+
+  const renderSection = (id: string) => {
+    switch (id) {
+      case 'overall':
+        return (
+          <SortableItem id="overall" key="overall">
+            <CollapsibleSection title="Overall Sales (All Channels)" storageKey="rk_dash_sec_overall" className="mt-6">
+              {loading ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <StatCardSkeleton key={i} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard
+                    label={t("total_sales")}
+                    value={fmtINR(metrics.totalAmount)}
+                    delta={salesDelta.pct}
+                    fromLastWeek={t("from_last_week")}
+                    negative={salesDelta.negative}
+                  />
+                  <StatCard
+                    label={t("orders")}
+                    value={metrics.totalOrders.toLocaleString("en-IN")}
+                    delta={ordersDelta.pct}
+                    fromLastWeek={t("from_last_week")}
+                    negative={ordersDelta.negative}
+                  />
+                </div>
+              )}
+            </CollapsibleSection>
+          </SortableItem>
+        );
+      case 'channels':
+        return (
+          <SortableItem id="channels" key="channels">
+            <CollapsibleSection title="Sales by Channel" storageKey="rk_dash_sec_channels" className="mt-8">
+              {loading ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {SALE_TYPES.map((saleType) => (
+                    <ChannelCardSkeleton key={saleType.name} color={saleType.color} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {SALE_TYPES.map((saleType) => {
+                    const data = saleTypeMetrics[saleType.name];
+                    if (!data) return null;
+
+                    const cur = data.current;
+                    const prev = data.previous;
+                    const delta = pctDelta(cur.totalAmount, prev.totalAmount);
+
+                    return (
+                      <div
+                        key={saleType.name}
+                        className={`rounded-lg border p-4 ${saleType.color}`}
+                      >
+                        <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                          {saleType.displayName}
+                        </h3>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {fmtINR(cur.totalAmount)}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {cur.totalOrders.toLocaleString("en-IN")} orders
+                        </p>
+                        <p
+                          className={`text-xs mt-1 ${
+                            delta.negative ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          {delta.pct} {t("from_last_week")}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CollapsibleSection>
+          </SortableItem>
+        );
+      case 'analytics':
+        return (
+          <SortableItem id="analytics" key="analytics">
+            <CollapsibleSection title="Detailed Sales Analytics" storageKey="rk_dash_sec_analytics" className="mt-8">
+              <div className="space-y-8">
+                {SALE_TYPES.map((saleType) => (
+                  <div key={saleType.name} className="space-y-4">
+                    <GenericSalesWidget
+                      title={saleType.displayName}
+                      endpoint={saleType.endpoint}
+                      color={saleType.chartColor}
+                      badgeColor={saleType.badgeColor}
+                      days={days}
+                      onDaysChange={setDays}
+                    />
+                  </div>
+                ))}
+              </div>
+            </CollapsibleSection>
+          </SortableItem>
+        );
+      case 'authors':
+        return (
+          <SortableItem id="authors" key="authors">
+            <CollapsibleSection title="Authors" storageKey="rk_dash_sec_authors" className="mt-8">
+              <AuthorsPanel days={days} />
+            </CollapsibleSection>
+          </SortableItem>
+        );
+      case 'titles-publishers':
+        return (
+          <SortableItem id="titles-publishers" key="titles-publishers">
+            <CollapsibleSection title="Titles by Publisher (Offline & Events)" storageKey="rk_dash_sec_titles_publishers" className="mt-8">
+              <TitlesPublishersPanel days={days} />
+            </CollapsibleSection>
+          </SortableItem>
+        );
+      case 'recent':
+        return (
+          <SortableItem id="recent" key="recent">
+            <CollapsibleSection title="Recent Online Sales" storageKey="rk_dash_sec_recent" className="mt-8">
+              <OnlineSalesList days={days} />
+            </CollapsibleSection>
+          </SortableItem>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <AppLayout>
       {/* Dashboard Header */}
@@ -349,112 +574,21 @@ export default function Dashboard() {
       </h1>
       <p className="mt-2 text-[#C41E3A]">{t("dashboard_subtitle")}</p>
 
-      {/* Overall Metrics Section - Shows aggregated data across all channels */}
-      <CollapsibleSection title="Overall Sales (All Channels)" storageKey="rk_dash_sec_overall" className="mt-6">
-        {loading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <StatCardSkeleton key={i} />
-            ))}
+      {/* Reorderable Sections */}
+      <DndContext 
+        sensors={sectionSensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleSectionDragEnd}
+      >
+        <SortableContext 
+          items={sectionOrder}
+          strategy={rectSortingStrategy}
+        >
+          <div className="space-y-0">
+            {sectionOrder.map((id) => renderSection(id))}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label={t("total_sales")}
-              value={fmtINR(metrics.totalAmount)}
-              delta={salesDelta.pct}
-              fromLastWeek={t("from_last_week")}
-              negative={salesDelta.negative}
-            />
-            <StatCard
-              label={t("orders")}
-              value={metrics.totalOrders.toLocaleString("en-IN")}
-              delta={ordersDelta.pct}
-              fromLastWeek={t("from_last_week")}
-              negative={ordersDelta.negative}
-            />
-          </div>
-        )}
-      </CollapsibleSection>
-
-      {/* Sale Type Breakdown Section - Shows individual channel performance */}
-      <CollapsibleSection title="Sales by Channel" storageKey="rk_dash_sec_channels" className="mt-8">
-        {loading ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {SALE_TYPES.map((saleType) => (
-              <ChannelCardSkeleton key={saleType.name} color={saleType.color} />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {SALE_TYPES.map((saleType) => {
-              const data = saleTypeMetrics[saleType.name];
-              if (!data) return null;
-
-              const cur = data.current;
-              const prev = data.previous;
-              const delta = pctDelta(cur.totalAmount, prev.totalAmount);
-
-              return (
-                <div
-                  key={saleType.name}
-                  className={`rounded-lg border p-4 ${saleType.color}`}
-                >
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                    {saleType.displayName}
-                  </h3>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {fmtINR(cur.totalAmount)}
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {cur.totalOrders.toLocaleString("en-IN")} orders
-                  </p>
-                  <p
-                    className={`text-xs mt-1 ${
-                      delta.negative ? "text-red-600" : "text-green-600"
-                    }`}
-                  >
-                    {delta.pct} {t("from_last_week")}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CollapsibleSection>
-
-      {/* Individual Sale Type Graphs Section - Detailed analytics for each channel */}
-      <CollapsibleSection title="Detailed Sales Analytics" storageKey="rk_dash_sec_analytics" className="mt-8">
-        <div className="space-y-8">
-          {SALE_TYPES.map((saleType) => (
-            <div key={saleType.name} className="space-y-4">
-              <GenericSalesWidget
-                title={saleType.displayName}
-                endpoint={saleType.endpoint}
-                color={saleType.chartColor}
-                badgeColor={saleType.badgeColor}
-                days={days}
-                onDaysChange={setDays}
-              />
-            </div>
-          ))}
-        </div>
-      </CollapsibleSection>
-
-      {/* Authors Section - Top/Bottom authors aggregated from online/offline/events */}
-      <CollapsibleSection title="Authors" storageKey="rk_dash_sec_authors" className="mt-8">
-        <AuthorsPanel days={days} />
-      </CollapsibleSection>
-
-      {/* Titles x Publisher (Offline + Events) */}
-      <CollapsibleSection title="Titles by Publisher (Offline & Events)" storageKey="rk_dash_sec_titles_publishers" className="mt-8">
-        <TitlesPublishersPanel days={days} />
-      </CollapsibleSection>
-
-      {/* Online Sales List Section - Detailed list of recent online transactions */}
-      <CollapsibleSection title="Recent Online Sales" storageKey="rk_dash_sec_recent" className="mt-8">
-        <OnlineSalesList days={days} />
-      </CollapsibleSection>
+        </SortableContext>
+      </DndContext>
 
       {/* Development Mode Debug Information */}
       {!loading && isDev && (loadErr || fromCache) && (
