@@ -1,0 +1,73 @@
+// GET /api/offline-sales/options
+router.get("/options", async (req, res) => {
+  const cached = optionsCache.get("all");
+  if (cached) return res.json(cached);
+
+  try {
+    const [states, publishers, bindings, customerNames, authors, cities, bookTitles] = await Promise.all([
+      prisma.googleSheetOfflineSale.groupBy({
+        by: ['state'],
+        where: { state: { not: null, notIn: [''] } },
+        _count: { _all: true },
+        orderBy: { state: 'asc' }
+      }),
+      prisma.googleSheetOfflineSale.groupBy({
+        by: ['publisher'],
+        where: { publisher: { not: null, notIn: [''] } },
+        _count: { _all: true },
+        orderBy: { publisher: 'asc' }
+      }),
+      prisma.googleSheetOfflineSale.groupBy({
+        by: ['binding'],
+        where: { binding: { not: null, notIn: [''] } },
+        _count: { _all: true },
+        orderBy: { binding: 'asc' }
+      }),
+      prisma.googleSheetOfflineSale.groupBy({
+        by: ['customerName'],
+        where: { customerName: { not: null, notIn: [''] } },
+        _sum: { amount: true },
+        orderBy: { _sum: { amount: 'desc' } },
+        take: 100
+      }),
+      prisma.googleSheetOfflineSale.groupBy({
+        by: ['author'],
+        where: { author: { not: null, notIn: [''] } },
+        _count: { _all: true },
+        orderBy: { author: 'asc' }
+      }),
+      prisma.googleSheetOfflineSale.groupBy({
+        by: ['city'],
+        where: { city: { not: null, notIn: [''] } },
+        _count: { _all: true },
+        orderBy: { city: 'asc' }
+      }),
+      prisma.googleSheetOfflineSale.groupBy({
+        by: ['title'],
+        where: { title: { not: null, notIn: [''] } },
+        _sum: { amount: true },
+        orderBy: { _sum: { amount: 'desc' } },
+        take: 100
+      })
+    ]);
+
+    const result = {
+      ok: true,
+      states: states.map(s => s.state),
+      publishers: publishers.map(p => p.publisher),
+      bindings: bindings.map(b => b.binding),
+      customerNames: customerNames.map(c => c.customerName).sort(),
+      authors: authors.map(a => a.author),
+      cities: cities.map(c => c.city),
+      bookTitles: bookTitles.map(b => b.title).sort(),
+    };
+
+    optionsCache.set("all", result);
+    return res.json(result);
+  } catch (e: any) {
+    console.error("offline_options_failed", e);
+    return res.status(500).json({ ok: false, error: "Failed to fetch options" });
+  }
+});
+
+export default router;

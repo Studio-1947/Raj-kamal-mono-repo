@@ -8,7 +8,7 @@
 // All data fetching is TanStack Query with filter-aware cache keys.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import AppLayout from '../../../shared/AppLayout';
 import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
@@ -19,6 +19,7 @@ import {
   useOfflineSheetSummary,
   useOfflineSheetList,
   useTriggerSync,
+  useOfflineSheetOptions,
 } from './offlineSheetService';
 import { useOfflineSheetFilters } from './useOfflineSheetFilters';
 import type { OfflineSheetFilters } from './offlineSheetTypes';
@@ -90,6 +91,83 @@ function FilterField({ id, label, placeholder, value, onChange, type = "text", w
         onChange={(e) => onChange(e.target.value === '' ? undefined : (type === 'number' ? Number(e.target.value) : e.target.value))}
         className={`${width} rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-medium text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all`}
       />
+    </div>
+  );
+}
+
+function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-full", options = [] }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt: string) => 
+    opt.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className={`flex flex-col gap-1.5 relative ${width}`} ref={dropdownRef}>
+      <label htmlFor={id} className="text-sm font-medium text-gray-800 uppercase tracking-wider">{label}</label>
+      <div className="relative">
+        <input
+          id={id}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? search : (value ?? '')}
+          onFocus={() => { setIsOpen(true); setSearch(''); }}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+             if (e.key === 'Enter' && search) {
+                onChange(search);
+                setIsOpen(false);
+             }
+          }}
+          className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-medium text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all pr-10"
+        />
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-[100] max-h-60 overflow-auto rounded-2xl border-2 border-gray-100 bg-white shadow-2xl ring-4 ring-black/5 animate-in fade-in slide-in-from-top-2 duration-200">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.slice(0, 100).map((opt: string, i: number) => (
+              <button
+                key={i}
+                type="button"
+                onMouseDown={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+                className="w-full px-5 py-3 text-left text-base font-medium text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0"
+              >
+                {opt}
+              </button>
+            ))
+          ) : (
+             <div className="px-5 py-3 text-base text-gray-400 italic text-center">No matches found</div>
+          )}
+          {search && !filteredOptions.includes(search) && (
+            <button 
+               type="button"
+               onMouseDown={() => { onChange(search); setIsOpen(false); }}
+               className="w-full px-5 py-3 text-left text-xs font-bold text-black bg-teal-50/50 hover:bg-teal-100 uppercase tracking-tight sticky bottom-0 border-t border-teal-100"
+            >
+              Use Custom: "{search}"
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -198,40 +276,45 @@ function FilterBar({
       <div className={`space-y-6 overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
         {/* Second row: Spreadsheet-style Column Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
-          <FilterField 
+          <FilterDropdown 
+            id="f-book" label="Book Name" placeholder="Search Book Title..." 
+            value={filters.title} onChange={(v:any) => updateFilter('title', v)}
+            options={useOfflineSheetOptions().data?.bookTitles}
+          />
+          <FilterDropdown 
             id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
             value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
-            width="w-full"
+            options={useOfflineSheetOptions().data?.customerNames}
           />
-          <FilterField 
+          <FilterDropdown 
             id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
             value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
-            width="w-full"
+            options={useOfflineSheetOptions().data?.publishers}
           />
-          <FilterField 
+          <FilterDropdown 
             id="f-auth" label="Author" placeholder="e.g. Premchand" 
             value={filters.author} onChange={(v:any) => updateFilter('author', v)}
-            width="w-full"
+            options={useOfflineSheetOptions().data?.authors}
           />
           <FilterField 
             id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
             value={filters.isbn} onChange={(v:any) => updateFilter('isbn', v)}
             width="w-full"
           />
-          <FilterField 
+          <FilterDropdown 
             id="f-state" label="State" placeholder="e.g. Delhi" 
             value={filters.state} onChange={(v:any) => updateFilter('state', v)}
-            width="w-full"
+            options={useOfflineSheetOptions().data?.states}
           />
-          <FilterField 
+          <FilterDropdown 
             id="f-city" label="City" placeholder="e.g. Varanasi" 
             value={filters.city} onChange={(v:any) => updateFilter('city', v)}
-            width="w-full"
+            options={useOfflineSheetOptions().data?.cities}
           />
-          <FilterField 
+          <FilterDropdown 
             id="f-binding" label="Binding" placeholder="Paperback/Hardcover" 
             value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
-            width="w-full"
+            options={useOfflineSheetOptions().data?.bindings}
           />
         </div>
 

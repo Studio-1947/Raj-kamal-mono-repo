@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
 import { apiClient } from '../../../lib/apiClient';
+import { useOfflineSheetOptions } from './offlineSheetService';
 
 // DnD Kit imports
 import {
@@ -92,6 +93,82 @@ function BlockFilterField({ label, value, onChange, placeholder, type = "text" }
   );
 }
 
+function BlockFilterDropdown({ label, value, onChange, placeholder, options = [] }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt: string) => 
+    opt.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="flex flex-col gap-1 relative" ref={dropdownRef}>
+      <label className="text-[10px] font-bold text-gray-600 uppercase tracking-tight">{label}</label>
+      <div className="relative">
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? search : (value ?? '')}
+          onFocus={() => { setIsOpen(true); setSearch(''); }}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+             if (e.key === 'Enter' && search) {
+                onChange(search);
+                setIsOpen(false);
+             }
+          }}
+          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 pr-6"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 z-[100] mt-1 max-h-48 overflow-auto rounded-xl border border-gray-100 bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-200">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.slice(0, 100).map((opt: string, i: number) => (
+              <button
+                key={i}
+                type="button"
+                onMouseDown={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-medium text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0"
+              >
+                {opt}
+              </button>
+            ))
+          ) : (
+             <div className="px-3 py-2 text-xs text-gray-400 italic text-center">No matches found</div>
+          )}
+          {search && !filteredOptions.includes(search) && (
+            <button 
+               type="button"
+               onMouseDown={() => { onChange(search); setIsOpen(false); }}
+               className="w-full px-3 py-2 text-left text-[10px] font-bold text-black bg-teal-50/50 hover:bg-teal-100 uppercase tracking-tight sticky bottom-0 border-t border-teal-100"
+            >
+              Use Custom: "{search}"
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Chart Block Component ──────────────────────────────────────────────────
 interface ChartBlockProps {
   id: string;
@@ -112,6 +189,8 @@ function ChartBlock({ id, title, globalFilters, render }: ChartBlockProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [data, setData] = useState<OfflineSheetSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const { data: optData } = useOfflineSheetOptions();
 
   useEffect(() => {
     async function fetchChart() {
@@ -186,10 +265,11 @@ function ChartBlock({ id, title, globalFilters, render }: ChartBlockProps) {
       {/* Advanced Block Filters */}
       <div className={`overflow-hidden transition-all duration-300 ${isFilterOpen ? 'max-h-[500px] mb-6 opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="rounded-xl border-2 border-teal-100 bg-teal-50/30 p-4 grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
-          <BlockFilterField label="Customer" value={localFilters.customerName} onChange={(v:any) => updateF('customerName', v)} placeholder="Search name..." />
-          <BlockFilterField label="Publisher" value={localFilters.publisher} onChange={(v:any) => updateF('publisher', v)} placeholder="All publishers" />
-          <BlockFilterField label="State" value={localFilters.state} onChange={(v:any) => updateF('state', v)} placeholder="e.g. Delhi" />
-          <BlockFilterField label="Binding" value={localFilters.binding} onChange={(v:any) => updateF('binding', v)} placeholder="All bindings" />
+          <BlockFilterDropdown label="Book Name" value={localFilters.title} onChange={(v:any) => updateF('title', v)} placeholder="Filter Title..." options={optData?.bookTitles} />
+          <BlockFilterDropdown label="Customer" value={localFilters.customerName} onChange={(v:any) => updateF('customerName', v)} placeholder="Search name..." options={optData?.customerNames} />
+          <BlockFilterDropdown label="Publisher" value={localFilters.publisher} onChange={(v:any) => updateF('publisher', v)} placeholder="All publishers" options={optData?.publishers} />
+          <BlockFilterDropdown label="State" value={localFilters.state} onChange={(v:any) => updateF('state', v)} placeholder="e.g. Delhi" options={optData?.states} />
+          <BlockFilterDropdown label="Binding" value={localFilters.binding} onChange={(v:any) => updateF('binding', v)} placeholder="All bindings" options={optData?.bindings} />
           <BlockFilterField label="ISBN" value={localFilters.isbn} onChange={(v:any) => updateF('isbn', v)} placeholder="Code..." />
           <div className="flex gap-2 items-end">
              <div className="flex-1"><BlockFilterField label="Min ₹" type="number" value={localFilters.minAmount} onChange={(v:any) => updateF('minAmount', v)} /></div>
