@@ -81,6 +81,22 @@ function normalizeText(raw?: any): string | null {
   if (!s) return null;
   return s.replace(/\s+/g, " ");
 }
+/**
+ * Splits a query into tokens (words) for robust searching.
+ * Ignores small characters and splits on spaces and punctuation.
+ */
+function getSearchTokens(q: string): string[] {
+  if (!q) return [];
+  // Split by whitespace and common separators like (), [], {}, -, /
+  return q.split(/[\s()\[\]{}\-\/.,]+/).filter(t => t.length > 0);
+}
+/**
+ * Returns a Postgres regex for a single token.
+ * Prevents regex injection and allows flexible matching.
+ */
+function toTokenRegex(token: string): string {
+  return token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 function pick(
   row: Record<string, any> | null | undefined,
   names: string[],
@@ -152,14 +168,22 @@ router.get("/", async (req, res) => {
   try {
     const where: any = {};
     if (q) {
-      const contains = q.toString();
-      where.OR = [
-        { title: { contains, mode: "insensitive" } },
-        { customerName: { contains, mode: "insensitive" } },
-        { state: { contains, mode: "insensitive" } },
-        { city: { contains, mode: "insensitive" } },
-        { publisher: { contains, mode: "insensitive" } },
-      ];
+      const tokens = getSearchTokens(q);
+      if (tokens.length > 0) {
+        // For Prisma ORM list, we'll join tokens with AND
+        // Each token must match at least one of the major columns
+        where.AND = tokens.map(t => ({
+          OR: [
+            { title: { contains: t, mode: "insensitive" } },
+            { customerName: { contains: t, mode: "insensitive" } },
+            { state: { contains: t, mode: "insensitive" } },
+            { city: { contains: t, mode: "insensitive" } },
+            { publisher: { contains: t, mode: "insensitive" } },
+            { author: { contains: t, mode: "insensitive" } },
+            { isbn: { contains: t, mode: "insensitive" } },
+          ]
+        }));
+      }
     }
     if (state)     where.state = { contains: state, mode: "insensitive" };
     if (city)      where.city = { contains: city, mode: "insensitive" };
@@ -261,17 +285,20 @@ router.get("/summary", async (req, res) => {
       Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
     ];
     if (q) {
-      const qs = '%' + q + '%';
-      conditions.push(Prisma.sql`("title" ILIKE ${qs} OR "customerName" ILIKE ${qs} OR "state" ILIKE ${qs} OR "city" ILIKE ${qs} OR "publisher" ILIKE ${qs})`);
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+      });
     }
-    if (state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
-    if (city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
-    if (publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
-    if (author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
-    if (isbn)      conditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
-    if (customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
-    if (binding)   conditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
-    if (title)     conditions.push(Prisma.sql`"title" ILIKE ${'%' + title + '%'}`);
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
@@ -292,14 +319,14 @@ router.get("/summary", async (req, res) => {
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
       Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
     ];
-    if (state)     itemConditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
-    if (city)      itemConditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
-    if (publisher) itemConditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
-    if (author)    itemConditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
-    if (isbn)      itemConditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
-    if (customerName) itemConditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
-    if (binding)   itemConditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
-    if (title)     itemConditions.push(Prisma.sql`"title" ILIKE ${'%' + title + '%'}`);
+    if (state)     itemConditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      itemConditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) itemConditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    itemConditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      itemConditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) itemConditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   itemConditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (title)     itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
     if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
     const itemsWhereClause = itemConditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}` : Prisma.sql``;
@@ -435,16 +462,19 @@ router.get("/counts", async (req, res) => {
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
     ];
     if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
-    if (state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
-    if (city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
-    if (publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
-    if (author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
-    if (customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
-    if (binding)   conditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
-    if (title)     conditions.push(Prisma.sql`"title" ILIKE ${'%' + title + '%'}`);
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
     if (q) {
-      const qs = '%' + q + '%';
-      conditions.push(Prisma.sql`("title" ILIKE ${qs} OR "customerName" ILIKE ${qs} OR "state" ILIKE ${qs} OR "city" ILIKE ${qs} OR "publisher" ILIKE ${qs})`);
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+      });
     }
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;

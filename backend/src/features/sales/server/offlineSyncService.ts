@@ -183,7 +183,8 @@ export class OfflineSyncService {
     const normalizedKey = key.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     const index = map[normalizedKey];
     if (index === undefined || index >= row.length) return "";
-    return String(row[index] || "").trim();
+    // Collapse multiple internal spaces into one and trim
+    return String(row[index] || "").trim().replace(/\s+/g, " ");
   }
 }
 
