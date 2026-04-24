@@ -175,9 +175,10 @@ interface ChartBlockProps {
   title: string;
   globalFilters: OfflineSheetFilters;
   render: (data: OfflineSheetSummaryResponse) => React.ReactNode;
+  resetVersion?: number;
 }
 
-function ChartBlock({ id, title, globalFilters, render }: ChartBlockProps) {
+function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlockProps) {
   const [localFilters, setLocalFilters] = useState<OfflineSheetFilters>(() => {
     const saved = localStorage.getItem(`rk_chart_filters_${id}`);
     if (saved) {
@@ -189,6 +190,15 @@ function ChartBlock({ id, title, globalFilters, render }: ChartBlockProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [data, setData] = useState<OfflineSheetSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialResetVersion = React.useRef(resetVersion);
+
+  useEffect(() => {
+    if (resetVersion !== undefined && resetVersion > (initialResetVersion.current || 0)) {
+       setLocalFilters({ days: 90 });
+       localStorage.removeItem(`rk_chart_filters_${id}`);
+       initialResetVersion.current = resetVersion;
+    }
+  }, [resetVersion, id]);
 
   const { data: optData } = useOfflineSheetOptions();
 
@@ -354,11 +364,12 @@ function SortableItem({ id, children, className, isStretched, onToggleStretch }:
 
 interface Props {
   filters: OfflineSheetFilters;
+  resetVersion?: number;
 }
 
 const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'bottom-items'];
 
-export default function OfflineSheetCharts({ filters: globalFilters }: Props) {
+export default function OfflineSheetCharts({ filters: globalFilters, resetVersion }: Props) {
   const [items, setItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('rk_offline_charts_order');
     if (saved) {
@@ -519,7 +530,7 @@ export default function OfflineSheetCharts({ filters: globalFilters }: Props) {
             const isStretched = stretchedItems.includes(id);
             return (
               <SortableItem key={id} id={id} isStretched={isStretched} onToggleStretch={toggleStretch} className={isStretched ? 'lg:col-span-2' : ''}>
-                <ChartBlock id={id} title={config.title} globalFilters={globalFilters} render={config.render} />
+                <ChartBlock id={id} title={config.title} globalFilters={globalFilters} render={config.render} resetVersion={resetVersion} />
               </SortableItem>
             );
           })}

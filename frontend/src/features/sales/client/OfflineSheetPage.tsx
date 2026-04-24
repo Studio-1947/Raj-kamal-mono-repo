@@ -384,6 +384,12 @@ function FilterBar({
 
 export default function OfflineSheetPage() {
   const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, setPage, clearAll } = useOfflineSheetFilters();
+  const [resetVersion, setResetVersion] = useState(0);
+
+  const handleGlobalClear = () => {
+    clearAll();
+    setResetVersion(v => v + 1);
+  };
 
   const countsQ  = useOfflineSheetCounts(filters);
   const summaryQ = useOfflineSheetSummary(filters);
@@ -424,7 +430,7 @@ export default function OfflineSheetPage() {
           clearDateRange={clearDateRange}
           setQ={setQ}
           updateFilter={updateFilter}
-          clearAll={clearAll}
+          clearAll={handleGlobalClear}
           onSync={() => syncMut.mutate()}
           isSyncing={syncMut.isPending}
           lastSyncResult={syncMsg}
@@ -448,6 +454,7 @@ export default function OfflineSheetPage() {
       <div className="mb-12">
         <OfflineSheetCharts 
           filters={filters} 
+          resetVersion={resetVersion}
         />
       </div>
 
