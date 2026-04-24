@@ -17,6 +17,12 @@ setInterval(() => {
   optionsCache.evictExpired();
 }, 10 * 60 * 1000);
 
+function clearCaches() {
+  summaryCache.clear();
+  countsCache.clear();
+  optionsCache.clear();
+}
+
 const router = express.Router();
 
 /**
@@ -185,14 +191,14 @@ router.get("/", async (req, res) => {
         }));
       }
     }
-    if (state)     where.state = { contains: state, mode: "insensitive" };
-    if (city)      where.city = { contains: city, mode: "insensitive" };
-    if (publisher) where.publisher = { contains: publisher, mode: "insensitive" };
-    if (author)    where.author = { contains: author, mode: "insensitive" };
-    if (isbn)      where.isbn = { contains: isbn, mode: "insensitive" };
-    if (customerName) where.customerName = { contains: customerName, mode: "insensitive" };
-    if (binding)   where.binding = { contains: binding, mode: "insensitive" };
-    if (title)     where.title = { contains: title, mode: "insensitive" };
+    if (state)     where.state = { contains: state.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (city)      where.city = { contains: city.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (publisher) where.publisher = { contains: publisher.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (author)    where.author = { contains: author.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (isbn)      where.isbn = { contains: isbn.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (customerName) where.customerName = { contains: customerName.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (binding)   where.binding = { contains: binding.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (title)     where.title = { contains: title.trim().replace(/\s+/g, " "), mode: "insensitive" };
 
     where.AND = [
       { OR: [{ amount: null }, { amount: { gte: 0 } }] },
@@ -506,6 +512,7 @@ router.get("/counts", async (req, res) => {
 router.get("/google-sheets", async (req, res) => {
   try {
     const result = await offlineSyncService.syncOfflineSales();
+    clearCaches();
     return res.json({ ok: true, ...result });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
@@ -520,6 +527,7 @@ router.post("/push", async (req, res) => {
   try {
     if (isFirstBatch) await prisma.googleSheetOfflineSale.deleteMany({});
     const result = await offlineSyncService.processData(data);
+    clearCaches();
     return res.json({ ok: true, ...result });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
