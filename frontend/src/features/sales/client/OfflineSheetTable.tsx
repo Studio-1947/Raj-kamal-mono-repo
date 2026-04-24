@@ -99,7 +99,8 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
           'state': 'state',
           'city': 'city',
           'binding': 'binding',
-          'docNoDisplay': 'q', // Map Doc No search to global search for now or leave as is
+          'title': 'title',
+          'docNoDisplay': 'q', 
         };
         const fKey = filterKeyMap[col.key];
         const isFiltered = fKey && filters[fKey as keyof OfflineSheetFilters];

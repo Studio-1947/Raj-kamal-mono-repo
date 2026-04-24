@@ -197,9 +197,19 @@ function ChartBlock({ id, title, globalFilters, render }: ChartBlockProps) {
       setLoading(true);
       try {
         const p = new URLSearchParams();
-        Object.entries(localFilters).forEach(([k, v]) => {
-          if (v !== undefined && v !== '' && v !== null) p.set(k, String(v));
+        // 1. Start with global filters
+        Object.entries(globalFilters).forEach(([k, v]) => {
+          if (v !== undefined && v !== '' && v !== null && k !== 'page' && k !== 'limit') {
+            p.set(k, String(v));
+          }
         });
+        // 2. Overlay local filters (overrides)
+        Object.entries(localFilters).forEach(([k, v]) => {
+          if (v !== undefined && v !== '' && v !== null) {
+            p.set(k, String(v));
+          }
+        });
+
         const resp = await apiClient.get<OfflineSheetSummaryResponse>(`offline-sales/summary?${p.toString()}`);
         setData(resp);
         localStorage.setItem(`rk_chart_filters_${id}`, JSON.stringify(localFilters));
@@ -210,7 +220,7 @@ function ChartBlock({ id, title, globalFilters, render }: ChartBlockProps) {
       }
     }
     fetchChart();
-  }, [id, localFilters]);
+  }, [id, localFilters, globalFilters]);
 
   const updateF = (key: keyof OfflineSheetFilters, val: any) => {
     setLocalFilters(prev => ({ ...prev, [key]: val }));

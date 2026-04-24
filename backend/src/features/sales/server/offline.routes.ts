@@ -237,15 +237,16 @@ router.get("/summary", async (req, res) => {
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     binding: z.string().optional(),
     title: z.string().optional(),
+    q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
   const days = parsed.data.days ?? 90;
   const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
   const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
-  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title } = parsed.data;
+  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, q } = parsed.data;
 
-  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}`;
+  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${q ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) return res.json(cached);
 
@@ -259,6 +260,10 @@ router.get("/summary", async (req, res) => {
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
       Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
     ];
+    if (q) {
+      const qs = '%' + q + '%';
+      conditions.push(Prisma.sql`("title" ILIKE ${qs} OR "customerName" ILIKE ${qs} OR "state" ILIKE ${qs} OR "city" ILIKE ${qs} OR "publisher" ILIKE ${qs})`);
+    }
     if (state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
     if (city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
     if (publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
@@ -311,11 +316,59 @@ router.get("/summary", async (req, res) => {
       ORDER BY total DESC LIMIT 10
     `);
 
-    const result = {
+    const result: any = {
       ok: true,
       timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)) })),
       topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
     };
+
+    // --- BOTTOM ITEMS ---
+    const bottomItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
+      FROM "google_sheet_offline_sales"
+      ${itemsWhereClause}
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY total ASC LIMIT 10
+    `);
+    result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
+
+    // --- REVENUE BY STATE ---
+
+    // --- REVENUE BY STATE ---
+    const revenueByStateRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.revenueByState = revenueByStateRows.map(r => ({ state: r.state, total: round2(Number(r.total)) }));
+
+    // --- REVENUE BY PUBLISHER ---
+    const revenueByPubRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.revenueByPublisher = revenueByPubRows.map(r => ({ publisher: r.publisher, total: round2(Number(r.total)) }));
+
+    // --- TOP CUSTOMERS ---
+    const topCustomerRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.topCustomers = topCustomerRows.map(r => ({ customerName: r.customer_name, total: round2(Number(r.total)) }));
+
+    // --- REVENUE BY BINDING ---
+    const revenueByBindingRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total, COALESCE(SUM("qty"), 0)::int AS qty
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC
+    `);
+    result.revenueByBinding = revenueByBindingRows.map(r => ({ binding: r.binding, total: round2(Number(r.total)), qty: Number(r.qty) || 0 }));
 
     // --- Projection Logic (Year 2026) ---
     const currentYear = 2026;
@@ -368,10 +421,11 @@ router.get("/counts", async (req, res) => {
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     binding: z.string().optional(),
     title: z.string().optional(),
+    q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
-  const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title } = parsed.data;
+  const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title, q } = parsed.data;
 
   const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
   const end = endDate ? new Date(endDate) : new Date();
@@ -388,6 +442,10 @@ router.get("/counts", async (req, res) => {
     if (customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
     if (binding)   conditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
     if (title)     conditions.push(Prisma.sql`"title" ILIKE ${'%' + title + '%'}`);
+    if (q) {
+      const qs = '%' + q + '%';
+      conditions.push(Prisma.sql`("title" ILIKE ${qs} OR "customerName" ILIKE ${qs} OR "state" ILIKE ${qs} OR "city" ILIKE ${qs} OR "publisher" ILIKE ${qs})`);
+    }
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
