@@ -28,6 +28,7 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
   const timeProgress = (p.daysElapsed / (p.daysElapsed + p.remainingDays)) * 100;
 
   const formatCr = (val: number) => {
+    if (val === undefined || val === null) return '₹0';
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
     if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lakh`;
     return `₹${val.toLocaleString()}`;

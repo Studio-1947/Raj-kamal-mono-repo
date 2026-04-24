@@ -67,6 +67,17 @@ export interface OfflineSheetSyncResponse {
   message?: string;
 }
 
+export interface OfflineSheetOptionsResponse {
+  ok: boolean;
+  states: string[];
+  publishers: string[];
+  bindings: string[];
+  customerNames: string[];
+  authors: string[];
+  cities: string[];
+  bookTitles: string[];
+}
+
 /** Filter state shared across hooks and URL params */
 export interface OfflineSheetFilters {
   days: number;
@@ -84,4 +95,5 @@ export interface OfflineSheetFilters {
   isbn?: string;
   customerName?: string;
   binding?: string;
+  title?: string;
 }

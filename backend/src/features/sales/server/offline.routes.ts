@@ -8,12 +8,20 @@ import { TtlCache } from "../../../lib/cache.js";
 // 5-minute server-side cache for expensive aggregate endpoints
 const summaryCache = new TtlCache<any>(5 * 60 * 1000);
 const countsCache = new TtlCache<any>(5 * 60 * 1000);
+const optionsCache = new TtlCache<any>(30 * 60 * 1000); // 30 minutes
 
 // Periodic eviction every 10 minutes to prevent memory leaks
 setInterval(() => {
   summaryCache.evictExpired();
   countsCache.evictExpired();
+  optionsCache.evictExpired();
 }, 10 * 60 * 1000);
+
+function clearCaches() {
+  summaryCache.clear();
+  countsCache.clear();
+  optionsCache.clear();
+}
 
 const router = express.Router();
 
@@ -56,91 +64,6 @@ const router = express.Router();
  *           type: object
  */
 
-/**
- * @swagger
- * /api/offline-sales:
- *   get:
- *     summary: Get offline sales with pagination and filtering
- *     tags: [offline sales]
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 5000
- *           default: 200
- *         description: Number of items to return
- *       - in: query
- *         name: cursorId
- *         schema:
- *           type: string
- *         description: Pagination cursor
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *         description: Filter by start date
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *         description: Filter by end date
- *       - in: query
- *         name: q
- *         schema:
- *           type: string
- *         description: Search query for title, customer, state, city, or publisher
- *       - in: query
- *         name: state
- *         schema:
- *           type: string
- *         description: Filter by state
- *       - in: query
- *         name: city
- *         schema:
- *           type: string
- *         description: Filter by city
- *       - in: query
- *         name: publisher
- *         schema:
- *           type: string
- *         description: Filter by publisher
- *       - in: query
- *         name: author
- *         schema:
- *           type: string
- *         description: Filter by author
- *       - in: query
- *         name: minAmount
- *         schema:
- *           type: number
- *         description: Filter by minimum amount
- *       - in: query
- *         name: maxAmount
- *         schema:
- *           type: number
- *         description: Filter by maximum amount
- *     responses:
- *       200:
- *         description: List of offline sales
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 ok:
- *                   type: boolean
- *                 items:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/OfflineSale'
- *                 nextCursorId:
- *                   type: string
- */
-
 // Utilities for resilient aggregation when DB fields are missing
 function decToNumber(v: any): number {
   if (v === null || v === undefined) return 0;
@@ -164,6 +87,22 @@ function normalizeText(raw?: any): string | null {
   if (!s) return null;
   return s.replace(/\s+/g, " ");
 }
+/**
+ * Splits a query into tokens (words) for robust searching.
+ * Ignores small characters and splits on spaces and punctuation.
+ */
+function getSearchTokens(q: string): string[] {
+  if (!q) return [];
+  // Split by whitespace and common separators like (), [], {}, -, /
+  return q.split(/[\s()\[\]{}\-\/.,]+/).filter(t => t.length > 0);
+}
+/**
+ * Returns a Postgres regex for a single token.
+ * Prevents regex injection and allows flexible matching.
+ */
+function toTokenRegex(token: string): string {
+  return token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 function pick(
   row: Record<string, any> | null | undefined,
   names: string[],
@@ -177,19 +116,8 @@ function pick(
 function monthNameToIndex(m?: string | null): number | null {
   if (!m) return null;
   const map: Record<string, number> = {
-    jan: 0,
-    feb: 1,
-    mar: 2,
-    apr: 3,
-    may: 4,
-    jun: 5,
-    jul: 6,
-    aug: 7,
-    sep: 8,
-    sept: 8,
-    oct: 9,
-    nov: 10,
-    dec: 11,
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11,
   };
   const i = map[m.toLowerCase()];
   return i === undefined ? null : i;
@@ -200,17 +128,11 @@ function resolveRowDate(r: any): Date | null {
   if (!d) {
     const raw = r.rawJson as Record<string, any> | undefined;
     if (raw) {
-      // Normalize keys by trimming
       const normalizedRaw: Record<string, any> = {};
       for (const [k, v] of Object.entries(raw)) {
         normalizedRaw[k.trim()] = v;
       }
-      const d1 = pick(normalizedRaw, [
-        "Date",
-        "Txn Date",
-        "Transaction Date",
-        "Trnsdocdate",
-      ]);
+      const d1 = pick(normalizedRaw, ["Date", "Txn Date", "Transaction Date", "Trnsdocdate"]);
       if (d1) {
         const dd = new Date(d1);
         if (!isNaN(+dd)) d = dd;
@@ -228,12 +150,7 @@ function resolveRowDate(r: any): Date | null {
 // GET /api/offline-sales?limit=200&cursorId=<id>
 router.get("/", async (req, res) => {
   const Q = z.object({
-    limit: z
-      .string()
-      .regex(/^\d+$/)
-      .transform(Number)
-      .default("100")
-      .pipe(z.number().min(1).max(5000)),
+    limit: z.string().regex(/^\d+$/).transform(Number).default("100").pipe(z.number().min(1).max(5000)),
     offset: z.string().regex(/^\d+$/).transform(Number).optional(),
     cursorId: z.string().regex(/^\d+$/).optional(),
     startDate: z.string().datetime().optional(),
@@ -248,49 +165,41 @@ router.get("/", async (req, res) => {
     isbn: z.string().optional(),
     customerName: z.string().optional(),
     binding: z.string().optional(),
+    title: z.string().optional(),
   });
-  const parsed = Q.safeParse({
-    limit: req.query.limit ?? "100",
-    offset: req.query.offset,
-    cursorId: req.query.cursorId,
-    startDate: req.query.startDate,
-    endDate: req.query.endDate,
-    q: req.query.q,
-    state: req.query.state,
-    city: req.query.city,
-    publisher: req.query.publisher,
-    author: req.query.author,
-    minAmount: req.query.minAmount,
-    maxAmount: req.query.maxAmount,
-    isbn: req.query.isbn,
-    customerName: req.query.customerName,
-    binding: req.query.binding,
-  });
-  if (!parsed.success)
-    return res.status(400).json({ ok: false, error: "Invalid query" });
-  const { limit, offset, cursorId, startDate, endDate, q, state, city, publisher, author, minAmount, maxAmount, isbn, customerName, binding } = parsed.data;
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
+  const { limit, offset, cursorId, startDate, endDate, q, state, city, publisher, author, minAmount, maxAmount, isbn, customerName, binding, title } = parsed.data;
 
   try {
     const where: any = {};
     if (q) {
-      const contains = q.toString();
-      where.OR = [
-        { title: { contains, mode: "insensitive" } },
-        { customerName: { contains, mode: "insensitive" } },
-        { state: { contains, mode: "insensitive" } },
-        { city: { contains, mode: "insensitive" } },
-        { publisher: { contains, mode: "insensitive" } },
-      ];
+      const tokens = getSearchTokens(q);
+      if (tokens.length > 0) {
+        // For Prisma ORM list, we'll join tokens with AND
+        // Each token must match at least one of the major columns
+        where.AND = tokens.map(t => ({
+          OR: [
+            { title: { contains: t, mode: "insensitive" } },
+            { customerName: { contains: t, mode: "insensitive" } },
+            { state: { contains: t, mode: "insensitive" } },
+            { city: { contains: t, mode: "insensitive" } },
+            { publisher: { contains: t, mode: "insensitive" } },
+            { author: { contains: t, mode: "insensitive" } },
+            { isbn: { contains: t, mode: "insensitive" } },
+          ]
+        }));
+      }
     }
-    if (state)     where.state = { contains: state, mode: "insensitive" };
-    if (city)      where.city = { contains: city, mode: "insensitive" };
-    if (publisher) where.publisher = { contains: publisher, mode: "insensitive" };
-    if (author)    where.author = { contains: author, mode: "insensitive" };
-    if (isbn)      where.isbn = { contains: isbn, mode: "insensitive" };
-    if (customerName) where.customerName = { contains: customerName, mode: "insensitive" };
-    if (binding)   where.binding = { contains: binding, mode: "insensitive" };
+    if (state)     where.state = { contains: state.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (city)      where.city = { contains: city.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (publisher) where.publisher = { contains: publisher.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (author)    where.author = { contains: author.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (isbn)      where.isbn = { contains: isbn.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (customerName) where.customerName = { contains: customerName.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (binding)   where.binding = { contains: binding.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (title)     where.title = { contains: title.trim().replace(/\s+/g, " "), mode: "insensitive" };
 
-    // Exclude negative amounts/rates/qty (bugs from data source)
     where.AND = [
       { OR: [{ amount: null }, { amount: { gte: 0 } }] },
       { OR: [{ rate: null }, { rate: { gte: 0 } }] },
@@ -306,13 +215,8 @@ router.get("/", async (req, res) => {
 
     const totalCount = await prisma.googleSheetOfflineSale.count({ where });
 
-    const fetchLimit =
-      startDate || endDate ? Math.min(limit * 10, 5000) : limit;
-    const args: any = {
-      take: fetchLimit,
-      orderBy: { id: "desc" as const },
-      where,
-    };
+    const fetchLimit = startDate || endDate ? Math.min(limit * 10, 5000) : limit;
+    const args: any = { take: fetchLimit, orderBy: { id: "desc" as const }, where };
     if (cursorId) {
       args.skip = 1;
       args.cursor = { id: BigInt(cursorId) };
@@ -324,58 +228,30 @@ router.get("/", async (req, res) => {
     const dataAll = items.map((it: any) => ({
       ...it,
       id: it.id?.toString?.() ?? String(it.id),
-      orderNo: it.docNo, // Alias for frontend compatibility
+      orderNo: it.docNo,
       amount: it.amount != null ? round2(decToNumber(it.amount)) : null,
       rate: it.rate != null ? round2(decToNumber(it.rate)) : null,
     }));
 
-    const data =
-      startDate || endDate
-        ? dataAll
-            .filter((r: any) => {
+    const data = startDate || endDate
+        ? dataAll.filter((r: any) => {
               const d = resolveRowDate(r);
               if (!d) return false;
               if (startDate && d < new Date(startDate)) return false;
               if (endDate && d > new Date(endDate)) return false;
               return true;
-            })
-            .slice(0, limit)
+            }).slice(0, limit)
         : dataAll;
 
     const last = (data as any[]).at(-1);
     return res.json({ ok: true, items: data, nextCursorId: last?.id ?? null, totalCount });
   } catch (e: any) {
     console.error("offline_sales_list_failed", e);
-    return res
-      .status(500)
-      .json({ ok: false, error: "Failed to fetch offline sales" });
+    return res.status(500).json({ ok: false, error: "Failed to fetch offline sales" });
   }
 });
 
-/**
- * @swagger
- * /api/offline-sales/summary:
- *   get:
- *     summary: Get sales summary (time series and top items)
- *     tags: [offline sales]
- *     parameters:
- *       - in: query
- *         name: days
- *         schema:
- *           type: integer
- *           default: 90
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- */
-// GET /api/offline-sales/summary — uses SQL aggregates + server-side cache
+// GET /api/offline-sales/summary
 router.get("/summary", async (req, res) => {
   const Q = z.object({
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
@@ -390,41 +266,19 @@ router.get("/summary", async (req, res) => {
     minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     binding: z.string().optional(),
+    title: z.string().optional(),
+    q: z.string().optional(),
   });
-  const parsed = Q.safeParse({
-    days: req.query.days,
-    startDate: req.query.startDate,
-    endDate: req.query.endDate,
-    state: req.query.state,
-    city: req.query.city,
-    publisher: req.query.publisher,
-    author: req.query.author,
-    isbn: req.query.isbn,
-    customerName: req.query.customerName,
-    minAmount: req.query.minAmount,
-    maxAmount: req.query.maxAmount,
-    binding: req.query.binding,
-  });
-  if (!parsed.success)
-    return res.status(400).json({ ok: false, error: "Invalid query" });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
   const days = parsed.data.days ?? 90;
-  const startDate = parsed.data.startDate
-    ? new Date(parsed.data.startDate)
-    : undefined;
-  const endDate = parsed.data.endDate
-    ? new Date(parsed.data.endDate)
-    : undefined;
+  const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
+  const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
+  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, q } = parsed.data;
 
-  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding } = parsed.data;
-
-  // Cache key based on parameters
-  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}`;
+  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${q ?? ""}`;
   const cached = summaryCache.get(cacheKey);
-  if (cached) {
-    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
-    res.set("X-Cache", "HIT");
-    return res.json(cached);
-  }
+  if (cached) return res.json(cached);
 
   try {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
@@ -436,341 +290,155 @@ router.get("/summary", async (req, res) => {
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
       Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
     ];
-    if (state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
-    if (city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
-    if (publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
-    if (author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
-    if (isbn)      conditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
-    if (customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
-    if (binding)   conditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
+    if (q) {
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+      });
+    }
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
-    // SQL aggregate: time series (daily totals)
-    const timeSeriesRows = await prisma.$queryRaw<
-      { day: string; total: number }[]
-    >(Prisma.sql`
+    const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         to_char("date", 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
       FROM "google_sheet_offline_sales"
       ${whereClause}
       GROUP BY to_char("date", 'YYYY-MM-DD')
       ORDER BY day ASC
     `);
 
-    // Separate WHERE clause for topItems / bottomItems: does NOT require "date IS NOT NULL"
-    // so ALL book records with title data are included (not just dated rows).
-    // Dimension filters (state, publisher, etc.) are still applied if active.
     const itemConditions: any[] = [
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
       Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
     ];
-    if (state)     itemConditions.push(Prisma.sql`"state" ILIKE ${'%' + state + '%'}`);
-    if (city)      itemConditions.push(Prisma.sql`"city" ILIKE ${'%' + city + '%'}`);
-    if (publisher) itemConditions.push(Prisma.sql`"publisher" ILIKE ${'%' + publisher + '%'}`);
-    if (author)    itemConditions.push(Prisma.sql`"author" ILIKE ${'%' + author + '%'}`);
-    if (isbn)      itemConditions.push(Prisma.sql`"isbn" ILIKE ${'%' + isbn + '%'}`);
-    if (customerName) itemConditions.push(Prisma.sql`"customerName" ILIKE ${'%' + customerName + '%'}`);
-    if (binding)   itemConditions.push(Prisma.sql`"binding" ILIKE ${'%' + binding + '%'}`);
+    if (state)     itemConditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      itemConditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) itemConditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    itemConditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      itemConditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) itemConditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   itemConditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (title)     itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
     if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
-    const itemsWhereClause = itemConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}`
-      : Prisma.sql``;
+    const itemsWhereClause = itemConditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}` : Prisma.sql``;
 
-    const topItemsRows = await prisma.$queryRaw<
-      { title: string; total: number; qty: number; rate: number }[]
-    >(Prisma.sql`
+    const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
-        CASE
-          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
-          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
-          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
-        END AS title,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total,
+        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${itemsWhereClause}
-      GROUP BY 
-        CASE
-          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
-          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
-          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
-        END
-      HAVING (
-        SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ) > 0 OR SUM("qty") > 0
-      )
-      ORDER BY total DESC
-      LIMIT 10
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY total DESC LIMIT 10
     `);
 
-    const timeSeries = timeSeriesRows.map((r) => ({
-      date: r.day,
-      total: round2(Number(r.total)),
-    }));
+    const result: any = {
+      ok: true,
+      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)) })),
+      topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
+    };
 
-    const topItems = topItemsRows.map((r) => {
-      const total = Number(r.total) || 0;
-      const qty = Number(r.qty) || 0;
-      return {
-        title: r.title || "Untitled",
-        total: round2(total),
-        qty,
-        rate: round2(Number(r.rate) || 0),
-      };
-    });
-
-    // SQL aggregate: bottom 10 items by total amount (worst performing)
-    // We now allow untitled items but label them descriptively so they can be identified.
-    const bottomItemsTitleFilter = itemConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}`
-      : Prisma.sql``;
-
-    const bottomItemsRows = await prisma.$queryRaw<
-      { title: string; total: number; qty: number; rate: number }[]
-    >(Prisma.sql`
+    // --- BOTTOM ITEMS ---
+    const bottomItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
-        CASE
-          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
-          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
-          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
-        END AS title,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total,
+        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
-      ${bottomItemsTitleFilter}
-      GROUP BY 
-        CASE
-          WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title")
-          WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn"
-          ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')'
-        END
-      HAVING (
-        SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ) > 0 OR SUM("qty") > 0
-      )
-      ORDER BY total ASC
-      LIMIT 10
+      ${itemsWhereClause}
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY total ASC LIMIT 10
     `);
+    result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
 
-    const bottomItems = bottomItemsRows.map((r) => {
-      const total = Number(r.total) || 0;
-      const qty = Number(r.qty) || 0;
-      return {
-        title: r.title || "Untitled",
-        total: round2(total),
-        qty,
-        rate: round2(Number(r.rate) || 0),
-      };
-    });
+    // --- REVENUE BY STATE ---
 
-    const result = { ok: true, timeSeries, topItems, bottomItems };
-
-    // --- NEW: Revenue by State ---
-    const revenueByStateRows = await prisma.$queryRaw<
-      { state: string; total: number }[]
-    >(Prisma.sql`
-      SELECT
-        COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total
-      FROM "google_sheet_offline_sales"
-      ${whereClause}
-      GROUP BY COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')
-      ORDER BY total DESC
-      LIMIT 10
+    // --- REVENUE BY STATE ---
+    const revenueByStateRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
-    (result as any).revenueByState = revenueByStateRows.map(r => ({
-      state: r.state,
-      total: round2(Number(r.total))
-    }));
+    result.revenueByState = revenueByStateRows.map(r => ({ state: r.state, total: round2(Number(r.total)) }));
 
-    // --- NEW: Revenue by Publisher ---
-    const revenueByPubRows = await prisma.$queryRaw<
-      { publisher: string; total: number }[]
-    >(Prisma.sql`
-      SELECT
-        COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total
-      FROM "google_sheet_offline_sales"
-      ${whereClause}
-      GROUP BY COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher')
-      ORDER BY total DESC
-      LIMIT 10
+    // --- REVENUE BY PUBLISHER ---
+    const revenueByPubRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
-    (result as any).revenueByPublisher = revenueByPubRows.map(r => ({
-      publisher: r.publisher,
-      total: round2(Number(r.total))
-    }));
+    result.revenueByPublisher = revenueByPubRows.map(r => ({ publisher: r.publisher, total: round2(Number(r.total)) }));
 
-    // --- NEW: Top Customers by Revenue ---
-    const topCustomerRows = await prisma.$queryRaw<
-      { customerName: string; total: number }[]
-    >(Prisma.sql`
-      SELECT
-        COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total
-      FROM "google_sheet_offline_sales"
-      ${whereClause}
-      GROUP BY COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer')
-      ORDER BY total DESC
-      LIMIT 10
+    // --- TOP CUSTOMERS ---
+    const topCustomerRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
-    (result as any).topCustomers = topCustomerRows.map(r => ({
-      customerName: (r as any).customer_name,
-      total: round2(Number(r.total))
-    }));
+    result.topCustomers = topCustomerRows.map(r => ({ customerName: r.customer_name, total: round2(Number(r.total)) }));
 
-    const revenueByBindingRows = await prisma.$queryRaw<
-      { binding: string; total: number; qty: number }[]
-    >(Prisma.sql`
-      SELECT
-        COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty
-      FROM "google_sheet_offline_sales"
-      ${whereClause}
-      GROUP BY COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding')
-      ORDER BY total DESC
+    // --- REVENUE BY BINDING ---
+    const revenueByBindingRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total, COALESCE(SUM("qty"), 0)::int AS qty
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC
     `);
-    (result as any).revenueByBinding = revenueByBindingRows.map(r => ({
-      binding: r.binding,
-      total: round2(Number(r.total)),
-      qty: Number(r.qty) || 0
-    }));
+    result.revenueByBinding = revenueByBindingRows.map(r => ({ binding: r.binding, total: round2(Number(r.total)), qty: Number(r.qty) || 0 }));
 
     // --- Projection Logic (Year 2026) ---
     const currentYear = 2026;
     const yearStart = new Date(`${currentYear}-01-01T00:00:00Z`);
-    const yearEnd = new Date(`${currentYear}-12-31T23:59:59Z`);
     const now = new Date(); 
-    
-    // Hardcode 'now' to April 14, 2026 for consistent run-rate during this demo session if needed, 
-    // but using actual Date() is better for real-time.
-    
     const yearSoFarConditions = [
       Prisma.sql`"date" IS NOT NULL AND "date" >= ${yearStart} AND "date" <= ${now}`,
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
-      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
-      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
     ];
-    const yearSoFarWhere = Prisma.sql`WHERE ${Prisma.join(yearSoFarConditions, ' AND ')}`;
-
     const [yearStats] = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT 
-        COALESCE(SUM(
-          CASE 
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0 
-          END
-        ), 0)::float as total
+      SELECT COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float as total
       FROM "google_sheet_offline_sales"
-      ${yearSoFarWhere}
+      WHERE ${Prisma.join(yearSoFarConditions, ' AND ')}
     `);
-
     const totalSoFar = Number(yearStats?.total ?? 0);
-    const diffTime = Math.max(1, now.getTime() - yearStart.getTime());
-    const daysElapsed = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const daysElapsed = Math.ceil(Math.max(1, now.getTime() - yearStart.getTime()) / 86400000);
     const dailyAvg = totalSoFar / daysElapsed;
-    const remainingDays = Math.max(0, Math.ceil((yearEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-    const projectedRemaining = dailyAvg * remainingDays;
-
+    const remainingDays = Math.ceil((new Date(`${currentYear}-12-31T23:59:59Z`).getTime() - now.getTime()) / 86400000);
     (result as any).projection = {
-      year: currentYear,
-      totalSoFar: round2(totalSoFar),
-      daysElapsed,
+      year: currentYear, 
+      totalSoFar: round2(totalSoFar), 
+      daysElapsed, 
       dailyAvg: round2(dailyAvg),
-      remainingDays,
-      projectedRemaining: round2(projectedRemaining),
-      totalProjected: round2(totalSoFar + projectedRemaining)
+      remainingDays, 
+      projectedRemaining: round2(dailyAvg * remainingDays),
+      totalProjected: round2(totalSoFar + dailyAvg * remainingDays)
     };
 
     summaryCache.set(cacheKey, result);
-
-
-    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
-    res.set("X-Cache", "MISS");
     return res.json(result);
   } catch (e: any) {
-    console.error("offline_sales_summary_failed", e);
-    return res
-      .status(500)
-      .json({ ok: false, error: "Failed to compute summary" });
+    console.error("offline_summary_failed", e);
+    return res.status(500).json({ ok: false, error: "Summary failed" });
   }
 });
 
-/**
- * @swagger
- * /api/offline-sales/counts:
- *   get:
- *     summary: Get aggregate counts and totals
- *     tags: [offline sales]
- *     parameters:
- *       - in: query
- *         name: days
- *         schema:
- *           type: integer
- */
-// GET /api/offline-sales/counts — uses SQL aggregates + server-side cache
+// GET /api/offline-sales/counts
 router.get("/counts", async (req, res) => {
   const Q = z.object({
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
@@ -785,112 +453,58 @@ router.get("/counts", async (req, res) => {
     minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     binding: z.string().optional(),
+    title: z.string().optional(),
+    q: z.string().optional(),
   });
-  const parsed = Q.safeParse({
-    days: req.query.days,
-    startDate: req.query.startDate,
-    endDate: req.query.endDate,
-    state: req.query.state,
-    city: req.query.city,
-    publisher: req.query.publisher,
-    author: req.query.author,
-    isbn: req.query.isbn,
-    customerName: req.query.customerName,
-    minAmount: req.query.minAmount,
-    maxAmount: req.query.maxAmount,
-    binding: req.query.binding,
-  });
-  if (!parsed.success)
-    return res.status(400).json({ ok: false, error: "Invalid query" });
-  const { days } = parsed.data;
-  let { startDate, endDate } = parsed.data;
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
+  const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title, q } = parsed.data;
 
-  if (days && !startDate && !endDate) {
-    const now = new Date();
-    const since = new Date(now.getTime() - days * 86400000);
-    startDate = since.toISOString();
-    endDate = now.toISOString();
-  }
-
-  // Cache key based on parameters
-  const cacheKey = `counts:${days ?? ""}:${startDate ?? ""}:${endDate ?? ""}:${parsed.data.state ?? ""}:${parsed.data.city ?? ""}:${parsed.data.publisher ?? ""}:${parsed.data.author ?? ""}:${parsed.data.isbn ?? ""}:${parsed.data.customerName ?? ""}:${parsed.data.minAmount ?? ""}:${parsed.data.maxAmount ?? ""}:${parsed.data.binding ?? ""}`;
-  const cached = countsCache.get(cacheKey);
-  if (cached) {
-    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
-    res.set("X-Cache", "HIT");
-    return res.json(cached);
-  }
+  const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
+  const end = endDate ? new Date(endDate) : new Date();
 
   try {
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
-
-    // Build dynamic WHERE clause for raw SQL
     const conditions = [
-      Prisma.sql`"date" IS NOT NULL`,
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
-      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
-      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
     ];
     if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
-    else if (start)   conditions.push(Prisma.sql`"date" >= ${start}`);
-    
-    if (parsed.data.state)     conditions.push(Prisma.sql`"state" ILIKE ${'%' + parsed.data.state + '%'}`);
-    if (parsed.data.city)      conditions.push(Prisma.sql`"city" ILIKE ${'%' + parsed.data.city + '%'}`);
-    if (parsed.data.publisher) conditions.push(Prisma.sql`"publisher" ILIKE ${'%' + parsed.data.publisher + '%'}`);
-    if (parsed.data.author)    conditions.push(Prisma.sql`"author" ILIKE ${'%' + parsed.data.author + '%'}`);
-    if (parsed.data.isbn)      conditions.push(Prisma.sql`"isbn" ILIKE ${'%' + parsed.data.isbn + '%'}`);
-    if (parsed.data.customerName) conditions.push(Prisma.sql`"customerName" ILIKE ${'%' + parsed.data.customerName + '%'}`);
-    if (parsed.data.binding)      conditions.push(Prisma.sql`"binding" ILIKE ${'%' + parsed.data.binding + '%'}`);
-    
-    const minA = parsed.data.minAmount;
-    const maxA = parsed.data.maxAmount;
-    if (minA != null) conditions.push(Prisma.sql`"amount" >= ${minA}`);
-    if (maxA != null) conditions.push(Prisma.sql`"amount" <= ${maxA}`);
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (q) {
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+      });
+    }
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
-    const [agg] = await prisma.$queryRaw<
-      { count: bigint; total_amount: number; unique_customers: bigint; top_binding: string }[]
-    >(Prisma.sql`
+    const [agg] = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         COUNT(*)::bigint AS count,
-        COALESCE(SUM(
-          CASE
-            WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
-            WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-            ELSE 0
-          END
-        ), 0)::float AS total_amount,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total_amount,
         COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers,
-        (
-          SELECT TRIM("binding")
-          FROM "google_sheet_offline_sales"
-          ${whereClause} AND ("binding" IS NOT NULL AND TRIM("binding") != '')
-          GROUP BY TRIM("binding")
-          ORDER BY COUNT(*) DESC
-          LIMIT 1
-        ) AS top_binding
+        (SELECT TRIM("binding") FROM "google_sheet_offline_sales" ${whereClause} AND "binding" IS NOT NULL AND TRIM("binding") != '' GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1) AS top_binding
       FROM "google_sheet_offline_sales"
       ${whereClause}
     `);
 
-    const result = {
+    return res.json({
       ok: true,
       totalCount: Number(agg?.count ?? 0),
       totalAmount: round2(Number(agg?.total_amount ?? 0)),
       uniqueCustomers: Number(agg?.unique_customers ?? 0),
-      refundCount: 0,
       topBinding: agg?.top_binding ?? 'N/A'
-    };
-    countsCache.set(cacheKey, result);
-
-    res.set("Cache-Control", "private, max-age=120, stale-while-revalidate=300");
-    res.set("X-Cache", "MISS");
-    return res.json(result);
+    });
   } catch (e: any) {
-    console.error("offline_sales_counts_failed", e);
-    return res.status(500).json({ ok: false, error: "Failed to fetch counts" });
+    console.error("offline_counts_failed", e);
+    return res.status(500).json({ ok: false, error: "Counts failed" });
   }
 });
 
@@ -898,38 +512,58 @@ router.get("/counts", async (req, res) => {
 router.get("/google-sheets", async (req, res) => {
   try {
     const result = await offlineSyncService.syncOfflineSales();
+    clearCaches();
     return res.json({ ok: true, ...result });
   } catch (e: any) {
-    console.error("offline_get_sync_failed", e);
-    return res.status(500).json({ ok: false, error: e.message || "Sync failed" });
+    return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
 // POST /api/offline-sales/push
-// Accepts { data: any[][] }
 router.post("/push", async (req, res) => {
   const token = req.headers["x-sync-token"];
-  const expectedToken = process.env.GOOGLE_SYNC_TOKEN || "rk_default_token_2026";
-
-  if (!token || token !== expectedToken) {
-    return res.status(401).json({ ok: false, error: "Unauthorized" });
-  }
-
+  if (!token || token !== (process.env.GOOGLE_SYNC_TOKEN || "rk_default_token_2026")) return res.status(401).json({ ok: false });
   const { data, isFirstBatch } = req.body;
-  if (!data || !Array.isArray(data)) {
-    return res.status(400).json({ ok: false, error: "Invalid data format. Expected { data: any[][] }" });
-  }
-
   try {
-    if (isFirstBatch) {
-      await prisma.googleSheetOfflineSale.deleteMany({});
-      console.log("Wiped offline sales table for fresh sync since isFirstBatch=true");
-    }
+    if (isFirstBatch) await prisma.googleSheetOfflineSale.deleteMany({});
     const result = await offlineSyncService.processData(data);
+    clearCaches();
     return res.json({ ok: true, ...result });
   } catch (e: any) {
-    console.error("offline_push_failed", e);
-    return res.status(500).json({ ok: false, error: e.message || "Push processing failed" });
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/offline-sales/options
+router.get("/options", async (req, res) => {
+  const cached = optionsCache.get("all");
+  if (cached) return res.json(cached);
+
+  try {
+    const [states, publishers, bindings, customerNames, authors, cities, bookTitles] = await Promise.all([
+      prisma.googleSheetOfflineSale.groupBy({ by: ['state'], where: { state: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { state: 'asc' } }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['publisher'], where: { publisher: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { publisher: 'asc' } }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['binding'], where: { binding: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { binding: 'asc' } }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['customerName'], where: { customerName: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['author'], where: { author: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { author: 'asc' } }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['city'], where: { city: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { city: 'asc' } }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['title'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 })
+    ]);
+
+    const result = {
+      ok: true,
+      states: states.map(s => s.state),
+      publishers: publishers.map(p => p.publisher),
+      bindings: bindings.map(b => b.binding),
+      customerNames: customerNames.map(c => c.customerName).sort(),
+      authors: authors.map(a => a.author),
+      cities: cities.map(c => c.city),
+      bookTitles: bookTitles.map(b => b.title).sort(),
+    };
+    optionsCache.set("all", result);
+    return res.json(result);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: "Options failed" });
   }
 });
 

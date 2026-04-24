@@ -575,7 +575,6 @@ export default function Dashboard() {
                       color={saleType.chartColor}
                       badgeColor={saleType.badgeColor}
                       days={days}
-                      onDaysChange={setDays}
                     />
                   </div>
                 ))}

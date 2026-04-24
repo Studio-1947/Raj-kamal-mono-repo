@@ -17,6 +17,7 @@ import type {
   OfflineSheetSummaryResponse,
   OfflineSheetCountsResponse,
   OfflineSheetSyncResponse,
+  OfflineSheetOptionsResponse,
 } from './offlineSheetTypes';
 
 const BASE = 'offline-sales';
@@ -40,6 +41,7 @@ function buildQs(filters: OfflineSheetFilters, extra?: Record<string, string>): 
   if (filters.binding)   p.set('binding', filters.binding);
   if (filters.minAmount) p.set('minAmount', String(filters.minAmount));
   if (filters.maxAmount) p.set('maxAmount', String(filters.maxAmount));
+  if (filters.title)     p.set('title', filters.title);
   
   const page = filters.page || 1;
   const limit = filters.limit || 100;
@@ -113,5 +115,16 @@ export function useTriggerSync() {
       qc.invalidateQueries({ queryKey: ['osheetSummary'] });
       qc.invalidateQueries({ queryKey: ['osheetList'] });
     },
+  });
+}
+
+// ── Options hook ─────────────────────────────────────────────────────────────
+
+export function useOfflineSheetOptions() {
+  return useQuery<OfflineSheetOptionsResponse>({
+    queryKey: ['osheetOptions'],
+    queryFn: () => apiClient.get<OfflineSheetOptionsResponse>(`${BASE}/options`),
+    staleTime: 60 * 60 * 1000, // 1 hour
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
   });
 }
