@@ -37,6 +37,8 @@ export interface OfflineSheetSummaryResponse {
   bottomItems?: { title: string; total: number; qty: number; rate?: number }[];
   paymentMode?: { paymentMode: string; total: number }[];
   revenueByState?: { state: string; total: number }[];
+  revenueByCity?: { city: string; state: string; total: number }[];
+
   revenueByPublisher?: { publisher: string; total: number }[];
   revenueByBinding?: { binding: string; total: number; qty: number }[];
   topCustomers?: { customerName: string; total: number }[];

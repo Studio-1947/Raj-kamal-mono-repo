@@ -61,7 +61,9 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
     const originalData = payload[0]?.payload;
     return (
       <div className="rounded-xl border-2 border-gray-200 bg-white p-4 shadow-xl ring-2 ring-black/5">
-        <p className="mb-2 text-base font-medium text-black uppercase tracking-widest border-b border-gray-100 pb-1">{label}</p>
+        <p className="mb-2 text-base font-medium text-black uppercase tracking-widest border-b border-gray-100 pb-1">
+          {label} {originalData?.state ? `(${originalData.state})` : ''}
+        </p>
         {payload.map((entry: any, index: number) => (
           <p key={index} className="text-xl font-medium" style={{ color: entry.color || '#000000' }}>
             {title || entry.name}: {fmtINR(entry.value)}
@@ -289,6 +291,7 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
           <BlockFilterDropdown label="Customer" value={localFilters.customerName} onChange={(v:any) => updateF('customerName', v)} placeholder="Search name..." options={optData?.customerNames} />
           <BlockFilterDropdown label="Publisher" value={localFilters.publisher} onChange={(v:any) => updateF('publisher', v)} placeholder="All publishers" options={optData?.publishers} />
           <BlockFilterDropdown label="State" value={localFilters.state} onChange={(v:any) => updateF('state', v)} placeholder="e.g. Delhi" options={optData?.states} />
+          <BlockFilterDropdown label="City" value={localFilters.city} onChange={(v:any) => updateF('city', v)} placeholder="e.g. Mumbai" options={optData?.cities} />
           <BlockFilterDropdown label="Binding" value={localFilters.binding} onChange={(v:any) => updateF('binding', v)} placeholder="All bindings" options={optData?.bindings} />
           <BlockFilterField label="ISBN" value={localFilters.isbn} onChange={(v:any) => updateF('isbn', v)} placeholder="Code..." />
           <div className="flex gap-2 items-end">
@@ -367,7 +370,7 @@ interface Props {
   resetVersion?: number;
 }
 
-const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'bottom-items'];
+const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'bottom-items'];
 
 export default function OfflineSheetCharts({ filters: globalFilters, resetVersion }: Props) {
   const [items, setItems] = useState<string[]>(() => {
@@ -444,6 +447,29 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
             <YAxis type="category" dataKey="state" width={120} tick={BOLD_TEXT} />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="total" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'sales-by-city': {
+      title: 'Sales by City',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.revenueByCity || []} layout="vertical" margin={{ left: 20, right: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis 
+              type="category" 
+              dataKey="city" 
+              width={160} 
+              tick={BOLD_TEXT} 
+              tickFormatter={(val, i) => {
+                const item = data.revenueByCity?.[i];
+                return item ? `${val} (${item.state})` : val;
+              }}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#10B981" radius={[0, 4, 4, 0]} barSize={20} />
           </BarChart>
         </ResponsiveContainer>
       )

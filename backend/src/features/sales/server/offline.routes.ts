@@ -370,14 +370,23 @@ router.get("/summary", async (req, res) => {
     result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
 
     // --- REVENUE BY STATE ---
-
-    // --- REVENUE BY STATE ---
     const revenueByStateRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
       FROM "google_sheet_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
     result.revenueByState = revenueByStateRows.map(r => ({ state: r.state, total: round2(Number(r.total)) }));
+
+    // --- REVENUE BY CITY ---
+    const revenueByCityRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT 
+        COALESCE(NULLIF(TRIM("city"), ''), 'Unknown City') AS city, 
+        MAX(COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')) AS state,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.revenueByCity = revenueByCityRows.map(r => ({ city: r.city, state: r.state, total: round2(Number(r.total)) }));
 
     // --- REVENUE BY PUBLISHER ---
     const revenueByPubRows = await prisma.$queryRaw<any[]>(Prisma.sql`
