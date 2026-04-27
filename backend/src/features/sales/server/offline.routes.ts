@@ -313,7 +313,8 @@ router.get("/summary", async (req, res) => {
     const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         to_char("date", 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty
       FROM "google_sheet_offline_sales"
       ${whereClause}
       GROUP BY to_char("date", 'YYYY-MM-DD')
@@ -349,10 +350,23 @@ router.get("/summary", async (req, res) => {
       ORDER BY total DESC LIMIT 10
     `);
 
+    const topItemsRowsByQty = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
+      FROM "google_sheet_offline_sales"
+      ${itemsWhereClause}
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY qty DESC LIMIT 10
+    `);
+
     const result: any = {
       ok: true,
-      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)) })),
+      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
       topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
+      topItemsByQty: topItemsRowsByQty.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
     };
 
     // --- BOTTOM ITEMS ---
@@ -514,6 +528,80 @@ router.get("/counts", async (req, res) => {
   } catch (e: any) {
     console.error("offline_counts_failed", e);
     return res.status(500).json({ ok: false, error: "Counts failed" });
+  }
+});
+
+// GET /api/offline-sales/daily-details?date=YYYY-MM-DD
+router.get("/daily-details", async (req, res) => {
+  const Q = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    binding: z.string().optional(),
+    title: z.string().optional(),
+    q: z.string().optional(),
+  });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query or missing date" });
+  
+  const { date, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, q } = parsed.data;
+
+  try {
+    const targetDate = new Date(date);
+    const conditions = [
+      Prisma.sql`"date" IS NOT NULL AND date_trunc('day', "date") = date_trunc('day', ${targetDate}::timestamp)`,
+    ];
+
+    if (q) {
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+      });
+    }
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
+    if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+
+    const details = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("publisher"), 'N/A') AS publisher
+      FROM "google_sheet_offline_sales"
+      ${whereClause}
+      GROUP BY 1
+      ORDER BY total DESC
+    `);
+
+    return res.json({
+      ok: true,
+      items: details.map(r => ({
+        title: r.title,
+        total: round2(Number(r.total)),
+        qty: Number(r.qty) || 0,
+        publisher: r.publisher
+      }))
+    });
+  } catch (e: any) {
+    console.error("offline_daily_details_failed", e);
+    return res.status(500).json({ ok: false, error: "Daily details failed" });
   }
 });
 

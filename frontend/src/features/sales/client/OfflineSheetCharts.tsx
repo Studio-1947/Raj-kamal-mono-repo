@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
 import { apiClient } from '../../../lib/apiClient';
-import { useOfflineSheetOptions } from './offlineSheetService';
+import { useOfflineSheetOptions, useOfflineSheetDailyDetails } from './offlineSheetService';
 
 // DnD Kit imports
 import {
@@ -53,25 +53,51 @@ function fmtChartAxis(v: number): string {
   return `₹${(v / 1000).toFixed(0)}k`;
 }
 
-const TEXT_COL = '#000000'; 
-const BOLD_TEXT = { fontSize: 13, fontWeight: 500, fill: TEXT_COL };
+const TEXT_COL = '#64748B'; 
+const BOLD_TEXT = { fontSize: 11, fontWeight: 400, fill: TEXT_COL };
 
-const CustomTooltip = ({ active, payload, label, title }: any) => {
+const CustomTooltip = ({ active, payload, label, title, onDetailsClick }: any) => {
   if (active && payload && payload.length) {
     const originalData = payload[0]?.payload;
     return (
-      <div className="rounded-xl border-2 border-gray-200 bg-white p-4 shadow-xl ring-2 ring-black/5">
-        <p className="mb-2 text-base font-medium text-black uppercase tracking-widest border-b border-gray-100 pb-1">
-          {label} {originalData?.state ? `(${originalData.state})` : ''}
-        </p>
-        {payload.map((entry: any, index: number) => (
-          <p key={index} className="text-xl font-medium" style={{ color: entry.color || '#000000' }}>
-            {title || entry.name}: {fmtINR(entry.value)}
+      <div 
+        className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-2xl ring-4 ring-black/5 cursor-pointer hover:border-teal-500 transition-all select-none min-w-[240px] animate-in zoom-in-95 duration-200"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (onDetailsClick) onDetailsClick(originalData.date);
+        }}
+      >
+        <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+           <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">
+            {new Date(originalData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
           </p>
+          <span className="rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-600 border border-teal-100">DETAILS →</span>
+        </div>
+        
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex flex-col">
+            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-tight">{title || entry.name}</span>
+            <p className="text-2xl font-medium text-black leading-none mt-0.5">
+              {fmtINR(entry.value)}
+            </p>
+          </div>
         ))}
+
         {originalData?.qty ? (
-          <p className="mt-1 text-sm font-medium text-gray-700">Quantity: {originalData.qty.toLocaleString('en-IN')}</p>
+          <div className="mt-3 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+            <span className="text-[10px] font-medium text-gray-400 uppercase">Volume</span>
+            <span className="text-sm font-medium text-black">{originalData.qty.toLocaleString('en-IN')} units</span>
+          </div>
         ) : null}
+
+        {title === "Revenue" && (
+          <div className="mt-4 pt-3 border-t border-dashed border-gray-200">
+            <p className="text-[10px] font-medium text-teal-600 uppercase tracking-widest flex items-center gap-2 group">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping" />
+              Click dot for daily insights
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -165,6 +191,129 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
               Use Custom: "{search}"
             </button>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Daily Details Panel ────────────────────────────────────────────────────
+function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose }: { date: string; filters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void; onClose: () => void }) {
+  const { data: details, isLoading } = useOfflineSheetDailyDetails(filters, date);
+
+  const totalRev = details?.items?.reduce((acc, it) => acc + it.total, 0) || 0;
+  const totalQty = details?.items?.reduce((acc, it) => acc + it.qty, 0) || 0;
+
+  return (
+    <div className="flex flex-col h-full border-l border-gray-100 bg-gray-50/50 overflow-hidden animate-in slide-in-from-right-4 duration-500 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]">
+      <div className="border-b border-gray-100 bg-white p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h4 className="text-[10px] font-medium text-gray-400 uppercase tracking-widest mb-1">Daily Summary</h4>
+            <p className="text-sm font-semibold text-black">
+              {new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-full bg-gray-100 p-1.5 text-gray-400 hover:text-black transition-all">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {!isLoading && (
+          <div className="flex gap-4">
+            <div className="flex-1 rounded-xl bg-teal-600 px-3 py-2 text-white">
+              <span className="text-[9px] font-medium uppercase opacity-80 block">Revenue</span>
+              <p className="text-sm font-semibold">{fmtINR(totalRev)}</p>
+            </div>
+            <div className="flex-1 rounded-xl bg-black px-3 py-2 text-white">
+              <span className="text-[9px] font-medium uppercase opacity-80 block">Units</span>
+              <p className="text-sm font-semibold">{totalQty.toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-auto p-4 space-y-3 custom-scrollbar min-h-0">
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center">
+             <div className="h-6 w-6 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
+          </div>
+        ) : details?.items?.length ? (
+          details.items.map((it, i) => (
+             <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+                <div className="flex justify-between items-start gap-3 mb-1.5">
+                   <p className="text-[11px] font-medium text-black leading-tight line-clamp-2">{it.title}</p>
+                   <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-black">×{it.qty}</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-gray-50 pt-2">
+                   <p className="text-[9px] font-medium text-gray-400 uppercase truncate max-w-[120px]">{it.publisher}</p>
+                   <p className="text-[11px] font-semibold text-teal-600">{fmtINR(it.total)}</p>
+                </div>
+             </div>
+          ))
+        ) : (
+          <p className="text-center text-[10px] font-medium text-gray-300 py-10 uppercase italic">No sales records</p>
+        )}
+      </div>
+
+      {onApplyGlobal && !isLoading && details?.items?.length && (
+         <div className="p-4 bg-white border-t border-gray-100">
+            <button 
+              onClick={() => {
+                const d = new Date(date);
+                onApplyGlobal(new Date(d.setUTCHours(0,0,0,0)).toISOString(), new Date(d.setUTCHours(23,59,59,999)).toISOString());
+              }}
+              className="w-full rounded-xl bg-teal-600 py-3 text-[10px] font-semibold text-white hover:bg-teal-700 transition-all uppercase tracking-widest"
+            >
+              Analyze Dashboard
+            </button>
+         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Revenue Trend Chart Component ──────────────────────────────────────────
+function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: OfflineSheetSummaryResponse; globalFilters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void }) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  return (
+    <div className={`flex h-full flex-col lg:flex-row transition-all duration-500 overflow-hidden rounded-2xl border border-gray-100 bg-white`}>
+      <div className={`flex flex-col transition-all duration-500 ${selectedDate ? 'lg:w-[60%] w-full' : 'w-full'} p-4`}>
+        <ResponsiveContainer width="100%" height={320}>
+          <AreaChart 
+            data={data.timeSeries || []} 
+            margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+            onClick={(e: any) => { 
+              if (e?.activePayload?.[0]) setSelectedDate(e.activePayload[0].payload.date);
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            <defs><linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0D9488" stopOpacity={0.25}/><stop offset="95%" stopColor="#0D9488" stopOpacity={0}/></linearGradient></defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.06} />
+            <XAxis dataKey="date" tick={BOLD_TEXT} minTickGap={60} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} stroke="#E5E7EB" />
+            <YAxis tick={BOLD_TEXT} tickFormatter={fmtChartAxis} stroke="#E5E7EB" />
+            <Tooltip 
+              content={<CustomTooltip title="Revenue" onDetailsClick={(d: string) => setSelectedDate(d)} />} 
+              wrapperStyle={{ pointerEvents: 'auto', outline: 'none' }}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="total" 
+              stroke="#0D9488" 
+              strokeWidth={4} 
+              fill="url(#colorTrend)" 
+              dot={false}
+              activeDot={{ r: 8, strokeWidth: 4, stroke: '#fff', fill: '#0D9488' }} 
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+        {selectedDate && <div className="mt-4 text-center lg:hidden"><button onClick={() => setSelectedDate(null)} className="text-[10px] font-bold text-gray-400 uppercase underline">Close Details ↑</button></div>}
+      </div>
+
+      {selectedDate && (
+        <div className="lg:w-[40%] w-full h-[400px] lg:h-[400px] animate-in fade-in slide-in-from-right-4 duration-500">
+          <DailyDetailsPanel date={selectedDate} filters={globalFilters} onClose={() => setSelectedDate(null)} onApplyGlobal={onApplyGlobal} />
         </div>
       )}
     </div>
@@ -368,11 +517,12 @@ function SortableItem({ id, children, className, isStretched, onToggleStretch }:
 interface Props {
   filters: OfflineSheetFilters;
   resetVersion?: number;
+  onApplyDateRange?: (start: string, end: string) => void;
 }
 
-const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'bottom-items'];
+const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'top-items-qty', 'bottom-items'];
 
-export default function OfflineSheetCharts({ filters: globalFilters, resetVersion }: Props) {
+export default function OfflineSheetCharts({ filters: globalFilters, resetVersion, onApplyDateRange }: Props) {
   const [items, setItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('rk_offline_charts_order');
     if (saved) {
@@ -424,18 +574,7 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
   const chartConfigs: Record<string, { title: string; render: (data: OfflineSheetSummaryResponse) => React.ReactNode }> = {
     'revenue-trend': {
       title: 'Revenue Trend',
-      render: (data) => (
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={data.timeSeries || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <defs><linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0D9488" stopOpacity={0.3}/><stop offset="95%" stopColor="#0D9488" stopOpacity={0}/></linearGradient></defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tick={BOLD_TEXT} minTickGap={50} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
-            <YAxis tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
-            <Tooltip content={<CustomTooltip title="Revenue" />} />
-            <Area type="monotone" dataKey="total" stroke="#0D9488" strokeWidth={4} fill="url(#colorTrend)" dot={false} activeDot={{ r: 8 }} />
-          </AreaChart>
-        </ResponsiveContainer>
-      )
+      render: (data) => <RevenueTrendChart data={data} globalFilters={globalFilters} onApplyGlobal={onApplyDateRange} />
     },
     'sales-by-state': {
       title: 'Sales by State',
@@ -526,6 +665,20 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
             <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="total" fill="#10B981" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600, formatter: (v: any) => fmtChartAxis(Number(v)) }} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'top-items-qty': {
+      title: 'Top Items by Volume (Qty)',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.topItemsByQty || []} layout="vertical" margin={{ left: 20, right: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} />
+            <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
+            <Tooltip content={<CustomTooltip title="Quantity" />} />
+            <Bar dataKey="qty" fill="#F59E0B" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600 }} />
           </BarChart>
         </ResponsiveContainer>
       )

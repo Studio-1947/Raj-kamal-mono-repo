@@ -455,6 +455,7 @@ export default function OfflineSheetPage() {
         <OfflineSheetCharts 
           filters={filters} 
           resetVersion={resetVersion}
+          onApplyDateRange={setDateRange}
         />
       </div>
 

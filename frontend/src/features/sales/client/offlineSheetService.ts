@@ -18,6 +18,7 @@ import type {
   OfflineSheetCountsResponse,
   OfflineSheetSyncResponse,
   OfflineSheetOptionsResponse,
+  OfflineSheetDailyDetailResponse,
 } from './offlineSheetTypes';
 
 const BASE = 'offline-sales';
@@ -83,6 +84,22 @@ export function useOfflineSheetSummary(filters: OfflineSheetFilters) {
     gcTime: GC,
     retry: 2,
     placeholderData: keepPreviousData,
+  });
+}
+
+// ── Daily Details hook ─────────────────────────────────────────────────────────────
+
+export function useOfflineSheetDailyDetails(filters: OfflineSheetFilters, date: string | null) {
+  return useQuery<OfflineSheetDailyDetailResponse>({
+    queryKey: ['osheetDailyDetails', filters, date],
+    queryFn: ({ signal }) =>
+      apiClient.get<OfflineSheetDailyDetailResponse>(
+        `${BASE}/daily-details?${buildQs(filters, { date: date || '' })}`,
+        { signal },
+      ),
+    enabled: !!date,
+    staleTime: STALE,
+    gcTime: GC,
   });
 }
 

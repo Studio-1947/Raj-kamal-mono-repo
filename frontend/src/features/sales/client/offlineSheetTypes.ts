@@ -32,13 +32,13 @@ export interface OfflineSheetListResponse {
 
 export interface OfflineSheetSummaryResponse {
   ok: boolean;
-  timeSeries: { date: string; total: number }[];
+  timeSeries: { date: string; total: number; qty: number }[];
   topItems: { title: string; total: number; qty: number; rate?: number }[];
+  topItemsByQty?: { title: string; total: number; qty: number; rate?: number }[];
   bottomItems?: { title: string; total: number; qty: number; rate?: number }[];
   paymentMode?: { paymentMode: string; total: number }[];
   revenueByState?: { state: string; total: number }[];
   revenueByCity?: { city: string; state: string; total: number }[];
-
   revenueByPublisher?: { publisher: string; total: number }[];
   revenueByBinding?: { binding: string; total: number; qty: number }[];
   topCustomers?: { customerName: string; total: number }[];
@@ -98,4 +98,16 @@ export interface OfflineSheetFilters {
   customerName?: string;
   binding?: string;
   title?: string;
+}
+
+export interface OfflineSheetDailyDetail {
+  title: string;
+  total: number;
+  qty: number;
+  publisher?: string;
+}
+
+export interface OfflineSheetDailyDetailResponse {
+  ok: boolean;
+  items: OfflineSheetDailyDetail[];
 }
