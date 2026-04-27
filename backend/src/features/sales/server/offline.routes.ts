@@ -204,6 +204,7 @@ router.get("/", async (req, res) => {
       { OR: [{ amount: null }, { amount: { gte: 0 } }] },
       { OR: [{ rate: null }, { rate: { gte: 0 } }] },
       { OR: [{ qty: null }, { qty: { gte: 0 } }] },
+      { NOT: { title: { startsWith: 'E-', mode: 'insensitive' } } },
     ];
     
     if (minAmount != null || maxAmount != null) {
@@ -288,7 +289,8 @@ router.get("/summary", async (req, res) => {
       Prisma.sql`"date" IS NOT NULL AND "date" >= ${since} AND "date" <= ${until}`,
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
-      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     if (q) {
       const tokens = getSearchTokens(q);
@@ -324,7 +326,8 @@ router.get("/summary", async (req, res) => {
     const itemConditions: any[] = [
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
-      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     if (state)     itemConditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
     if (city)      itemConditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
@@ -433,6 +436,7 @@ router.get("/summary", async (req, res) => {
     const yearSoFarConditions = [
       Prisma.sql`"date" IS NOT NULL AND "date" >= ${yearStart} AND "date" <= ${now}`,
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     const [yearStats] = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float as total
@@ -489,6 +493,7 @@ router.get("/counts", async (req, res) => {
   try {
     const conditions = [
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
     if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
@@ -556,6 +561,7 @@ router.get("/daily-details", async (req, res) => {
     const targetDate = new Date(date);
     const conditions = [
       Prisma.sql`"date" IS NOT NULL AND date_trunc('day', "date") = date_trunc('day', ${targetDate}::timestamp)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
 
     if (q) {

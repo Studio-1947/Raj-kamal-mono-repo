@@ -68,8 +68,10 @@ const CustomTooltip = ({ active, payload, label, title, onDetailsClick }: any) =
         }}
       >
         <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
-           <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">
-            {new Date(originalData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[220px]">
+            {originalData.date && !isNaN(new Date(originalData.date).getTime())
+              ? new Date(originalData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+              : (label || title || "Details")}
           </p>
           <span className="rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-600 border border-teal-100">DETAILS →</span>
         </div>
@@ -164,7 +166,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
       </div>
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-[100] mt-1 max-h-48 overflow-auto rounded-xl border border-gray-100 bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="absolute top-full left-0 right-0 z-[100] mt-1 max-h-56 overflow-y-auto overflow-x-hidden rounded-xl border border-gray-100 bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-200 custom-scrollbar">
           {filteredOptions.length > 0 ? (
             filteredOptions.slice(0, 100).map((opt: string, i: number) => (
               <button
