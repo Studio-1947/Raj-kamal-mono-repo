@@ -329,14 +329,16 @@ function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: Offli
         </div>
 
         {selectedDate && (
-          <div className="lg:w-[40%] w-full h-[400px] lg:h-auto border-l border-gray-100 flex-shrink-0 animate-in slide-in-from-right-4 duration-500 overflow-hidden">
-            <DailyDetailsPanel 
-               date={selectedDate} 
-               filters={globalFilters} 
-               onClose={() => setSelectedDate(null)} 
-               onApplyGlobal={onApplyGlobal} 
-               onDateChange={setSelectedDate} 
-            />
+          <div className="lg:w-[40%] w-full h-[400px] lg:h-auto border-l border-gray-100 flex-shrink-0 relative overflow-hidden">
+            <div className="absolute inset-0">
+              <DailyDetailsPanel 
+                 date={selectedDate} 
+                 filters={globalFilters} 
+                 onClose={() => setSelectedDate(null)} 
+                 onApplyGlobal={onApplyGlobal} 
+                 onDateChange={setSelectedDate} 
+              />
+            </div>
           </div>
         )}
       </div>
