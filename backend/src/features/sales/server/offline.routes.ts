@@ -539,7 +539,10 @@ router.get("/counts", async (req, res) => {
 // GET /api/offline-sales/daily-details?date=YYYY-MM-DD
 router.get("/daily-details", async (req, res) => {
   const Q = z.object({
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/),
+    days: z.string().regex(/^\d+$/).transform(Number).optional(),
+    limit: z.string().regex(/^\d+$/).transform(Number).optional(),
+    offset: z.string().regex(/^\d+$/).transform(Number).optional(),
     state: z.string().optional(),
     city: z.string().optional(),
     publisher: z.string().optional(),

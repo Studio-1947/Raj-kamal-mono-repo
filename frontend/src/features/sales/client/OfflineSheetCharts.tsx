@@ -56,24 +56,17 @@ function fmtChartAxis(v: number): string {
 const TEXT_COL = '#64748B'; 
 const BOLD_TEXT = { fontSize: 11, fontWeight: 400, fill: TEXT_COL };
 
-const CustomTooltip = ({ active, payload, label, title, onDetailsClick }: any) => {
+const CustomTooltip = ({ active, payload, label, title }: any) => {
   if (active && payload && payload.length) {
     const originalData = payload[0]?.payload;
     return (
-      <div 
-        className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-2xl ring-4 ring-black/5 cursor-pointer hover:border-teal-500 transition-all select-none min-w-[240px] animate-in zoom-in-95 duration-200"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (onDetailsClick) onDetailsClick(originalData.date);
-        }}
-      >
-        <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+      <div className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-2xl ring-4 ring-black/5 select-none min-w-[240px] animate-in zoom-in-95 duration-200">
+        <div className="mb-3 border-b border-gray-100 pb-2">
            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[220px]">
             {originalData.date && !isNaN(new Date(originalData.date).getTime())
               ? new Date(originalData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
               : (label || title || "Details")}
           </p>
-          <span className="rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-600 border border-teal-100">DETAILS →</span>
         </div>
         
         {payload.map((entry: any, index: number) => (
@@ -91,15 +84,6 @@ const CustomTooltip = ({ active, payload, label, title, onDetailsClick }: any) =
             <span className="text-sm font-medium text-black">{originalData.qty.toLocaleString('en-IN')} units</span>
           </div>
         ) : null}
-
-        {title === "Revenue" && (
-          <div className="mt-4 pt-3 border-t border-dashed border-gray-200">
-            <p className="text-[10px] font-medium text-teal-600 uppercase tracking-widest flex items-center gap-2 group">
-              <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping" />
-              Click dot for daily insights
-            </p>
-          </div>
-        )}
       </div>
     );
   }
@@ -200,7 +184,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
 }
 
 // ─── Daily Details Panel ────────────────────────────────────────────────────
-function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose }: { date: string; filters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void; onClose: () => void }) {
+function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange }: { date: string; filters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void; onClose: () => void; onDateChange?: (d: string) => void }) {
   const { data: details, isLoading } = useOfflineSheetDailyDetails(filters, date);
 
   const totalRev = details?.items?.reduce((acc, it) => acc + it.total, 0) || 0;
@@ -212,9 +196,21 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose }: { date: st
         <div className="flex items-center justify-between mb-4">
           <div>
             <h4 className="text-[10px] font-medium text-gray-400 uppercase tracking-widest mb-1">Daily Summary</h4>
-            <p className="text-sm font-semibold text-black">
-              {new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </p>
+            <div className="relative group">
+              <p className="text-sm font-semibold text-black flex items-center gap-2">
+                {new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM16 2v2M8 2v2M3 7h18"/></svg>
+              </p>
+              <input 
+                type="date" 
+                value={new Date(date).toISOString().split('T')[0]} 
+                onChange={(e) => {
+                  const newD = e.target.value;
+                  if (newD && onDateChange) onDateChange(new Date(newD).toISOString());
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
           </div>
           <button onClick={onClose} className="rounded-full bg-gray-100 p-1.5 text-gray-400 hover:text-black transition-all">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -279,45 +275,71 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose }: { date: st
 function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: OfflineSheetSummaryResponse; globalFilters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  const latestDate = data.timeSeries && data.timeSeries.length > 0 
+    ? data.timeSeries[data.timeSeries.length - 1].date 
+    : null;
+
   return (
-    <div className={`flex h-full flex-col lg:flex-row transition-all duration-500 overflow-hidden rounded-2xl border border-gray-100 bg-white`}>
-      <div className={`flex flex-col transition-all duration-500 ${selectedDate ? 'lg:w-[60%] w-full' : 'w-full'} p-4`}>
-        <ResponsiveContainer width="100%" height={320}>
-          <AreaChart 
-            data={data.timeSeries || []} 
-            margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-            onClick={(e: any) => { 
-              if (e?.activePayload?.[0]) setSelectedDate(e.activePayload[0].payload.date);
-            }}
-            style={{ cursor: 'pointer' }}
-          >
-            <defs><linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0D9488" stopOpacity={0.25}/><stop offset="95%" stopColor="#0D9488" stopOpacity={0}/></linearGradient></defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.06} />
-            <XAxis dataKey="date" tick={BOLD_TEXT} minTickGap={60} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} stroke="#E5E7EB" />
-            <YAxis tick={BOLD_TEXT} tickFormatter={fmtChartAxis} stroke="#E5E7EB" />
-            <Tooltip 
-              content={<CustomTooltip title="Revenue" onDetailsClick={(d: string) => setSelectedDate(d)} />} 
-              wrapperStyle={{ pointerEvents: 'auto', outline: 'none' }}
-            />
-            <Area 
-              type="monotone" 
-              dataKey="total" 
-              stroke="#0D9488" 
-              strokeWidth={4} 
-              fill="url(#colorTrend)" 
-              dot={false}
-              activeDot={{ r: 8, strokeWidth: 4, stroke: '#fff', fill: '#0D9488' }} 
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-        {selectedDate && <div className="mt-4 text-center lg:hidden"><button onClick={() => setSelectedDate(null)} className="text-[10px] font-bold text-gray-400 uppercase underline">Close Details ↑</button></div>}
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white">
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Interactive Analysis</p>
+        <button 
+          onClick={() => {
+            if (latestDate) setSelectedDate(latestDate);
+          }}
+          className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg transition-all hover:bg-teal-700 active:scale-95"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Daily Summary
+        </button>
       </div>
 
-      {selectedDate && (
-        <div className="lg:w-[40%] w-full h-[400px] lg:h-[400px] animate-in fade-in slide-in-from-right-4 duration-500">
-          <DailyDetailsPanel date={selectedDate} filters={globalFilters} onClose={() => setSelectedDate(null)} onApplyGlobal={onApplyGlobal} />
+      <div className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-hidden">
+        <div className={`flex flex-col transition-all duration-500 ${selectedDate ? 'lg:w-[60%] w-full' : 'w-full'} p-4`}>
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart 
+              data={data.timeSeries || []} 
+              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+              onClick={(e: any) => { 
+                if (e?.activePayload?.[0]) setSelectedDate(e.activePayload[0].payload.date);
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <defs><linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0D9488" stopOpacity={0.25}/><stop offset="95%" stopColor="#0D9488" stopOpacity={0}/></linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.06} />
+              <XAxis dataKey="date" tick={BOLD_TEXT} minTickGap={60} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} stroke="#E5E7EB" />
+              <YAxis tick={BOLD_TEXT} tickFormatter={fmtChartAxis} stroke="#E5E7EB" />
+              <Tooltip 
+                content={<CustomTooltip title="Revenue" />} 
+                wrapperStyle={{ pointerEvents: 'auto', outline: 'none' }}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="total" 
+                stroke="#0D9488" 
+                strokeWidth={4} 
+                fill="url(#colorTrend)" 
+                dot={false}
+                activeDot={{ r: 8, strokeWidth: 4, stroke: '#fff', fill: '#0D9488' }} 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          {selectedDate && <div className="mt-4 text-center lg:hidden"><button onClick={() => setSelectedDate(null)} className="text-[10px] font-bold text-gray-400 uppercase underline">Close Details ↑</button></div>}
         </div>
-      )}
+
+        {selectedDate && (
+          <div className="lg:w-[40%] w-full h-[400px] lg:h-auto border-l border-gray-100 flex-shrink-0 animate-in slide-in-from-right-4 duration-500 overflow-hidden">
+            <DailyDetailsPanel 
+               date={selectedDate} 
+               filters={globalFilters} 
+               onClose={() => setSelectedDate(null)} 
+               onApplyGlobal={onApplyGlobal} 
+               onDateChange={setSelectedDate} 
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -386,7 +408,17 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
   }, [id, localFilters, globalFilters]);
 
   const updateF = (key: keyof OfflineSheetFilters, val: any) => {
-    setLocalFilters(prev => ({ ...prev, [key]: val }));
+    setLocalFilters(prev => {
+      const next = { ...prev, [key]: val };
+      if (key === 'startDate' || key === 'endDate') {
+        delete next.days;
+      }
+      if (key === 'days') {
+        delete next.startDate;
+        delete next.endDate;
+      }
+      return next;
+    });
   };
 
   const activeFilterCount = Object.entries(localFilters).filter(([k, v]) => k !== 'days' && v !== undefined && v !== '').length;
@@ -419,6 +451,9 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
                 {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
               </button>
             ))}
+            {(localFilters.startDate || localFilters.endDate) && (
+              <span className="px-2 py-1 text-[10px] font-bold text-teal-600 uppercase tracking-tight bg-teal-50 rounded-lg border border-teal-100">Custom</span>
+            )}
           </div>
 
           <button
@@ -448,6 +483,10 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
           <div className="flex gap-2 items-end">
              <div className="flex-1"><BlockFilterField label="Min ₹" type="number" value={localFilters.minAmount} onChange={(v:any) => updateF('minAmount', v)} /></div>
              <div className="flex-1"><BlockFilterField label="Max ₹" type="number" value={localFilters.maxAmount} onChange={(v:any) => updateF('maxAmount', v)} /></div>
+          </div>
+          <div className="col-span-full grid grid-cols-2 gap-4 mt-1 pt-3 border-t border-teal-100/50">
+             <BlockFilterField label="Start Date" type="date" value={localFilters.startDate ? new Date(localFilters.startDate).toISOString().split('T')[0] : ''} onChange={(v:any) => updateF('startDate', v ? new Date(v).toISOString() : undefined)} />
+             <BlockFilterField label="End Date" type="date" value={localFilters.endDate ? new Date(localFilters.endDate).toISOString().split('T')[0] : ''} onChange={(v:any) => updateF('endDate', v ? new Date(v).toISOString() : undefined)} />
           </div>
           <div className="col-span-full pt-2 flex justify-between items-center border-t border-teal-100">
              <button onClick={() => setLocalFilters({ days: 90 })} className="text-[10px] font-bold text-red-600 uppercase hover:underline">Reset Block Filters</button>

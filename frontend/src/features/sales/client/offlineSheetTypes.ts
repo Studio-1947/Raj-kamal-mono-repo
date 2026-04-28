@@ -82,7 +82,7 @@ export interface OfflineSheetOptionsResponse {
 
 /** Filter state shared across hooks and URL params */
 export interface OfflineSheetFilters {
-  days: number;
+  days?: number;
   startDate?: string;
   endDate?: string;
   q?: string;
