@@ -89,15 +89,17 @@ export function useOfflineSheetSummary(filters: OfflineSheetFilters) {
 
 // ── Daily Details hook ─────────────────────────────────────────────────────────────
 
-export function useOfflineSheetDailyDetails(filters: OfflineSheetFilters, date: string | null) {
+export function useOfflineSheetDailyDetails(filters: OfflineSheetFilters, date: string | null, enabled: boolean = true) {
   return useQuery<OfflineSheetDailyDetailResponse>({
     queryKey: ['osheetDailyDetails', filters, date],
-    queryFn: ({ signal }) =>
-      apiClient.get<OfflineSheetDailyDetailResponse>(
-        `${BASE}/daily-details?${buildQs(filters, { date: date || '' })}`,
+    queryFn: ({ signal }) => {
+      const extraArgs: Record<string, string> = date ? { date } : {};
+      return apiClient.get<OfflineSheetDailyDetailResponse>(
+        `${BASE}/daily-details?${buildQs(filters, extraArgs)}`,
         { signal },
-      ),
-    enabled: !!date,
+      );
+    },
+    enabled: enabled,
     staleTime: STALE,
     gcTime: GC,
   });

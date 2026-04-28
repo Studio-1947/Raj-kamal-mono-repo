@@ -238,8 +238,16 @@ router.get("/", async (req, res) => {
         ? dataAll.filter((r: any) => {
               const d = resolveRowDate(r);
               if (!d) return false;
-              if (startDate && d < new Date(startDate)) return false;
-              if (endDate && d > new Date(endDate)) return false;
+              if (startDate) {
+                const s = new Date(startDate);
+                s.setUTCHours(0,0,0,0);
+                if (d < s) return false;
+              }
+              if (endDate) {
+                const e = new Date(endDate);
+                e.setUTCHours(23,59,59,999);
+                if (d > e) return false;
+              }
               return true;
             }).slice(0, limit)
         : dataAll;
@@ -283,7 +291,9 @@ router.get("/summary", async (req, res) => {
 
   try {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
+    if (since) since.setUTCHours(0,0,0,0);
     const until = endDate ?? new Date();
+    if (until) until.setUTCHours(23,59,59,999);
 
     const conditions = [
       Prisma.sql`"date" IS NOT NULL AND "date" >= ${since} AND "date" <= ${until}`,
@@ -488,7 +498,9 @@ router.get("/counts", async (req, res) => {
   const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title, q } = parsed.data;
 
   const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
+  if (start) start.setUTCHours(0,0,0,0);
   const end = endDate ? new Date(endDate) : new Date();
+  if (end) end.setUTCHours(23,59,59,999);
 
   try {
     const conditions = [
@@ -536,13 +548,15 @@ router.get("/counts", async (req, res) => {
   }
 });
 
-// GET /api/offline-sales/daily-details?date=YYYY-MM-DD
+// GET /api/offline-sales/daily-details
 router.get("/daily-details", async (req, res) => {
   const Q = z.object({
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
     days: z.string().regex(/^\d+$/).transform(Number).optional(),
     limit: z.string().regex(/^\d+$/).transform(Number).optional(),
     offset: z.string().regex(/^\d+$/).transform(Number).optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
     state: z.string().optional(),
     city: z.string().optional(),
     publisher: z.string().optional(),
@@ -556,16 +570,25 @@ router.get("/daily-details", async (req, res) => {
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
-  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query or missing date" });
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query parameters" });
   
-  const { date, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, q } = parsed.data;
+  const { date, days, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, q } = parsed.data;
 
   try {
-    const targetDate = new Date(date);
     const conditions = [
-      Prisma.sql`"date" IS NOT NULL AND date_trunc('day', "date") = date_trunc('day', ${targetDate}::timestamp)`,
       Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
+
+    if (date) {
+      const targetDate = new Date(date);
+      conditions.push(Prisma.sql`"date" IS NOT NULL AND date_trunc('day', "date") = date_trunc('day', ${targetDate}::timestamp)`);
+    } else {
+      const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
+      if (start) start.setUTCHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : new Date();
+      if (end) end.setUTCHours(23, 59, 59, 999);
+      if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
+    }
 
     if (q) {
       const tokens = getSearchTokens(q);
@@ -586,6 +609,7 @@ router.get("/daily-details", async (req, res) => {
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+    console.log("DAILY-DETAILS-RANGE:", { startDate, endDate, days, date, parsed: parsed.data });
 
     const details = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
