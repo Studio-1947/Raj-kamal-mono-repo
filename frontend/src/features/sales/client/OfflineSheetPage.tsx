@@ -185,6 +185,12 @@ function FilterBar({
   lastSyncResult,
 }: FilterBarProps) {
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState(filters.q ?? '');
+
+  // Sync local search query if filters.q changes externally (e.g. on clear)
+  React.useEffect(() => {
+    setSearchQuery(filters.q ?? '');
+  }, [filters.q]);
 
   // Helper to count active filters excluding defaults
   const activeFilters = Object.entries(filters).filter(([key, value]) => {
@@ -212,10 +218,18 @@ function FilterBar({
               id="search-input"
               type="text"
               placeholder="Search Title, Customer, State, Publisher..."
-              defaultValue={filters.q ?? ''}
-              onChange={(e) => setQ(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setQ(searchQuery);
+                }
+              }}
               className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-medium text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
             />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-teal-600/50">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
           </div>
           
           {/* Quick reference for active filters when collapsed */}
@@ -262,12 +276,23 @@ function FilterBar({
             <span className="text-xs font-medium text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
           )}
           <button
+            onClick={() => setQ(searchQuery)}
+            className="flex items-center gap-2 rounded-xl bg-teal-600 px-8 py-3 text-base font-bold text-white shadow-xl hover:bg-teal-700 active:scale-95 transition-all"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            SEARCH
+          </button>
+          <button
             onClick={onSync}
             disabled={isSyncing}
-            className="flex items-center gap-2 rounded-xl bg-black px-6 py-3 text-base font-medium text-white shadow-xl hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
+            title="Sync Data from Sheets"
+            className="flex items-center justify-center h-12 w-12 rounded-xl bg-black text-white shadow-lg hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
           >
-            {isSyncing ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
-            {isSyncing ? 'Syncing...' : 'Sync Data'}
+            {isSyncing ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+            )}
           </button>
         </div>
       </div>
