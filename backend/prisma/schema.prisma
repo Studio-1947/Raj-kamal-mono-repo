@@ -177,6 +177,7 @@ model OnlineSale {
   email         String?
   date          DateTime?
   publisherCode String?
+  type          String?
   rowHash       String?           @unique
   rawJson       Json
   createdAt     DateTime          @default(now())
@@ -210,6 +211,7 @@ model OfflineCashUPICCSale {
   email         String?
   date          DateTime?
   publisherCode String?
+  type          String?
   rowHash       String?           @unique
   rawJson       Json
   createdAt     DateTime          @default(now())
@@ -241,6 +243,7 @@ model GoogleSheetOfflineSale {
   customerName    String?
   state           String?           // StateName
   city            String?           // CityName
+  type            String?           // Type
   
   rowHash         String?           @unique
   rawJson         Json
@@ -278,6 +281,7 @@ model RajRadhaEventSale {
   email         String?
   date          DateTime?
   publisherCode String?
+  type          String?
   rowHash       String?           @unique
   rawJson       Json
   createdAt     DateTime          @default(now())
@@ -311,6 +315,7 @@ model LokEventSale {
   email         String?
   date          DateTime?
   publisherCode String?
+  type          String?
   rowHash       String?           @unique
   rawJson       Json
   createdAt     DateTime          @default(now())

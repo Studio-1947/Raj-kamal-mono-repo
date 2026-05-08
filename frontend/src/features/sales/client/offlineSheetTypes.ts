@@ -20,6 +20,7 @@ export interface OfflineSheetItem {
   publisher?: string | null;
   author?: string | null;
   binding?: string | null;
+  type?: string | null;
   rawJson?: Record<string, unknown>;
 }
 
@@ -41,6 +42,7 @@ export interface OfflineSheetSummaryResponse {
   revenueByCity?: { city: string; state: string; total: number }[];
   revenueByPublisher?: { publisher: string; total: number }[];
   revenueByBinding?: { binding: string; total: number; qty: number }[];
+  revenueByType?: { type: string; total: number }[];
   topCustomers?: { customerName: string; total: number }[];
   projection?: {
     year: number;
@@ -78,6 +80,7 @@ export interface OfflineSheetOptionsResponse {
   authors: string[];
   cities: string[];
   bookTitles: string[];
+  types: string[];
 }
 
 /** Filter state shared across hooks and URL params */
@@ -98,6 +101,7 @@ export interface OfflineSheetFilters {
   customerName?: string;
   binding?: string;
   title?: string;
+  type?: string;
 }
 
 export interface OfflineSheetDailyDetail {

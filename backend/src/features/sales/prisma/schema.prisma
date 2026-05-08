@@ -27,6 +27,7 @@ model Sale {
   qty           Int?
   rate          Decimal?  @db.Decimal(12, 2)
   date          DateTime?
+  type          String?
   rawJson       Json
   rowHash       String?   @unique
   createdAt     DateTime  @default(now())

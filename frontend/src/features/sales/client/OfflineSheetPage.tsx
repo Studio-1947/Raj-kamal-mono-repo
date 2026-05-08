@@ -316,6 +316,11 @@ function FilterBar({
             value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
             options={useOfflineSheetOptions().data?.bindings}
           />
+          <FilterDropdown 
+            id="f-type" label="Sale Type" placeholder="Offline/Online..." 
+            value={filters.type} onChange={(v:any) => updateFilter('type', v)}
+            options={useOfflineSheetOptions().data?.types}
+          />
         </div>
 
         {/* Third row: Dates, Ranges and Reset */}

@@ -36,6 +36,7 @@ function fmtINR(n: unknown): string {
 const COLUMNS: Column[] = [
   { key: 'date',         label: 'Date',      width: 120, fmt: (v) => v ? String(v).slice(0, 10) : '—' },
   { key: 'docNoDisplay', label: 'Doc No',    width: 130, fmt: (_, r) => String(r.docNo ?? r.orderNo ?? '—') },
+  { key: 'type',         label: 'TYPE',      width: 130, fmt: (v) => String(v ?? '—') },
   { key: 'title',        label: 'Title',     width: 350, fmt: (v) => String(v ?? '—') },
   { key: 'author',       label: 'Author',    width: 200, fmt: (v) => String(v ?? '—') },
   { key: 'customerName', label: 'Customer',  width: 200, fmt: (v) => String(v ?? '—') },
@@ -100,6 +101,7 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
           'city': 'city',
           'binding': 'binding',
           'title': 'title',
+          'type': 'type',
           'docNoDisplay': 'q', 
         };
         const fKey = filterKeyMap[col.key];

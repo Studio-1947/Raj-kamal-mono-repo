@@ -53,6 +53,7 @@ const COLS = {
   publisher: ['Publisher', 'publisher'],
   qty: ['Qty', 'Quantity', 'qty', 'quantity'],
   rate: ['Rate', 'rate'],
+  type: ['Type', 'type', 'Sale Type'],
 };
 
 function pickByAliases(row: Record<string, any>, aliases: string[]): any {
@@ -111,6 +112,7 @@ function mapRow(sheetName: string, raw: Record<string, any>) {
       return num == null ? null : new Prisma.Decimal(num.toString());
     })(),
     date: toDateSafe(pickByAliases(raw, COLS.date)),
+    type: pickByAliases(raw, COLS.type)?.toString()?.trim() || null,
     rawJson: raw as any,
     rowHash: null, // computed next
   } as any;

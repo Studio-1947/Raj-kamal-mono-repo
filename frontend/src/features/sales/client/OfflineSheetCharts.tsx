@@ -579,6 +579,7 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
           <BlockFilterDropdown label="State" value={localFilters.state} onChange={(v:any) => updateF('state', v)} placeholder="e.g. Delhi" options={optData?.states} />
           <BlockFilterDropdown label="City" value={localFilters.city} onChange={(v:any) => updateF('city', v)} placeholder="e.g. Mumbai" options={optData?.cities} />
           <BlockFilterDropdown label="Binding" value={localFilters.binding} onChange={(v:any) => updateF('binding', v)} placeholder="All bindings" options={optData?.bindings} />
+          <BlockFilterDropdown label="Sale Type" value={localFilters.type} onChange={(v:any) => updateF('type', v)} placeholder="All types" options={optData?.types} />
           <BlockFilterField label="ISBN" value={localFilters.isbn} onChange={(v:any) => updateF('isbn', v)} placeholder="Code..." />
           <div className="flex gap-2 items-end">
              <div className="flex-1"><BlockFilterField label="Min ₹" type="number" value={localFilters.minAmount} onChange={(v:any) => updateF('minAmount', v)} /></div>
@@ -685,7 +686,7 @@ interface Props {
   onApplyDateRange?: (start: string, end: string) => void;
 }
 
-const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'top-items-qty', 'bottom-items'];
+const DEFAULT_ORDER = ['revenue-trend', 'sales-by-type', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'top-items-qty', 'bottom-items'];
 
 export default function OfflineSheetCharts({ filters: globalFilters, resetVersion, onApplyDateRange }: Props) {
   const [items, setItems] = useState<string[]>(() => {
@@ -788,6 +789,20 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
             <YAxis type="category" dataKey="publisher" width={120} tick={BOLD_TEXT} tickFormatter={(v) => v.length > 15 ? v.substring(0, 13) + '..' : v} />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="total" fill="#F59E0B" radius={[0, 4, 4, 0]} barSize={20} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'sales-by-type': {
+      title: 'Sales by Type',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.revenueByType || []} layout="vertical" margin={{ left: 20, right: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="type" width={120} tick={BOLD_TEXT} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#EC4899" radius={[0, 4, 4, 0]} barSize={30} />
           </BarChart>
         </ResponsiveContainer>
       )
