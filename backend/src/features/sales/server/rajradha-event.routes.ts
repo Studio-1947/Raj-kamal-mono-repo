@@ -1,8 +1,10 @@
 import express from "express";
 import { z } from "zod";
 import { prisma } from "../../../lib/prisma.js";
+import { authenticateToken } from "../../../middleware/authPrisma.js";
 
 const router = express.Router();
+router.use(authenticateToken as any);
 
 // Utilities for resilient aggregation when DB fields are missing
 function decToNumber(v: any): number {

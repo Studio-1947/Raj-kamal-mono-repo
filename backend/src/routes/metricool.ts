@@ -1,5 +1,6 @@
 import express from "express";
 import { z } from "zod";
+import { authenticateToken } from "../middleware/authPrisma.js";
 import {
   fetchDistribution,
   fetchTimeline,
@@ -8,6 +9,7 @@ import {
 } from "../services/metricoolService.js";
 
 const router = express.Router();
+router.use(authenticateToken as any);
 
 const networkSchema = z.enum([
   "facebook",

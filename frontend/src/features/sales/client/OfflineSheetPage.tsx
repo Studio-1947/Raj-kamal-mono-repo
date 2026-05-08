@@ -217,7 +217,7 @@ function FilterBar({
             <input
               id="search-input"
               type="text"
-              placeholder="Search Title, Customer, State, Publisher..."
+              placeholder="Search Title, Binding, Customer, State, Publisher..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -229,6 +229,39 @@ function FilterBar({
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-teal-600/50">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
+          </div>
+
+          {/* Quick Binding Selectors */}
+          <div className="mt-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Binding:</span>
+            <div className="flex flex-wrap items-center gap-4">
+              {(useOfflineSheetOptions().data?.bindings ?? ['Paperback', 'Hardbound']).slice(0, 6).map((b) => {
+                const isActive = (filters.binding ?? '').split(',').includes(b);
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => {
+                      const current = (filters.binding ?? '').split(',').filter(Boolean);
+                      const next = current.includes(b) ? current.filter(x => x !== b) : [...current, b];
+                      updateFilter('binding', next.join(',') || undefined);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 transition-all active:scale-95 ${
+                      isActive 
+                        ? 'bg-teal-600 border-teal-600 text-white shadow-md' 
+                        : 'bg-white border-gray-100 text-gray-500 hover:border-teal-200 hover:bg-teal-50/30'
+                    }`}
+                  >
+                    <div className={`h-4 w-4 rounded-md flex items-center justify-center transition-colors ${isActive ? 'bg-white/20' : 'bg-gray-100'}`}>
+                      {isActive && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M20 6L9 17l-5-5"/></svg>}
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-tight">
+                      {b}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
           
@@ -302,7 +335,7 @@ function FilterBar({
         {/* Second row: Spreadsheet-style Column Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
           <FilterDropdown 
-            id="f-book" label="Book Name" placeholder="Search Book Title..." 
+            id="f-book" label="Book (Binding)" placeholder="Search Book & Binding..." 
             value={filters.title} onChange={(v:any) => updateFilter('title', v)}
             options={useOfflineSheetOptions().data?.bookTitles}
           />

@@ -1,5 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
+import { authenticateToken } from '../middleware/authPrisma.js';
 import {
   METRICOOL_ADMIN_PROFILE_PATH,
   METRICOOL_ANALYTICS_DISTRIBUTION_PATH,
@@ -20,6 +21,7 @@ import {
 } from '../config/metricool.js';
 
 const router = express.Router();
+router.use(authenticateToken as any);
 
 const overviewQuerySchema = z.object({
   from: z.string().optional(),

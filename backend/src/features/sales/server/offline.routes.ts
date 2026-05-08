@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { offlineSyncService } from "./offlineSyncService.js";
 import { TtlCache } from "../../../lib/cache.js";
+import { authenticateToken } from "../../../middleware/authPrisma.js";
 
 // 5-minute server-side cache for expensive aggregate endpoints
 const summaryCache = new TtlCache<any>(5 * 60 * 1000);
@@ -24,6 +25,13 @@ function clearCaches() {
 }
 
 const router = express.Router();
+
+// Apply auth to all routes by default
+router.use((req, res, next) => {
+  // Exclude /push from standard JWT auth as it uses x-sync-token
+  if (req.path === "/push" && req.method === "POST") return next();
+  return (authenticateToken as any)(req, res, next);
+});
 
 /**
  * @swagger
@@ -174,47 +182,70 @@ router.get("/", async (req, res) => {
 
   try {
     const where: any = {};
+    const andConditions: any[] = [
+      { OR: [{ amount: null }, { amount: { gte: 0 } }] },
+      { OR: [{ rate: null }, { rate: { gte: 0 } }] },
+      { OR: [{ qty: null }, { qty: { gte: 0 } }] },
+      { NOT: { title: { startsWith: 'E-', mode: 'insensitive' } } },
+    ];
+
     if (q) {
       const tokens = getSearchTokens(q);
       if (tokens.length > 0) {
-        // For Prisma ORM list, we'll join tokens with AND
-        // Each token must match at least one of the major columns
-        where.AND = tokens.map(t => ({
-          OR: [
-            { title: { contains: t, mode: "insensitive" } },
-            { customerName: { contains: t, mode: "insensitive" } },
-            { state: { contains: t, mode: "insensitive" } },
-            { city: { contains: t, mode: "insensitive" } },
-            { publisher: { contains: t, mode: "insensitive" } },
-            { author: { contains: t, mode: "insensitive" } },
-            { isbn: { contains: t, mode: "insensitive" } },
-          ]
-        }));
+        andConditions.push({
+          AND: tokens.map(t => ({
+            OR: [
+              { title: { contains: t, mode: "insensitive" } },
+              { customerName: { contains: t, mode: "insensitive" } },
+              { state: { contains: t, mode: "insensitive" } },
+              { city: { contains: t, mode: "insensitive" } },
+              { publisher: { contains: t, mode: "insensitive" } },
+              { author: { contains: t, mode: "insensitive" } },
+              { isbn: { contains: t, mode: "insensitive" } },
+              { binding: { contains: t, mode: "insensitive" } },
+            ]
+          }))
+        });
       }
     }
+
     if (state)     where.state = { contains: state.trim().replace(/\s+/g, " "), mode: "insensitive" };
     if (city)      where.city = { contains: city.trim().replace(/\s+/g, " "), mode: "insensitive" };
     if (publisher) where.publisher = { contains: publisher.trim().replace(/\s+/g, " "), mode: "insensitive" };
     if (author)    where.author = { contains: author.trim().replace(/\s+/g, " "), mode: "insensitive" };
     if (isbn)      where.isbn = { contains: isbn.trim().replace(/\s+/g, " "), mode: "insensitive" };
     if (customerName) where.customerName = { contains: customerName.trim().replace(/\s+/g, " "), mode: "insensitive" };
-    if (binding)   where.binding = { contains: binding.trim().replace(/\s+/g, " "), mode: "insensitive" };
-    if (title)     where.title = { contains: title.trim().replace(/\s+/g, " "), mode: "insensitive" };
+
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 1) {
+        where.OR = bts.map(b => ({ binding: { contains: b, mode: "insensitive" } }));
+      } else if (bts.length === 1) {
+        where.binding = { contains: bts[0], mode: "insensitive" };
+      }
+    }
+
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        where.title = { contains: (t ?? "").trim().replace(/\s+/g, " "), mode: "insensitive" };
+        where.binding = { contains: (b ?? "").trim().replace(/\s+/g, " "), mode: "insensitive" };
+      } else {
+        where.title = { contains: title.trim().replace(/\s+/g, " "), mode: "insensitive" };
+      }
+    }
+
     if (parsed.data.type) where.type = { contains: parsed.data.type.trim().replace(/\s+/g, " "), mode: "insensitive" };
 
-    where.AND = [
-      { OR: [{ amount: null }, { amount: { gte: 0 } }] },
-      { OR: [{ rate: null }, { rate: { gte: 0 } }] },
-      { OR: [{ qty: null }, { qty: { gte: 0 } }] },
-      { NOT: { title: { startsWith: 'E-', mode: 'insensitive' } } },
-    ];
-    
     if (minAmount != null || maxAmount != null) {
       const amountCond: any = {};
       if (minAmount != null) amountCond.gte = minAmount;
       if (maxAmount != null) amountCond.lte = maxAmount;
-      where.AND.push({ amount: amountCond });
+      andConditions.push({ amount: amountCond });
     }
+
+    where.AND = andConditions;
 
     const totalCount = await prisma.googleSheetOfflineSale.count({ where });
 
@@ -307,10 +338,10 @@ router.get("/summary", async (req, res) => {
     ];
     if (q) {
       const tokens = getSearchTokens(q);
-      tokens.forEach(t => {
-        const tr = toTokenRegex(t);
-        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
-      });
+        tokens.forEach(t => {
+          const tr = toTokenRegex(t);
+          conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
+        });
     }
     if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
     if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
@@ -318,8 +349,23 @@ router.get("/summary", async (req, res) => {
     if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
     if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
     if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
-    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
-    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
+        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+      } else {
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
     if (parsed.data.type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(parsed.data.type)}`);
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
@@ -349,15 +395,30 @@ router.get("/summary", async (req, res) => {
     if (author)    itemConditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
     if (isbn)      itemConditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
     if (customerName) itemConditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
-    if (binding)   itemConditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
-    if (title)     itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        itemConditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
+        itemConditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+      } else {
+        itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
     if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
     const itemsWhereClause = itemConditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}` : Prisma.sql``;
 
     const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
-        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
@@ -369,7 +430,7 @@ router.get("/summary", async (req, res) => {
 
     const topItemsRowsByQty = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
-        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
@@ -389,7 +450,7 @@ router.get("/summary", async (req, res) => {
     // --- BOTTOM ITEMS ---
     const bottomItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
-        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
@@ -526,14 +587,29 @@ router.get("/counts", async (req, res) => {
     if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
     if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
     if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
-    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
-    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
+        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+      } else {
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
     if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
     if (q) {
       const tokens = getSearchTokens(q);
       tokens.forEach(t => {
         const tr = toTokenRegex(t);
-        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
       });
     }
 
@@ -609,7 +685,7 @@ router.get("/daily-details", async (req, res) => {
       const tokens = getSearchTokens(q);
       tokens.forEach(t => {
         const tr = toTokenRegex(t);
-        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
       });
     }
     if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
@@ -618,9 +694,24 @@ router.get("/daily-details", async (req, res) => {
     if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
     if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
     if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
-    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
     if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
-    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
+        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+      } else {
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
@@ -629,7 +720,7 @@ router.get("/daily-details", async (req, res) => {
 
     const details = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
-        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END AS title,
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
         COALESCE(MAX("publisher"), 'N/A') AS publisher
@@ -686,16 +777,22 @@ router.get("/options", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const [states, publishers, bindings, customerNames, authors, cities, bookTitles, types] = await Promise.all([
+    const [states, publishers, bindings, customerNames, authors, cities, bookTitlesRaw, types] = await Promise.all([
       prisma.googleSheetOfflineSale.groupBy({ by: ['state'], where: { state: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { state: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['publisher'], where: { publisher: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { publisher: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['binding'], where: { binding: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { binding: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['customerName'], where: { customerName: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['author'], where: { author: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { author: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['city'], where: { city: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { city: 'asc' } }),
-      prisma.googleSheetOfflineSale.groupBy({ by: ['title'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['title', 'binding'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 200 }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['type'], where: { type: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { type: 'asc' } })
     ]);
+
+    const bookTitles = bookTitlesRaw.map(b => {
+      const title = b.title?.trim() || '';
+      const binding = b.binding?.trim() || '';
+      return binding ? `${title} (${binding})` : title;
+    }).sort();
 
     const result = {
       ok: true,
@@ -705,7 +802,7 @@ router.get("/options", async (req, res) => {
       customerNames: customerNames.map(c => c.customerName).sort(),
       authors: authors.map(a => a.author),
       cities: cities.map(c => c.city),
-      bookTitles: bookTitles.map(b => b.title).sort(),
+      bookTitles,
       types: types.map(t => t.type),
     };
     optionsCache.set("all", result);
