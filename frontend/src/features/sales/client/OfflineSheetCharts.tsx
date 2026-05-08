@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
 import { apiClient } from '../../../lib/apiClient';
-import { useOfflineSheetOptions } from './offlineSheetService';
+import { useOfflineSheetOptions, useOfflineSheetDailyDetails } from './offlineSheetService';
 
 // DnD Kit imports
 import {
@@ -53,24 +53,36 @@ function fmtChartAxis(v: number): string {
   return `₹${(v / 1000).toFixed(0)}k`;
 }
 
-const TEXT_COL = '#000000'; 
-const BOLD_TEXT = { fontSize: 13, fontWeight: 500, fill: TEXT_COL };
+const TEXT_COL = '#64748B'; 
+const BOLD_TEXT = { fontSize: 11, fontWeight: 400, fill: TEXT_COL };
 
 const CustomTooltip = ({ active, payload, label, title }: any) => {
   if (active && payload && payload.length) {
     const originalData = payload[0]?.payload;
     return (
-      <div className="rounded-xl border-2 border-gray-200 bg-white p-4 shadow-xl ring-2 ring-black/5">
-        <p className="mb-2 text-base font-medium text-black uppercase tracking-widest border-b border-gray-100 pb-1">
-          {label} {originalData?.state ? `(${originalData.state})` : ''}
-        </p>
-        {payload.map((entry: any, index: number) => (
-          <p key={index} className="text-xl font-medium" style={{ color: entry.color || '#000000' }}>
-            {title || entry.name}: {fmtINR(entry.value)}
+      <div className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-2xl ring-4 ring-black/5 select-none min-w-[240px] animate-in zoom-in-95 duration-200">
+        <div className="mb-3 border-b border-gray-100 pb-2">
+           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[220px]">
+            {originalData.date && !isNaN(new Date(originalData.date).getTime())
+              ? new Date(originalData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+              : (label || title || "Details")}
           </p>
+        </div>
+        
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex flex-col">
+            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-tight">{title || entry.name}</span>
+            <p className="text-2xl font-medium text-black leading-none mt-0.5">
+              {fmtINR(entry.value)}
+            </p>
+          </div>
         ))}
+
         {originalData?.qty ? (
-          <p className="mt-1 text-sm font-medium text-gray-700">Quantity: {originalData.qty.toLocaleString('en-IN')}</p>
+          <div className="mt-3 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+            <span className="text-[10px] font-medium text-gray-400 uppercase">Volume</span>
+            <span className="text-sm font-medium text-black">{originalData.qty.toLocaleString('en-IN')} units</span>
+          </div>
         ) : null}
       </div>
     );
@@ -138,7 +150,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
       </div>
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-[100] mt-1 max-h-48 overflow-auto rounded-xl border border-gray-100 bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="absolute top-full left-0 right-0 z-[100] mt-1 max-h-56 overflow-y-auto overflow-x-hidden rounded-xl border border-gray-100 bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-200 custom-scrollbar">
           {filteredOptions.length > 0 ? (
             filteredOptions.slice(0, 100).map((opt: string, i: number) => (
               <button
@@ -167,6 +179,259 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Daily Details Panel ────────────────────────────────────────────────────
+function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange }: { date: string; filters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void; onClose: () => void; onDateChange?: (d: string) => void }) {
+  const [mode, setMode] = useState<'single' | 'range'>('single');
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  
+  // Local states for the Date Range mode
+  const [localStart, setLocalStart] = useState<string>('');
+  const [localEnd, setLocalEnd] = useState<string>('');
+
+  useEffect(() => {
+    if (filters.startDate) setLocalStart(filters.startDate);
+    else if (filters.days) setLocalStart(new Date(Date.now() - filters.days * 86400000).toISOString());
+    else setLocalStart(new Date('2026-01-01T00:00:00.000Z').toISOString());
+    
+    if (filters.endDate) setLocalEnd(filters.endDate);
+    else setLocalEnd(new Date().toISOString());
+  }, [filters]);
+
+  const actualDate = mode === 'single' ? date : null;
+  
+  const panelFilters = { ...filters };
+  if (mode === 'range') {
+     panelFilters.startDate = localStart || undefined;
+     panelFilters.endDate = localEnd || undefined;
+     delete panelFilters.days;
+  }
+
+  const { data: details, isLoading } = useOfflineSheetDailyDetails(panelFilters, actualDate, true);
+
+  const totalRev = details?.items?.reduce((acc, it) => acc + it.total, 0) || 0;
+  const totalQty = details?.items?.reduce((acc, it) => acc + it.qty, 0) || 0;
+
+  const wrapperClass = isFullScreen 
+    ? "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200"
+    : "flex flex-col h-full border-l border-gray-100 bg-gray-50/50 overflow-hidden animate-in slide-in-from-right-4 duration-500 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]";
+
+  const containerClass = isFullScreen
+    ? "w-full max-w-6xl max-h-[90vh] flex flex-col bg-gray-50 rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-in zoom-in-95 duration-200"
+    : "flex flex-col h-full w-full";
+
+  return (
+    <div 
+      className={wrapperClass}
+      onClick={(e) => {
+        if (isFullScreen && e.target === e.currentTarget) setIsFullScreen(false);
+      }}
+    >
+      <div className={containerClass}>
+        <div className="border-b border-gray-200 bg-white p-5 sm:p-6 shrink-0">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h4 className="text-[10px] font-medium text-gray-400 uppercase tracking-widest mb-1">{mode === 'single' ? 'Daily Summary' : 'Range Summary'}</h4>
+              {mode === 'single' ? (
+                <div className="relative group min-h-[30px]">
+                  <p className="text-sm font-semibold text-black flex items-center gap-2">
+                    {new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM16 2v2M8 2v2M3 7h18"/></svg>
+                  </p>
+                  <input 
+                    type="date" 
+                    value={new Date(date).toISOString().split('T')[0]} 
+                    onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+                    onChange={(e) => {
+                      const newD = e.target.value;
+                      if (newD && onDateChange) onDateChange(new Date(newD).toISOString());
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                </div>
+              ) : (
+                <div className="min-h-[30px] flex items-center gap-2">
+                  <input 
+                    type="date" 
+                    value={localStart ? new Date(localStart).toISOString().split('T')[0] : ''} 
+                    onChange={e => setLocalStart(e.target.value ? new Date(e.target.value).toISOString() : '')} 
+                    className="w-[105px] border-b-2 border-teal-400 bg-teal-50 px-1 py-0.5 rounded-t text-xs font-semibold text-teal-900 focus:outline-none cursor-pointer hover:bg-teal-100 transition-colors"
+                    onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+                    title="Start Date"
+                  />
+                  <span className="text-gray-300 font-bold text-xs">→</span>
+                  <input 
+                    type="date" 
+                    value={localEnd ? new Date(localEnd).toISOString().split('T')[0] : ''} 
+                    onChange={e => setLocalEnd(e.target.value ? new Date(e.target.value).toISOString() : '')} 
+                    className="w-[105px] border-b-2 border-teal-400 bg-teal-50 px-1 py-0.5 rounded-t text-xs font-semibold text-teal-900 focus:outline-none cursor-pointer hover:bg-teal-100 transition-colors"
+                    onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+                    title="End Date"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setIsFullScreen(!isFullScreen); }} 
+                className="rounded-full bg-gray-100 p-1.5 text-gray-400 hover:text-black hover:bg-gray-200 transition-all" 
+                title={isFullScreen ? "Close modal view" : "Expand to full screen modal"}
+              >
+                {isFullScreen ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 13h3a2 2 0 0 1 2 2v3"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                )}
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onClose(); }} 
+                className="rounded-full bg-gray-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all" 
+                title="Close panel entirely"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex bg-gray-100 p-0.5 rounded-lg w-max mb-4 mt-1">
+            <button onClick={() => setMode('single')} className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all tracking-wider ${mode === 'single' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-black'}`}>Single Day</button>
+            <button onClick={() => setMode('range')} className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all tracking-wider ${mode === 'range' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-black'}`}>Date Range</button>
+          </div>
+
+          {!isLoading && (
+            <div className={`flex gap-4 ${isFullScreen ? 'max-w-xl' : ''}`}>
+              <div className="flex-1 rounded-xl bg-teal-600 px-3 py-2 text-white shadow-inner">
+                <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Revenue</span>
+                <p className="text-base font-semibold leading-none">{fmtINR(totalRev)}</p>
+              </div>
+              <div className="flex-1 rounded-xl bg-black px-3 py-2 text-white shadow-inner">
+                <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Units</span>
+                <p className="text-base font-semibold leading-none">{totalQty.toLocaleString('en-IN')}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={`flex-1 overflow-auto custom-scrollbar min-h-0 ${isFullScreen ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 bg-gray-50/50 p-6 sm:p-8 auto-rows-max items-start content-start' : 'p-4 space-y-3'}`}>
+          {isLoading ? (
+            <div className={`flex h-32 items-center justify-center ${isFullScreen ? 'col-span-full' : ''}`}>
+               <div className="h-6 w-6 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
+            </div>
+          ) : details?.items?.length ? (
+            details.items.map((it, i) => (
+               <div key={i} className={`rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow ${isFullScreen ? 'p-5' : 'p-3'}`}>
+                  <div className="flex justify-between items-start gap-3 mb-1.5 min-h-[34px]">
+                     <p className={`font-medium text-black leading-tight line-clamp-2 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{it.title}</p>
+                     <span className={`shrink-0 rounded bg-gray-100 font-medium text-black ${isFullScreen ? 'px-2 py-1 text-xs' : 'px-1.5 py-0.5 text-[10px]'}`}>×{it.qty}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-gray-50 pt-2 mt-2">
+                     <p className={`font-medium text-gray-400 uppercase truncate ${isFullScreen ? 'text-[10px] max-w-[200px]' : 'text-[9px] max-w-[120px]'}`} title={it.publisher}>{it.publisher}</p>
+                     <p className={`font-semibold text-teal-600 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{fmtINR(it.total)}</p>
+                  </div>
+               </div>
+            ))
+          ) : (
+            <p className={`text-center text-[10px] font-medium text-gray-300 py-10 uppercase italic ${isFullScreen ? 'col-span-full' : ''}`}>No sales records</p>
+          )}
+        </div>
+
+        {onApplyGlobal && !isLoading && details?.items?.length && (
+           <div className="p-4 sm:p-5 bg-white border-t border-gray-200 mt-auto shrink-0">
+              <button 
+                onClick={() => {
+                  if (mode === 'single') {
+                    const d = new Date(date);
+                    onApplyGlobal(new Date(d.setUTCHours(0,0,0,0)).toISOString(), new Date(d.setUTCHours(23,59,59,999)).toISOString());
+                  } else {
+                    onApplyGlobal(localStart || new Date(0).toISOString(), localEnd || new Date().toISOString());
+                  }
+                  if (isFullScreen) setIsFullScreen(false);
+                }}
+                className="w-full rounded-xl bg-teal-600 py-3 text-[10px] font-semibold text-white hover:bg-teal-700 transition-all uppercase tracking-widest shadow-md"
+              >
+                Analyze Dashboard With Picked Dates
+              </button>
+           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Revenue Trend Chart Component ──────────────────────────────────────────
+function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: OfflineSheetSummaryResponse; globalFilters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void }) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const latestDate = data.timeSeries && data.timeSeries.length > 0 
+    ? data.timeSeries[data.timeSeries.length - 1].date 
+    : null;
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white">
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Interactive Analysis</p>
+        <button 
+          onClick={() => {
+            if (latestDate) setSelectedDate(latestDate);
+          }}
+          className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg transition-all hover:bg-teal-700 active:scale-95"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Daily Summary
+        </button>
+      </div>
+
+      <div className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-hidden">
+        <div className={`flex flex-col transition-all duration-500 ${selectedDate ? 'lg:w-[60%] w-full' : 'w-full'} p-4`}>
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart 
+              data={data.timeSeries || []} 
+              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+              onClick={(e: any) => { 
+                if (e?.activePayload?.[0]) setSelectedDate(e.activePayload[0].payload.date);
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <defs><linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0D9488" stopOpacity={0.25}/><stop offset="95%" stopColor="#0D9488" stopOpacity={0}/></linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.06} />
+              <XAxis dataKey="date" tick={BOLD_TEXT} minTickGap={60} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} stroke="#E5E7EB" />
+              <YAxis tick={BOLD_TEXT} tickFormatter={fmtChartAxis} stroke="#E5E7EB" />
+              <Tooltip 
+                content={<CustomTooltip title="Revenue" />} 
+                wrapperStyle={{ pointerEvents: 'auto', outline: 'none' }}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="total" 
+                stroke="#0D9488" 
+                strokeWidth={4} 
+                fill="url(#colorTrend)" 
+                dot={false}
+                activeDot={{ r: 8, strokeWidth: 4, stroke: '#fff', fill: '#0D9488' }} 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          {selectedDate && <div className="mt-4 text-center lg:hidden"><button onClick={() => setSelectedDate(null)} className="text-[10px] font-bold text-gray-400 uppercase underline">Close Details ↑</button></div>}
+        </div>
+
+        {selectedDate && (
+          <div className="lg:w-[40%] w-full h-[400px] lg:h-auto border-l border-gray-100 flex-shrink-0 relative overflow-hidden">
+            <div className="absolute inset-0">
+              <DailyDetailsPanel 
+                 date={selectedDate} 
+                 filters={globalFilters} 
+                 onClose={() => setSelectedDate(null)} 
+                 onApplyGlobal={onApplyGlobal} 
+                 onDateChange={setSelectedDate} 
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -212,13 +477,21 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
         // 1. Start with global filters
         Object.entries(globalFilters).forEach(([k, v]) => {
           if (v !== undefined && v !== '' && v !== null && k !== 'page' && k !== 'limit') {
+            // Ignore global date bounds if block is using 'days'
+            if ((k === 'startDate' || k === 'endDate') && localFilters.days !== undefined) return;
+            // Ignore global 'days' if block is using explicit custom dates
+            if (k === 'days' && (localFilters.startDate !== undefined || localFilters.endDate !== undefined)) return;
             p.set(k, String(v));
           }
         });
         // 2. Overlay local filters (overrides)
         Object.entries(localFilters).forEach(([k, v]) => {
+          // If a local override is empty string or explicit null, we should delete the global one.
+          // Since we already set globals, if local is undefined we just skip it unless we need to explicitly delete.
           if (v !== undefined && v !== '' && v !== null) {
             p.set(k, String(v));
+          } else if (v === '' || v === undefined) {
+             p.delete(k); // Allow local to clear global
           }
         });
 
@@ -235,7 +508,17 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
   }, [id, localFilters, globalFilters]);
 
   const updateF = (key: keyof OfflineSheetFilters, val: any) => {
-    setLocalFilters(prev => ({ ...prev, [key]: val }));
+    setLocalFilters(prev => {
+      const next = { ...prev, [key]: val };
+      if (key === 'startDate' || key === 'endDate') {
+        delete next.days;
+      }
+      if (key === 'days') {
+        delete next.startDate;
+        delete next.endDate;
+      }
+      return next;
+    });
   };
 
   const activeFilterCount = Object.entries(localFilters).filter(([k, v]) => k !== 'days' && v !== undefined && v !== '').length;
@@ -268,6 +551,9 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
                 {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
               </button>
             ))}
+            {(localFilters.startDate || localFilters.endDate) && (
+              <span className="px-2 py-1 text-[10px] font-bold text-teal-600 uppercase tracking-tight bg-teal-50 rounded-lg border border-teal-100">Custom</span>
+            )}
           </div>
 
           <button
@@ -293,14 +579,43 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
           <BlockFilterDropdown label="State" value={localFilters.state} onChange={(v:any) => updateF('state', v)} placeholder="e.g. Delhi" options={optData?.states} />
           <BlockFilterDropdown label="City" value={localFilters.city} onChange={(v:any) => updateF('city', v)} placeholder="e.g. Mumbai" options={optData?.cities} />
           <BlockFilterDropdown label="Binding" value={localFilters.binding} onChange={(v:any) => updateF('binding', v)} placeholder="All bindings" options={optData?.bindings} />
+          <BlockFilterDropdown label="Sale Type" value={localFilters.type} onChange={(v:any) => updateF('type', v)} placeholder="All types" options={optData?.types} />
           <BlockFilterField label="ISBN" value={localFilters.isbn} onChange={(v:any) => updateF('isbn', v)} placeholder="Code..." />
           <div className="flex gap-2 items-end">
              <div className="flex-1"><BlockFilterField label="Min ₹" type="number" value={localFilters.minAmount} onChange={(v:any) => updateF('minAmount', v)} /></div>
              <div className="flex-1"><BlockFilterField label="Max ₹" type="number" value={localFilters.maxAmount} onChange={(v:any) => updateF('maxAmount', v)} /></div>
           </div>
-          <div className="col-span-full pt-2 flex justify-between items-center border-t border-teal-100">
-             <button onClick={() => setLocalFilters({ days: 90 })} className="text-[10px] font-bold text-red-600 uppercase hover:underline">Reset Block Filters</button>
-             <button onClick={() => setIsFilterOpen(false)} className="text-[10px] font-bold text-teal-700 uppercase hover:underline text-right">Close Panel ↑</button>
+          <div className="col-span-full flex flex-col gap-1.5 mt-1 pt-3 border-t border-teal-100/50">
+             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Custom Date Range</label>
+             <div className="flex items-center gap-2">
+               <input 
+                 type="date" 
+                 className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 cursor-pointer" 
+                 value={localFilters.startDate ? new Date(localFilters.startDate).toISOString().split('T')[0] : ''} 
+                 onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+                 onChange={(e) => updateF('startDate', e.target.value ? new Date(e.target.value).toISOString() : undefined)} 
+               />
+               <span className="text-gray-400 font-bold text-xs">→</span>
+               <input 
+                 type="date" 
+                 className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 cursor-pointer" 
+                 value={localFilters.endDate ? new Date(localFilters.endDate).toISOString().split('T')[0] : ''} 
+                 onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+                 onChange={(e) => updateF('endDate', e.target.value ? new Date(e.target.value).toISOString() : undefined)} 
+               />
+             </div>
+          </div>
+          <div className="col-span-full mt-2 pt-3 flex justify-between items-center border-t border-teal-100/70">
+             <button onClick={() => setLocalFilters({ days: 90 })} className="text-[10px] font-bold text-red-600 uppercase hover:underline">Reset Filters</button>
+             <div className="flex items-center gap-3">
+               <button onClick={() => setIsFilterOpen(false)} className="text-[10px] font-bold text-gray-500 uppercase hover:text-black">Cancel</button>
+               <button 
+                 onClick={() => setIsFilterOpen(false)} 
+                 className="rounded-lg bg-teal-600 px-4 py-2 text-[10px] font-bold text-white uppercase tracking-widest shadow-md hover:bg-teal-700 transition-all active:scale-95"
+               >
+                 Apply Filters
+               </button>
+             </div>
           </div>
         </div>
       </div>
@@ -368,11 +683,12 @@ function SortableItem({ id, children, className, isStretched, onToggleStretch }:
 interface Props {
   filters: OfflineSheetFilters;
   resetVersion?: number;
+  onApplyDateRange?: (start: string, end: string) => void;
 }
 
-const DEFAULT_ORDER = ['revenue-trend', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'bottom-items'];
+const DEFAULT_ORDER = ['revenue-trend', 'sales-by-type', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'top-items-qty', 'bottom-items'];
 
-export default function OfflineSheetCharts({ filters: globalFilters, resetVersion }: Props) {
+export default function OfflineSheetCharts({ filters: globalFilters, resetVersion, onApplyDateRange }: Props) {
   const [items, setItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('rk_offline_charts_order');
     if (saved) {
@@ -424,18 +740,7 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
   const chartConfigs: Record<string, { title: string; render: (data: OfflineSheetSummaryResponse) => React.ReactNode }> = {
     'revenue-trend': {
       title: 'Revenue Trend',
-      render: (data) => (
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={data.timeSeries || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <defs><linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0D9488" stopOpacity={0.3}/><stop offset="95%" stopColor="#0D9488" stopOpacity={0}/></linearGradient></defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" tick={BOLD_TEXT} minTickGap={50} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
-            <YAxis tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
-            <Tooltip content={<CustomTooltip title="Revenue" />} />
-            <Area type="monotone" dataKey="total" stroke="#0D9488" strokeWidth={4} fill="url(#colorTrend)" dot={false} activeDot={{ r: 8 }} />
-          </AreaChart>
-        </ResponsiveContainer>
-      )
+      render: (data) => <RevenueTrendChart data={data} globalFilters={globalFilters} onApplyGlobal={onApplyDateRange} />
     },
     'sales-by-state': {
       title: 'Sales by State',
@@ -488,6 +793,20 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
         </ResponsiveContainer>
       )
     },
+    'sales-by-type': {
+      title: 'Sales by Type',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.revenueByType || []} layout="vertical" margin={{ left: 20, right: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+            <YAxis type="category" dataKey="type" width={120} tick={BOLD_TEXT} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="total" fill="#EC4899" radius={[0, 4, 4, 0]} barSize={30} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
     'top-customers': {
       title: 'Top 10 Customers',
       render: (data) => (
@@ -526,6 +845,20 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
             <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="total" fill="#10B981" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600, formatter: (v: any) => fmtChartAxis(Number(v)) }} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    },
+    'top-items-qty': {
+      title: 'Top Items by Volume (Qty)',
+      render: (data) => (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={data.topItemsByQty || []} layout="vertical" margin={{ left: 20, right: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={BOLD_TEXT} />
+            <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
+            <Tooltip content={<CustomTooltip title="Quantity" />} />
+            <Bar dataKey="qty" fill="#F59E0B" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600 }} />
           </BarChart>
         </ResponsiveContainer>
       )

@@ -159,6 +159,7 @@ async function importSheet(sheetName: string, rows: Record<string, any>[], opts?
     email: string | null;
     date: Date | null;
     publisherCode: string | null;
+    type: string | null;
     rowHash: string | null;
     rawJson: Prisma.InputJsonValue;
   };
@@ -179,6 +180,7 @@ async function importSheet(sheetName: string, rows: Record<string, any>[], opts?
       const discount = toDecimalOrNull(toNumberSafe(pick(r, ['Discount', 'discount'])));
       const tax = toDecimalOrNull(toNumberSafe(pick(r, ['Tax', 'GST', 'tax'])));
       const shipping = toDecimalOrNull(toNumberSafe(pick(r, ['Shipping', 'Freight', 'shipping'])));
+      const type = normalizeString(pick(r, ['Type', 'type', 'Sale Type']));
       const common: Common = {
         orderNo: normalizeString(pick(r, ['Order No', 'Order', 'orderNo', 'Order Number'])),
         orderStatus: mapOrderStatus(pick(r, ['Status', 'Order Status'])),
@@ -201,6 +203,7 @@ async function importSheet(sheetName: string, rows: Record<string, any>[], opts?
         customerName: normalizeString(pick(r, ['Customer Name', 'Customer', 'Name'])),
         mobile: normalizeString(pick(r, ['Mobile', 'Phone', 'Contact'])),
         email: normalizeString(pick(r, ['Email', 'E-mail'])),
+        type,
         date: ((): Date | null => {
           const d1 = toDateSafe(pick(r, ['Date', 'Txn Date', 'Transaction Date', 'Trnsdocdate']));
           if (d1) return d1;

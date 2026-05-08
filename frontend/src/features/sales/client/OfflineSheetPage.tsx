@@ -316,6 +316,11 @@ function FilterBar({
             value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
             options={useOfflineSheetOptions().data?.bindings}
           />
+          <FilterDropdown 
+            id="f-type" label="Sale Type" placeholder="Offline/Online..." 
+            value={filters.type} onChange={(v:any) => updateFilter('type', v)}
+            options={useOfflineSheetOptions().data?.types}
+          />
         </div>
 
         {/* Third row: Dates, Ranges and Reset */}
@@ -327,8 +332,9 @@ function FilterBar({
                 type="date"
                 title="Start Date"
                 aria-label="Start Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
                 value={filters.startDate?.slice(0, 10) ?? ''}
+                onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                 onChange={(e) => {
                   if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
                 }}
@@ -338,8 +344,9 @@ function FilterBar({
                 type="date"
                 title="End Date"
                 aria-label="End Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
                 value={filters.endDate?.slice(0, 10) ?? ''}
+                onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                 onChange={(e) => {
                   if (e.target.value) setDateRange(filters.startDate || new Date(0).toISOString(), new Date(e.target.value).toISOString());
                 }}
@@ -455,6 +462,7 @@ export default function OfflineSheetPage() {
         <OfflineSheetCharts 
           filters={filters} 
           resetVersion={resetVersion}
+          onApplyDateRange={setDateRange}
         />
       </div>
 

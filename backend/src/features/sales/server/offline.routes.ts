@@ -166,6 +166,7 @@ router.get("/", async (req, res) => {
     customerName: z.string().optional(),
     binding: z.string().optional(),
     title: z.string().optional(),
+    type: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
@@ -199,11 +200,13 @@ router.get("/", async (req, res) => {
     if (customerName) where.customerName = { contains: customerName.trim().replace(/\s+/g, " "), mode: "insensitive" };
     if (binding)   where.binding = { contains: binding.trim().replace(/\s+/g, " "), mode: "insensitive" };
     if (title)     where.title = { contains: title.trim().replace(/\s+/g, " "), mode: "insensitive" };
+    if (parsed.data.type) where.type = { contains: parsed.data.type.trim().replace(/\s+/g, " "), mode: "insensitive" };
 
     where.AND = [
       { OR: [{ amount: null }, { amount: { gte: 0 } }] },
       { OR: [{ rate: null }, { rate: { gte: 0 } }] },
       { OR: [{ qty: null }, { qty: { gte: 0 } }] },
+      { NOT: { title: { startsWith: 'E-', mode: 'insensitive' } } },
     ];
     
     if (minAmount != null || maxAmount != null) {
@@ -237,8 +240,16 @@ router.get("/", async (req, res) => {
         ? dataAll.filter((r: any) => {
               const d = resolveRowDate(r);
               if (!d) return false;
-              if (startDate && d < new Date(startDate)) return false;
-              if (endDate && d > new Date(endDate)) return false;
+              if (startDate) {
+                const s = new Date(startDate);
+                s.setUTCHours(0,0,0,0);
+                if (d < s) return false;
+              }
+              if (endDate) {
+                const e = new Date(endDate);
+                e.setUTCHours(23,59,59,999);
+                if (d > e) return false;
+              }
               return true;
             }).slice(0, limit)
         : dataAll;
@@ -267,6 +278,7 @@ router.get("/summary", async (req, res) => {
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     binding: z.string().optional(),
     title: z.string().optional(),
+    type: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
@@ -274,21 +286,24 @@ router.get("/summary", async (req, res) => {
   const days = parsed.data.days ?? 90;
   const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
   const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
-  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, q } = parsed.data;
+  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
 
-  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${q ?? ""}`;
+  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${q ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) return res.json(cached);
 
   try {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
+    if (since) since.setUTCHours(0,0,0,0);
     const until = endDate ?? new Date();
+    if (until) until.setUTCHours(23,59,59,999);
 
     const conditions = [
       Prisma.sql`"date" IS NOT NULL AND "date" >= ${since} AND "date" <= ${until}`,
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
-      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     if (q) {
       const tokens = getSearchTokens(q);
@@ -305,6 +320,7 @@ router.get("/summary", async (req, res) => {
     if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
     if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
     if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (parsed.data.type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(parsed.data.type)}`);
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
@@ -313,7 +329,8 @@ router.get("/summary", async (req, res) => {
     const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         to_char("date", 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty
       FROM "google_sheet_offline_sales"
       ${whereClause}
       GROUP BY to_char("date", 'YYYY-MM-DD')
@@ -323,7 +340,8 @@ router.get("/summary", async (req, res) => {
     const itemConditions: any[] = [
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
-      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     if (state)     itemConditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
     if (city)      itemConditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
@@ -349,10 +367,23 @@ router.get("/summary", async (req, res) => {
       ORDER BY total DESC LIMIT 10
     `);
 
+    const topItemsRowsByQty = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
+      FROM "google_sheet_offline_sales"
+      ${itemsWhereClause}
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY qty DESC LIMIT 10
+    `);
+
     const result: any = {
       ok: true,
-      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)) })),
+      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
       topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
+      topItemsByQty: topItemsRowsByQty.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
     };
 
     // --- BOTTOM ITEMS ---
@@ -411,6 +442,14 @@ router.get("/summary", async (req, res) => {
       GROUP BY 1 ORDER BY total DESC
     `);
     result.revenueByBinding = revenueByBindingRows.map(r => ({ binding: r.binding, total: round2(Number(r.total)), qty: Number(r.qty) || 0 }));
+    
+    // --- REVENUE BY TYPE ---
+    const revenueByTypeRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("type"), ''), 'Unknown Type') AS type, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "google_sheet_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC
+    `);
+    result.revenueByType = revenueByTypeRows.map(r => ({ type: r.type, total: round2(Number(r.total)) }));
 
     // --- Projection Logic (Year 2026) ---
     const currentYear = 2026;
@@ -419,6 +458,7 @@ router.get("/summary", async (req, res) => {
     const yearSoFarConditions = [
       Prisma.sql`"date" IS NOT NULL AND "date" >= ${yearStart} AND "date" <= ${now}`,
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     const [yearStats] = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float as total
@@ -463,18 +503,22 @@ router.get("/counts", async (req, res) => {
     maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
     binding: z.string().optional(),
     title: z.string().optional(),
+    type: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
-  const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title, q } = parsed.data;
+  const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title, type, q } = parsed.data;
 
   const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
+  if (start) start.setUTCHours(0,0,0,0);
   const end = endDate ? new Date(endDate) : new Date();
+  if (end) end.setUTCHours(23,59,59,999);
 
   try {
     const conditions = [
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
     if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
     if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
@@ -484,6 +528,7 @@ router.get("/counts", async (req, res) => {
     if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
     if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
     if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
     if (q) {
       const tokens = getSearchTokens(q);
       tokens.forEach(t => {
@@ -514,6 +559,98 @@ router.get("/counts", async (req, res) => {
   } catch (e: any) {
     console.error("offline_counts_failed", e);
     return res.status(500).json({ ok: false, error: "Counts failed" });
+  }
+});
+
+// GET /api/offline-sales/daily-details
+router.get("/daily-details", async (req, res) => {
+  const Q = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
+    days: z.string().regex(/^\d+$/).transform(Number).optional(),
+    limit: z.string().regex(/^\d+$/).transform(Number).optional(),
+    offset: z.string().regex(/^\d+$/).transform(Number).optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    binding: z.string().optional(),
+    title: z.string().optional(),
+    type: z.string().optional(),
+    q: z.string().optional(),
+  });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query parameters" });
+  
+  const { date, days, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
+
+  try {
+    const conditions = [
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
+    ];
+
+    if (date) {
+      const targetDate = new Date(date);
+      conditions.push(Prisma.sql`"date" IS NOT NULL AND date_trunc('day', "date") = date_trunc('day', ${targetDate}::timestamp)`);
+    } else {
+      const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
+      if (start) start.setUTCHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : new Date();
+      if (end) end.setUTCHours(23, 59, 59, 999);
+      if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
+    }
+
+    if (q) {
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr})`);
+      });
+    }
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding)   conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex(binding)}`);
+    if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
+    if (title)     conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
+    if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+    console.log("DAILY-DETAILS-RANGE:", { startDate, endDate, days, date, parsed: parsed.data });
+
+    const details = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("publisher"), 'N/A') AS publisher
+      FROM "google_sheet_offline_sales"
+      ${whereClause}
+      GROUP BY 1
+      ORDER BY total DESC
+    `);
+
+    return res.json({
+      ok: true,
+      items: details.map(r => ({
+        title: r.title,
+        total: round2(Number(r.total)),
+        qty: Number(r.qty) || 0,
+        publisher: r.publisher
+      }))
+    });
+  } catch (e: any) {
+    console.error("offline_daily_details_failed", e);
+    return res.status(500).json({ ok: false, error: "Daily details failed" });
   }
 });
 
@@ -549,14 +686,15 @@ router.get("/options", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const [states, publishers, bindings, customerNames, authors, cities, bookTitles] = await Promise.all([
+    const [states, publishers, bindings, customerNames, authors, cities, bookTitles, types] = await Promise.all([
       prisma.googleSheetOfflineSale.groupBy({ by: ['state'], where: { state: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { state: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['publisher'], where: { publisher: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { publisher: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['binding'], where: { binding: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { binding: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['customerName'], where: { customerName: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['author'], where: { author: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { author: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['city'], where: { city: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { city: 'asc' } }),
-      prisma.googleSheetOfflineSale.groupBy({ by: ['title'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 })
+      prisma.googleSheetOfflineSale.groupBy({ by: ['title'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['type'], where: { type: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { type: 'asc' } })
     ]);
 
     const result = {
@@ -568,6 +706,7 @@ router.get("/options", async (req, res) => {
       authors: authors.map(a => a.author),
       cities: cities.map(c => c.city),
       bookTitles: bookTitles.map(b => b.title).sort(),
+      types: types.map(t => t.type),
     };
     optionsCache.set("all", result);
     return res.json(result);

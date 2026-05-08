@@ -36,6 +36,18 @@ export class OfflineSyncService {
       }
     });
 
+    // FALLBACK: If "type" column is not found by exact alias, search for any column containing "type"
+    if (!["type", "saletype", "transactiontype"].some(k => headerMap[k] !== undefined)) {
+      const typeIdx = headers.findIndex(h => String(h).toLowerCase().includes('type'));
+      if (typeIdx !== -1) headerMap['type'] = typeIdx;
+    }
+
+    // DEBUG: Write headers to a file to see what's actually coming through
+    try {
+      const fs = await import('fs');
+      fs.appendFileSync('headers_debug.log', `HEADERS: ${JSON.stringify(headers)}\n`);
+    } catch (e) {}
+
     let importedCount = 0;
     let skippedCount = 0;
 
@@ -67,6 +79,12 @@ export class OfflineSyncService {
       const inAmount = parseFloat(this.getVal(row, headerMap, "INAmount") || "0");
       const state = this.getVal(row, headerMap, "StateName");
       const city = this.getVal(row, headerMap, "CityName");
+      const typeRaw = this.getVal(row, headerMap, "Type") || 
+                      this.getVal(row, headerMap, "Sale Type") || 
+                      this.getVal(row, headerMap, "Sale-Type") ||
+                      this.getVal(row, headerMap, "Transaction Type") ||
+                      this.getVal(row, headerMap, "SaleType");
+      const type = typeRaw || null; // Ensure null if empty string
 
       let date: Date | null = null;
       const rawDate = this.getVal(row, headerMap, "Trnsdocdate") || this.getVal(row, headerMap, "Date");
@@ -111,6 +129,7 @@ export class OfflineSyncService {
             customerName,
             state,
             city,
+            type,
             rawJson: row.map(v => (v === undefined ? null : v)) as any,
           },
           create: {
@@ -135,6 +154,7 @@ export class OfflineSyncService {
             customerName,
             state,
             city,
+            type,
             rowHash,
             rawJson: row.map(v => (v === undefined ? null : v)) as any,
           },

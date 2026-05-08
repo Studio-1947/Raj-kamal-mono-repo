@@ -20,6 +20,7 @@ export interface OfflineSheetItem {
   publisher?: string | null;
   author?: string | null;
   binding?: string | null;
+  type?: string | null;
   rawJson?: Record<string, unknown>;
 }
 
@@ -32,15 +33,16 @@ export interface OfflineSheetListResponse {
 
 export interface OfflineSheetSummaryResponse {
   ok: boolean;
-  timeSeries: { date: string; total: number }[];
+  timeSeries: { date: string; total: number; qty: number }[];
   topItems: { title: string; total: number; qty: number; rate?: number }[];
+  topItemsByQty?: { title: string; total: number; qty: number; rate?: number }[];
   bottomItems?: { title: string; total: number; qty: number; rate?: number }[];
   paymentMode?: { paymentMode: string; total: number }[];
   revenueByState?: { state: string; total: number }[];
   revenueByCity?: { city: string; state: string; total: number }[];
-
   revenueByPublisher?: { publisher: string; total: number }[];
   revenueByBinding?: { binding: string; total: number; qty: number }[];
+  revenueByType?: { type: string; total: number }[];
   topCustomers?: { customerName: string; total: number }[];
   projection?: {
     year: number;
@@ -78,11 +80,12 @@ export interface OfflineSheetOptionsResponse {
   authors: string[];
   cities: string[];
   bookTitles: string[];
+  types: string[];
 }
 
 /** Filter state shared across hooks and URL params */
 export interface OfflineSheetFilters {
-  days: number;
+  days?: number;
   startDate?: string;
   endDate?: string;
   q?: string;
@@ -98,4 +101,17 @@ export interface OfflineSheetFilters {
   customerName?: string;
   binding?: string;
   title?: string;
+  type?: string;
+}
+
+export interface OfflineSheetDailyDetail {
+  title: string;
+  total: number;
+  qty: number;
+  publisher?: string;
+}
+
+export interface OfflineSheetDailyDetailResponse {
+  ok: boolean;
+  items: OfflineSheetDailyDetail[];
 }
