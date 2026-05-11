@@ -6,7 +6,7 @@ export function useOfflineSheetFilters() {
   const [s, setS] = useSearchParams();
 
   const filters = useMemo<OfflineSheetFilters>(() => ({
-    days: s.get('days') ? Number(s.get('days')) : 90,
+    days: s.get('days') ? Number(s.get('days')) : 365,
     startDate: s.get('startDate') || undefined,
     endDate: s.get('endDate') || undefined,
     q: s.get('q') || undefined,

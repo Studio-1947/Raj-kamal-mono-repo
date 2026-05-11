@@ -49,10 +49,15 @@ export class OfflineSyncService {
     } catch (e) {}
 
     let importedCount = 0;
-    let skippedCount = 0;
+    let count = 0;
+    let skippedEmpty = 0;
+    let duplicateCount = 0;
 
     for (const row of dataRows) {
-      if (!Array.isArray(row) || row.length === 0) continue;
+      if (!Array.isArray(row) || row.length === 0 || row.every(cell => cell === "" || cell === null)) {
+        skippedEmpty++;
+        continue;
+      }
 
       const customerName = this.getVal(row, headerMap, "CustomerName");
 
@@ -104,13 +109,14 @@ export class OfflineSyncService {
 
       let date: Date | null = null;
       const rawDate = this.getVal(row, headerMap, "Trnsdocdate") || this.getVal(row, headerMap, "Date");
+      const effectiveDateSource = rawDate || dateStr;
       
-      if (rawDate) {
-        if (/^\d{5}(\.\d+)?$/.test(rawDate)) {
-          const serial = parseFloat(rawDate);
+      if (effectiveDateSource) {
+        if (/^\d{5}(\.\d+)?$/.test(effectiveDateSource)) {
+          const serial = parseFloat(effectiveDateSource);
           date = new Date((serial - 25569) * 86400 * 1000);
         } else {
-          const parsedDate = new Date(rawDate);
+          const parsedDate = new Date(effectiveDateSource);
           if (!isNaN(parsedDate.getTime())) {
             date = parsedDate;
           }
@@ -121,34 +127,14 @@ export class OfflineSyncService {
       const rowHash = crypto.createHash('md5').update(rowContent).digest('hex');
 
       try {
-        await prisma.googleSheetOfflineSale.upsert({
-          where: { rowHash },
-          update: {
-            slNo,
-            docNo,
-            date,
-            dateStr,
-            isbn,
-            title,
-            author,
-            binding,
-            pubYear,
-            publisher,
-            qty,
-            inQty,
-            currency,
-            rate,
-            discount,
-            addDiscount,
-            amount,
-            inAmount,
-            customerName,
-            state,
-            city,
-            type,
-            rawJson: row.map(v => (v === undefined ? null : v)) as any,
-          },
-          create: {
+        const existing = await prisma.googleSheetOfflineSale.findUnique({ where: { rowHash } });
+        if (existing) {
+          duplicateCount++;
+          continue;
+        }
+
+        await prisma.googleSheetOfflineSale.create({
+          data: {
             slNo,
             docNo,
             date,
@@ -177,11 +163,13 @@ export class OfflineSyncService {
         });
         importedCount++;
       } catch (err: any) {
-        console.error(`[SYNC ERROR] Prisma upsert failed for row: ${rowContent.slice(0, 100)}...`, err.message);
+        console.error(`[SYNC ERROR] Prisma creation failed:`, err.message);
       }
+      count++;
     }
 
-    return { success: true, importedCount, skippedCount };
+    console.log(`[SYNC LOG] Total: ${count}, Imported: ${importedCount}, Duplicates: ${duplicateCount}, Skipped Empty: ${skippedEmpty}`);
+    return { success: true, importedCount, skippedCount: skippedEmpty };
   }
 
   /**
@@ -196,6 +184,10 @@ export class OfflineSyncService {
       
       const buffer = await response.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "buffer" });
+      const filters = useMemo<OfflineSheetFilters>(() => ({
+        days: s.get('days') ? Number(s.get('days')) : 365,
+        startDate: s.get('startDate') || undefined,
+      }));
       const sheetName = workbook.SheetNames[0];
       if (!sheetName) {
         console.log("No sheet found in downloaded report.");

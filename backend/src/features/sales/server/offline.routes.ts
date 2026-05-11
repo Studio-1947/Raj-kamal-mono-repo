@@ -326,16 +326,21 @@ router.get("/summary", async (req, res) => {
   try {
     const since = startDate ?? new Date(Date.now() - days * 86400000);
     if (since) since.setUTCHours(0,0,0,0);
-    const until = endDate ?? new Date();
-    if (until) until.setUTCHours(23,59,59,999);
 
     const conditions = [
-      Prisma.sql`"date" IS NOT NULL AND "date" >= ${since} AND "date" <= ${until}`,
+      Prisma.sql`"date" IS NOT NULL`,
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
       Prisma.sql`("qty" IS NULL OR "qty" >= 0)`,
       Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
+
+    if (since) conditions.push(Prisma.sql`"date" >= ${since}`);
+    if (endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditions.push(Prisma.sql`"date" <= ${until}`);
+    }
     if (q) {
       const tokens = getSearchTokens(q);
         tokens.forEach(t => {
@@ -573,15 +578,19 @@ router.get("/counts", async (req, res) => {
 
   const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
   if (start) start.setUTCHours(0,0,0,0);
-  const end = endDate ? new Date(endDate) : new Date();
-  if (end) end.setUTCHours(23,59,59,999);
+  // Removed end date default filter to allow future records
 
   try {
     const conditions = [
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
     ];
-    if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
+    if (start) conditions.push(Prisma.sql`"date" >= ${start}`);
+    if (endDate) {
+       const until = new Date(endDate);
+       until.setUTCHours(23,59,59,999);
+       conditions.push(Prisma.sql`"date" <= ${until}`);
+    }
     if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
     if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
     if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
