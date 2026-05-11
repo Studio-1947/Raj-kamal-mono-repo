@@ -83,8 +83,24 @@ export class OfflineSyncService {
                       this.getVal(row, headerMap, "Sale Type") || 
                       this.getVal(row, headerMap, "Sale-Type") ||
                       this.getVal(row, headerMap, "Transaction Type") ||
-                      this.getVal(row, headerMap, "SaleType");
-      const type = typeRaw || null; // Ensure null if empty string
+                      this.getVal(row, headerMap, "SaleType") ||
+                      this.getVal(row, headerMap, "DocumentDesc") ||
+                      this.getVal(row, headerMap, "Document Type");
+
+      let type = typeRaw || null;
+      
+      // FALLBACK: If type is still null, check index 20 or 19 for common sale type keywords
+      // This handles cases where the header name is unknown but data is clearly a Sale Type
+      if (!type) {
+        [20, 19].forEach(idx => {
+          if (row[idx]) {
+            const v = String(row[idx]).toLowerCase();
+            if (v.includes("sales") || v.includes("online") || v.includes("offline")) {
+              type = String(row[idx]).trim();
+            }
+          }
+        });
+      }
 
       let date: Date | null = null;
       const rawDate = this.getVal(row, headerMap, "Trnsdocdate") || this.getVal(row, headerMap, "Date");

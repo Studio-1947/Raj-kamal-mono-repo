@@ -185,6 +185,12 @@ function FilterBar({
   lastSyncResult,
 }: FilterBarProps) {
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState(filters.q ?? '');
+
+  // Sync local search query if filters.q changes externally (e.g. on clear)
+  React.useEffect(() => {
+    setSearchQuery(filters.q ?? '');
+  }, [filters.q]);
 
   // Helper to count active filters excluding defaults
   const activeFilters = Object.entries(filters).filter(([key, value]) => {
@@ -211,11 +217,52 @@ function FilterBar({
             <input
               id="search-input"
               type="text"
-              placeholder="Search Title, Customer, State, Publisher..."
-              defaultValue={filters.q ?? ''}
-              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search Title, Binding, Customer, State, Publisher..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setQ(searchQuery);
+                }
+              }}
               className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-medium text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
             />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-teal-600/50">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
+          </div>
+
+          {/* Quick Binding Selectors */}
+          <div className="mt-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Binding:</span>
+            <div className="flex flex-wrap items-center gap-4">
+              {(useOfflineSheetOptions().data?.bindings ?? ['Paperback', 'Hardbound']).slice(0, 6).map((b) => {
+                const isActive = (filters.binding ?? '').split(',').includes(b);
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => {
+                      const current = (filters.binding ?? '').split(',').filter(Boolean);
+                      const next = current.includes(b) ? current.filter(x => x !== b) : [...current, b];
+                      updateFilter('binding', next.join(',') || undefined);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 transition-all active:scale-95 ${
+                      isActive 
+                        ? 'bg-teal-600 border-teal-600 text-white shadow-md' 
+                        : 'bg-white border-gray-100 text-gray-500 hover:border-teal-200 hover:bg-teal-50/30'
+                    }`}
+                  >
+                    <div className={`h-4 w-4 rounded-md flex items-center justify-center transition-colors ${isActive ? 'bg-white/20' : 'bg-gray-100'}`}>
+                      {isActive && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M20 6L9 17l-5-5"/></svg>}
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-tight">
+                      {b}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           
           {/* Quick reference for active filters when collapsed */}
@@ -262,12 +309,23 @@ function FilterBar({
             <span className="text-xs font-medium text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
           )}
           <button
+            onClick={() => setQ(searchQuery)}
+            className="flex items-center gap-2 rounded-xl bg-teal-600 px-8 py-3 text-base font-bold text-white shadow-xl hover:bg-teal-700 active:scale-95 transition-all"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            SEARCH
+          </button>
+          <button
             onClick={onSync}
             disabled={isSyncing}
-            className="flex items-center gap-2 rounded-xl bg-black px-6 py-3 text-base font-medium text-white shadow-xl hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
+            title="Sync Data from Sheets"
+            className="flex items-center justify-center h-12 w-12 rounded-xl bg-black text-white shadow-lg hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
           >
-            {isSyncing ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
-            {isSyncing ? 'Syncing...' : 'Sync Data'}
+            {isSyncing ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+            )}
           </button>
         </div>
       </div>
@@ -277,7 +335,7 @@ function FilterBar({
         {/* Second row: Spreadsheet-style Column Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
           <FilterDropdown 
-            id="f-book" label="Book Name" placeholder="Search Book Title..." 
+            id="f-book" label="Book (Binding)" placeholder="Search Book & Binding..." 
             value={filters.title} onChange={(v:any) => updateFilter('title', v)}
             options={useOfflineSheetOptions().data?.bookTitles}
           />
