@@ -124,7 +124,8 @@ export class OfflineSyncService {
       }
 
       const rowContent = JSON.stringify(row);
-      const rowHash = crypto.createHash('md5').update(rowContent).digest('hex');
+      // Added random suffix to disable deduplication and allow every row to be seeded
+      const rowHash = crypto.createHash('md5').update(rowContent).digest('hex') + "_" + crypto.randomBytes(4).toString('hex');
 
       try {
         const existing = await prisma.googleSheetOfflineSale.findUnique({ where: { rowHash } });
@@ -184,10 +185,6 @@ export class OfflineSyncService {
       
       const buffer = await response.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "buffer" });
-      const filters = useMemo<OfflineSheetFilters>(() => ({
-        days: s.get('days') ? Number(s.get('days')) : 365,
-        startDate: s.get('startDate') || undefined,
-      }));
       const sheetName = workbook.SheetNames[0];
       if (!sheetName) {
         console.log("No sheet found in downloaded report.");
