@@ -195,7 +195,6 @@ function FilterBar({
   // Helper to count active filters excluding defaults
   const activeFilters = Object.entries(filters).filter(([key, value]) => {
     if (key === 'page' || key === 'limit') return false;
-    if (key === 'days' && value === 10000) return false; // All time is default
     return value !== undefined && value !== '' && value !== null;
   });
 

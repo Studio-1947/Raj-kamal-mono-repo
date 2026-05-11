@@ -43,6 +43,7 @@ function buildQs(filters: OfflineSheetFilters, extra?: Record<string, string>): 
   if (filters.minAmount) p.set('minAmount', String(filters.minAmount));
   if (filters.maxAmount) p.set('maxAmount', String(filters.maxAmount));
   if (filters.title)     p.set('title', filters.title);
+  if (filters.type)      p.set('type', filters.type);
   
   const page = filters.page || 1;
   const limit = filters.limit || 100;

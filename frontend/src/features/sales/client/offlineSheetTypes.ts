@@ -52,6 +52,18 @@ export interface OfflineSheetSummaryResponse {
     remainingDays: number;
     projectedRemaining: number;
     totalProjected: number;
+    weightedMonthlyAvg: number;
+    currentMonth: number;
+    monthlyBreakdown: {
+      month: number;
+      name: string;
+      actual: number | null;
+      projected: number | null;
+      isComplete: boolean;
+      isCurrent: boolean;
+      daysElapsed?: number;
+      totalDays?: number;
+    }[];
   };
 }
 
