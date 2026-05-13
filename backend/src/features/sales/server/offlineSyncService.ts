@@ -53,23 +53,24 @@ export class OfflineSyncService {
     let skippedEmpty = 0;
     let duplicateCount = 0;
 
-    for (const row of dataRows) {
+    const toInsert: any[] = [];
+    const rowsToProcess = dataRows;
+
+    for (const row of rowsToProcess) {
       if (!Array.isArray(row) || row.length === 0 || row.every(cell => cell === "" || cell === null)) {
         skippedEmpty++;
         continue;
       }
 
       const customerName = this.getVal(row, headerMap, "CustomerName");
-
       const slNo = parseInt(this.getVal(row, headerMap, "sl/no") || "0");
       const docNo = this.getVal(row, headerMap, "TrnsdocNo") || this.getVal(row, headerMap, "Doc No");
       const dateStr = this.getVal(row, headerMap, "TrnsdocdateStr") || this.getVal(row, headerMap, "DateStr");
       const isbn = this.getVal(row, headerMap, "BookCode") || this.getVal(row, headerMap, "ISBN");
-      const title = 
-        this.getVal(row, headerMap, "BookName") || 
-        this.getVal(row, headerMap, "ItemName") || 
-        this.getVal(row, headerMap, "Title") || 
-        this.getVal(row, headerMap, "Name");
+      const title = this.getVal(row, headerMap, "BookName") || 
+                    this.getVal(row, headerMap, "ItemName") || 
+                    this.getVal(row, headerMap, "Title") || 
+                    this.getVal(row, headerMap, "Name");
       const author = this.getVal(row, headerMap, "Author") || this.getVal(row, headerMap, "DisplayAuthorName");
       const binding = this.getVal(row, headerMap, "Binding");
       const pubYear = parseInt(this.getVal(row, headerMap, "Pub-Year") || this.getVal(row, headerMap, "Pub-year") || "0");
@@ -84,18 +85,17 @@ export class OfflineSyncService {
       const inAmount = parseFloat(this.getVal(row, headerMap, "INAmount") || "0");
       const state = this.getVal(row, headerMap, "StateName");
       const city = this.getVal(row, headerMap, "CityName");
+      
       const typeRaw = this.getVal(row, headerMap, "Type") || 
                       this.getVal(row, headerMap, "Sale Type") || 
-                      this.getVal(row, headerMap, "Sale-Type") ||
-                      this.getVal(row, headerMap, "Transaction Type") ||
-                      this.getVal(row, headerMap, "SaleType") ||
-                      this.getVal(row, headerMap, "DocumentDesc") ||
+                      this.getVal(row, headerMap, "Sale-Type") || 
+                      this.getVal(row, headerMap, "Transaction Type") || 
+                      this.getVal(row, headerMap, "SaleType") || 
+                      this.getVal(row, headerMap, "DocumentDesc") || 
                       this.getVal(row, headerMap, "Document Type");
 
       let type = typeRaw || null;
       
-      // FALLBACK: If type is still null, check index 20 or 19 for common sale type keywords
-      // This handles cases where the header name is unknown but data is clearly a Sale Type
       if (!type) {
         [20, 19].forEach(idx => {
           if (row[idx]) {
@@ -138,49 +138,54 @@ export class OfflineSyncService {
       };
       const rowHash = crypto.createHash('md5').update(JSON.stringify(businessData)).digest('hex');
 
-      try {
-        const existing = await prisma.googleSheetOfflineSale.findUnique({ where: { rowHash } });
-        if (existing) {
-          duplicateCount++;
-          continue;
-        }
-
-        await prisma.googleSheetOfflineSale.create({
-          data: {
-            slNo,
-            docNo,
-            date,
-            dateStr,
-            isbn,
-            title,
-            author,
-            binding,
-            pubYear,
-            publisher,
-            qty,
-            inQty,
-            currency,
-            rate,
-            discount,
-            addDiscount,
-            amount,
-            inAmount,
-            customerName,
-            state,
-            city,
-            type,
-            rowHash,
-            rawJson: row.map(v => (v === undefined ? null : v)) as any,
-          },
-        });
-        importedCount++;
-      } catch (err: any) {
-        console.error(`[SYNC ERROR] Prisma creation failed:`, err.message);
-      }
+      toInsert.push({
+        slNo,
+        docNo,
+        date,
+        dateStr,
+        isbn,
+        title,
+        author,
+        binding,
+        pubYear,
+        publisher,
+        qty,
+        inQty,
+        currency,
+        rate,
+        discount,
+        addDiscount,
+        amount,
+        inAmount,
+        customerName,
+        state,
+        city,
+        type,
+        rowHash,
+        rawJson: row.map(v => (v === undefined ? null : v)) as any,
+      });
       count++;
     }
 
-    console.log(`[SYNC LOG] Total: ${count}, Imported: ${importedCount}, Duplicates: ${duplicateCount}, Skipped Empty: ${skippedEmpty}`);
+    if (toInsert.length > 0) {
+      try {
+        // Chunk toInsert to avoid potential database limit issues with massive arrays
+        const chunkSize = 1000;
+        for (let i = 0; i < toInsert.length; i += chunkSize) {
+          const chunk = toInsert.slice(i, i + chunkSize);
+          const result = await prisma.googleSheetOfflineSale.createMany({
+            data: chunk,
+            skipDuplicates: true,
+          });
+          importedCount += result.count;
+        }
+        duplicateCount = toInsert.length - importedCount;
+      } catch (err: any) {
+        console.error(`[SYNC ERROR] createMany failed:`, err.message);
+      }
+    }
+
+    console.log(`[SYNC LOG] Total Rows: ${count}, Newly Imported: ${importedCount}, Duplicates Skipped: ${duplicateCount}, Empty Skipped: ${skippedEmpty}`);
     return { success: true, importedCount, skippedCount: skippedEmpty };
   }
 
