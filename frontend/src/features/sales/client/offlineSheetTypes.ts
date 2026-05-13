@@ -22,6 +22,7 @@ export interface OfflineSheetItem {
   binding?: string | null;
   type?: string | null;
   rawJson?: Record<string, unknown>;
+  createdAt?: Date;
 }
 
 export interface OfflineSheetListResponse {
@@ -121,9 +122,12 @@ export interface OfflineSheetDailyDetail {
   total: number;
   qty: number;
   publisher?: string;
+  author?: string;
+  rate?: number;
 }
 
 export interface OfflineSheetDailyDetailResponse {
   ok: boolean;
   items: OfflineSheetDailyDetail[];
+  totalCount?: number;
 }

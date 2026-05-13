@@ -214,6 +214,115 @@ router.get("/options", async (req, res) => {
   }
 });
 
+// GET /api/mumbai-offline-sales/daily-details
+router.get("/daily-details", async (req, res) => {
+  const Q = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
+    days: z.string().regex(/^\d+$/).transform(Number).optional(),
+    limit: z.string().regex(/^\d+$/).transform(Number).default("50"),
+    offset: z.string().regex(/^\d+$/).transform(Number).default("0"),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    binding: z.string().optional(),
+    title: z.string().optional(),
+    type: z.string().optional(),
+    q: z.string().optional(),
+  });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query parameters" });
+  
+  const { date, days, limit, offset, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
+
+  try {
+    const conditions: any[] = [Prisma.sql`TRUE`];
+
+    if (date) {
+      const targetDate = new Date(date);
+      conditions.push(Prisma.sql`"date" IS NOT NULL AND date_trunc('day', "date") = date_trunc('day', ${targetDate}::timestamp)`);
+    } else {
+      const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
+      if (start) start.setUTCHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : new Date();
+      if (end) end.setUTCHours(23, 59, 59, 999);
+      if (start && end) conditions.push(Prisma.sql`"date" >= ${start} AND "date" <= ${end}`);
+    }
+
+    if (q) {
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
+      });
+    }
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
+    if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
+    if (title) {
+       conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+    }
+    if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
+    if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+
+    const details = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("publisher"), 'N/A') AS publisher,
+        COALESCE(MAX("author"), 'N/A') AS author,
+        COALESCE(MAX("rate"), 0)::float AS rate
+      FROM "mumbai_offline_sales"
+      ${whereClause}
+      GROUP BY 1
+      ORDER BY total DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+
+    const countRes = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', ''))::int AS total_count
+      FROM "mumbai_offline_sales"
+      ${whereClause}
+    `);
+
+    return res.json({
+      ok: true,
+      items: details.map(r => ({
+        title: r.title,
+        total: round2(r.total),
+        qty: r.qty,
+        publisher: r.publisher,
+        author: r.author,
+        rate: r.rate > 0 ? round2(r.rate) : round2(r.total / (r.qty || 1))
+      })),
+      totalCount: countRes[0]?.total_count ?? 0
+    });
+  } catch (e: any) {
+    console.error("mumbai_daily_details_failed", e);
+    return res.status(500).json({ ok: false, error: "Daily details failed" });
+  }
+});
+
 router.get("/sync", async (req, res) => {
   try {
     const result = await offlineSyncService.syncMumbaiSales();

@@ -728,7 +728,7 @@ router.get("/daily-details", async (req, res) => {
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query parameters" });
   
-  const { date, days, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
+  const { date, days, limit, offset, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
 
   try {
     const conditions = [
@@ -788,21 +788,33 @@ router.get("/daily-details", async (req, res) => {
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
-        COALESCE(MAX("publisher"), 'N/A') AS publisher
+        COALESCE(MAX("publisher"), 'N/A') AS publisher,
+        COALESCE(MAX("author"), 'N/A') AS author,
+        COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${whereClause}
       GROUP BY 1
       ORDER BY total DESC
+      LIMIT ${limit ?? 100} OFFSET ${offset ?? 0}
+    `);
+
+    const countRes = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', ''))::int AS total_count
+      FROM "google_sheet_offline_sales"
+      ${whereClause}
     `);
 
     return res.json({
       ok: true,
       items: details.map(r => ({
         title: r.title,
-        total: round2(Number(r.total)),
-        qty: Number(r.qty) || 0,
-        publisher: r.publisher
-      }))
+        total: round2(r.total),
+        qty: r.qty,
+        publisher: r.publisher,
+        author: r.author,
+        rate: r.rate > 0 ? round2(r.rate) : round2(r.total / (r.qty || 1))
+      })),
+      totalCount: countRes[0]?.total_count ?? 0
     });
   } catch (e: any) {
     console.error("offline_daily_details_failed", e);

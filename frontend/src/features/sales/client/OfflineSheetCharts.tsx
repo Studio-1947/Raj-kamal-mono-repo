@@ -201,9 +201,26 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
     else setLocalEnd(new Date().toISOString());
   }, [filters]);
 
+  // Local filters for the details list
+  const [q, setQ] = useState('');
+  const [pub, setPub] = useState('');
+  const [page, setPage] = useState(1);
+  const limit = isFullScreen ? 24 : 12;
+
+  useEffect(() => { setPage(1); }, [date, mode, q, pub]);
+
+  const { data: optData } = useOfflineSheetOptions();
+
   const actualDate = mode === 'single' ? date : null;
   
-  const panelFilters = { ...filters };
+  const panelFilters: OfflineSheetFilters = { 
+    ...filters,
+    q: q || undefined,
+    publisher: pub || undefined,
+    limit,
+    page
+  };
+
   if (mode === 'range') {
      panelFilters.startDate = localStart || undefined;
      panelFilters.endDate = localEnd || undefined;
@@ -214,6 +231,8 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
 
   const totalRev = details?.items?.reduce((acc, it) => acc + it.total, 0) || 0;
   const totalQty = details?.items?.reduce((acc, it) => acc + it.qty, 0) || 0;
+  const totalCount = details?.totalCount ?? 0;
+  const totalPages = Math.ceil(totalCount / limit);
 
   const wrapperClass = isFullScreen 
     ? "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200"
@@ -302,14 +321,38 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
           </div>
 
           {!isLoading && (
-            <div className={`flex gap-4 ${isFullScreen ? 'max-w-xl' : ''}`}>
-              <div className="flex-1 rounded-xl bg-teal-600 px-3 py-2 text-white shadow-inner">
-                <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Revenue</span>
-                <p className="text-base font-semibold leading-none">{fmtINR(totalRev)}</p>
+            <div className="space-y-4">
+              <div className={`flex gap-4 ${isFullScreen ? 'max-w-xl' : ''}`}>
+                <div className="flex-1 rounded-xl bg-teal-600 px-3 py-2 text-white shadow-inner">
+                  <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Revenue</span>
+                  <p className="text-base font-semibold leading-none">{fmtINR(totalRev)}</p>
+                </div>
+                <div className="flex-1 rounded-xl bg-black px-3 py-2 text-white shadow-inner">
+                  <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Units</span>
+                  <p className="text-base font-semibold leading-none">{totalQty.toLocaleString('en-IN')}</p>
+                </div>
               </div>
-              <div className="flex-1 rounded-xl bg-black px-3 py-2 text-white shadow-inner">
-                <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Units</span>
-                <p className="text-base font-semibold leading-none">{totalQty.toLocaleString('en-IN')}</p>
+
+              {/* In-Panel Filters */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                 <div className="relative flex-1">
+                    <input 
+                      type="text" 
+                      placeholder="Search items..." 
+                      value={q}
+                      onChange={e => setQ(e.target.value)}
+                      className="w-full rounded-lg border border-gray-200 bg-gray-50 pl-8 pr-3 py-2 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-400"
+                    />
+                    <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                 </div>
+                 <select 
+                   value={pub}
+                   onChange={e => setPub(e.target.value)}
+                   className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all"
+                 >
+                   <option value="">All Publishers</option>
+                   {optData?.publishers?.map(p => <option key={p} value={p}>{p}</option>)}
+                 </select>
               </div>
             </div>
           )}
@@ -322,14 +365,29 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
             </div>
           ) : details?.items?.length ? (
             details.items.map((it, i) => (
-               <div key={i} className={`rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow ${isFullScreen ? 'p-5' : 'p-3'}`}>
-                  <div className="flex justify-between items-start gap-3 mb-1.5 min-h-[34px]">
-                     <p className={`font-medium text-black leading-tight line-clamp-2 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{it.title}</p>
-                     <span className={`shrink-0 rounded bg-gray-100 font-medium text-black ${isFullScreen ? 'px-2 py-1 text-xs' : 'px-1.5 py-0.5 text-[10px]'}`}>×{it.qty}</span>
+               <div key={i} className={`rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow flex flex-col ${isFullScreen ? 'p-5' : 'p-3'}`}>
+                  <div className="flex justify-between items-start gap-3 mb-2">
+                     <div>
+                        <p className={`font-semibold text-black leading-tight line-clamp-2 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{it.title}</p>
+                        {it.author && it.author !== 'N/A' && (
+                          <p className={`text-gray-500 font-medium mt-1 truncate ${isFullScreen ? 'text-xs' : 'text-[9px]'}`}>{it.author}</p>
+                        )}
+                     </div>
+                     <span className={`shrink-0 rounded-lg bg-gray-100 font-bold text-gray-700 flex items-center justify-center ${isFullScreen ? 'w-10 h-10 text-xs' : 'w-8 h-8 text-[10px]'}`}>×{it.qty}</span>
                   </div>
-                  <div className="flex justify-between items-center border-t border-gray-50 pt-2 mt-2">
-                     <p className={`font-medium text-gray-400 uppercase truncate ${isFullScreen ? 'text-[10px] max-w-[200px]' : 'text-[9px] max-w-[120px]'}`} title={it.publisher}>{it.publisher}</p>
-                     <p className={`font-semibold text-teal-600 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{fmtINR(it.total)}</p>
+                  <div className="mt-auto border-t border-gray-50 pt-3 flex justify-between items-center">
+                     <div className="flex flex-col">
+                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-tighter">Publisher</span>
+                        <p className={`font-medium text-gray-500 uppercase truncate ${isFullScreen ? 'text-[10px] max-w-[200px]' : 'text-[9px] max-w-[120px]'}`} title={it.publisher}>{it.publisher}</p>
+                     </div>
+                     <div className="flex flex-col text-center border-x border-gray-100 px-3">
+                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-tighter">Rate</span>
+                        <p className={`font-medium text-gray-900 ${isFullScreen ? 'text-[11px]' : 'text-[10px]'}`}>{fmtINR(it.rate ?? 0)}</p>
+                     </div>
+                     <div className="text-right">
+                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-tighter">Total</span>
+                        <p className={`font-bold text-teal-600 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{fmtINR(it.total)}</p>
+                     </div>
                   </div>
                </div>
             ))
@@ -339,7 +397,29 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
         </div>
 
         {onApplyGlobal && !isLoading && details?.items?.length && (
-           <div className="p-4 sm:p-5 bg-white border-t border-gray-200 mt-auto shrink-0">
+           <div className="p-4 sm:p-5 bg-white border-t border-gray-200 mt-auto shrink-0 space-y-3">
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{totalCount} items found</p>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      disabled={page === 1}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    <span className="text-xs font-bold text-black min-w-[3rem] text-center">{page} / {totalPages}</span>
+                    <button 
+                      disabled={page === totalPages}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              )}
               <button 
                 onClick={() => {
                   if (mode === 'single') {
