@@ -77,6 +77,7 @@ interface FilterBarProps {
   onSync: () => void;
   isSyncing: boolean;
   lastSyncResult?: string | null;
+  region?: 'delhi' | 'mumbai' | 'patna';
 }
 
 function FilterField({ id, label, placeholder, value, onChange, type = "text", width = "w-48" }: any) {
@@ -183,6 +184,7 @@ function FilterBar({
   onSync,
   isSyncing,
   lastSyncResult,
+  region = 'delhi',
 }: FilterBarProps) {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState(filters.q ?? '');
@@ -235,7 +237,7 @@ function FilterBar({
           <div className="mt-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Binding:</span>
             <div className="flex flex-wrap items-center gap-4">
-              {(useOfflineSheetOptions().data?.bindings ?? ['Paperback', 'Hardbound']).slice(0, 6).map((b) => {
+              {(useOfflineSheetOptions(region).data?.bindings ?? ['Paperback', 'Hardbound']).slice(0, 6).map((b) => {
                 const isActive = (filters.binding ?? '').split(',').includes(b);
                 return (
                   <button
@@ -336,22 +338,22 @@ function FilterBar({
           <FilterDropdown 
             id="f-book" label="Book (Binding)" placeholder="Search Book & Binding..." 
             value={filters.title} onChange={(v:any) => updateFilter('title', v)}
-            options={useOfflineSheetOptions().data?.bookTitles}
+            options={useOfflineSheetOptions(region).data?.bookTitles}
           />
           <FilterDropdown 
             id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
             value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
-            options={useOfflineSheetOptions().data?.customerNames}
+            options={useOfflineSheetOptions(region).data?.customerNames}
           />
           <FilterDropdown 
             id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
             value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
-            options={useOfflineSheetOptions().data?.publishers}
+            options={useOfflineSheetOptions(region).data?.publishers}
           />
           <FilterDropdown 
             id="f-auth" label="Author" placeholder="e.g. Premchand" 
             value={filters.author} onChange={(v:any) => updateFilter('author', v)}
-            options={useOfflineSheetOptions().data?.authors}
+            options={useOfflineSheetOptions(region).data?.authors}
           />
           <FilterField 
             id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
@@ -361,22 +363,22 @@ function FilterBar({
           <FilterDropdown 
             id="f-state" label="State" placeholder="e.g. Delhi" 
             value={filters.state} onChange={(v:any) => updateFilter('state', v)}
-            options={useOfflineSheetOptions().data?.states}
+            options={useOfflineSheetOptions(region).data?.states}
           />
           <FilterDropdown 
             id="f-city" label="City" placeholder="e.g. Varanasi" 
             value={filters.city} onChange={(v:any) => updateFilter('city', v)}
-            options={useOfflineSheetOptions().data?.cities}
+            options={useOfflineSheetOptions(region).data?.cities}
           />
           <FilterDropdown 
             id="f-binding" label="Binding" placeholder="Paperback/Hardcover" 
             value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
-            options={useOfflineSheetOptions().data?.bindings}
+            options={useOfflineSheetOptions(region).data?.bindings}
           />
           <FilterDropdown 
             id="f-type" label="Sale Type" placeholder="Offline/Online..." 
             value={filters.type} onChange={(v:any) => updateFilter('type', v)}
-            options={useOfflineSheetOptions().data?.types}
+            options={useOfflineSheetOptions(region).data?.types}
           />
         </div>
 
@@ -446,7 +448,7 @@ function FilterBar({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function OfflineSheetPage() {
+export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' }) {
   const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, setPage, clearAll } = useOfflineSheetFilters();
   const [resetVersion, setResetVersion] = useState(0);
 
@@ -455,10 +457,10 @@ export default function OfflineSheetPage() {
     setResetVersion(v => v + 1);
   };
 
-  const countsQ  = useOfflineSheetCounts(filters);
-  const summaryQ = useOfflineSheetSummary(filters);
-  const listQ    = useOfflineSheetList(filters);
-  const syncMut  = useTriggerSync();
+  const countsQ  = useOfflineSheetCounts(filters, region);
+  const summaryQ = useOfflineSheetSummary(filters, region);
+  const listQ    = useOfflineSheetList(filters, region);
+  const syncMut  = useTriggerSync(region);
 
   const allRows = listQ.data?.items ?? [];
   const totalCount = listQ.data?.totalCount ?? 0;
@@ -474,7 +476,7 @@ export default function OfflineSheetPage() {
       <div className="mb-6 flex items-center justify-between pt-6">
         <div>
           <h1 className="text-3xl font-medium text-black tracking-tight uppercase">
-            Master Sales Dashboard
+            {region === 'delhi' ? 'Master' : region.charAt(0).toUpperCase() + region.slice(1)} Sales Dashboard
           </h1>
           <p className="mt-1 text-base font-medium text-gray-500">
             Advanced Spreadsheet-style Filters & Legibility Optimized Data View
@@ -498,6 +500,7 @@ export default function OfflineSheetPage() {
           onSync={() => syncMut.mutate()}
           isSyncing={syncMut.isPending}
           lastSyncResult={syncMsg}
+          region={region}
         />
       </div>
 

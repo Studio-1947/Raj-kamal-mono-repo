@@ -12,6 +12,8 @@ import {
   Language,
   Login,
   OfflineSheetSales,
+  MumbaiOfflineSales,
+  PatnaOfflineSales,
 } from "../views";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -99,6 +101,22 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <OfflineSheetSales />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/mumbai-offline-sales"
+        element={
+          <ProtectedRoute>
+            <MumbaiOfflineSales />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/patna-offline-sales"
+        element={
+          <ProtectedRoute>
+            <PatnaOfflineSales />
           </ProtectedRoute>
         }
       />
