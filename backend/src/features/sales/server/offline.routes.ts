@@ -182,12 +182,7 @@ router.get("/", async (req, res) => {
 
   try {
     const where: any = {};
-    const andConditions: any[] = [
-      { OR: [{ amount: null }, { amount: { gte: 0 } }] },
-      { OR: [{ rate: null }, { rate: { gte: 0 } }] },
-      { OR: [{ qty: null }, { qty: { gte: 0 } }] },
-      { NOT: { title: { startsWith: 'E-', mode: 'insensitive' } } },
-    ];
+    const andConditions: any[] = [];
 
     if (q) {
       const tokens = getSearchTokens(q);
@@ -250,7 +245,14 @@ router.get("/", async (req, res) => {
     const totalCount = await prisma.googleSheetOfflineSale.count({ where });
 
     const fetchLimit = startDate || endDate ? Math.min(limit * 10, 5000) : limit;
-    const args: any = { take: fetchLimit, orderBy: { id: "desc" as const }, where };
+    const args: any = {
+      take: fetchLimit,
+      orderBy: [
+        { date: { sort: "desc" as const, nulls: "last" as const } },
+        { id: "desc" as const },
+      ],
+      where,
+    };
     if (cursorId) {
       args.skip = 1;
       args.cursor = { id: BigInt(cursorId) };
@@ -314,25 +316,21 @@ router.get("/summary", async (req, res) => {
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
-  const days = parsed.data.days ?? 90;
+  const days = parsed.data.days;
   const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
   const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
   const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
 
-  const cacheKey = `summary:${days}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${q ?? ""}`;
+  const cacheKey = `summary:${days ?? "all"}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${q ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) return res.json(cached);
 
   try {
-    const since = startDate ?? new Date(Date.now() - days * 86400000);
+    const since = startDate ?? (days != null ? new Date(Date.now() - days * 86400000) : null);
     if (since) since.setUTCHours(0,0,0,0);
 
     const conditions = [
-      Prisma.sql`"date" IS NOT NULL`,
-      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
-      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
-      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`,
-      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
+      Prisma.sql`"date" IS NOT NULL`
     ];
 
     if (since) conditions.push(Prisma.sql`"date" >= ${since}`);
@@ -517,32 +515,88 @@ router.get("/summary", async (req, res) => {
     `);
     result.revenueByType = revenueByTypeRows.map(r => ({ type: r.type, total: round2(Number(r.total)) }));
 
-    // --- Projection Logic (Year 2026) ---
+    // --- Projection Logic (Year 2026) — month-wise weighted ---
     const currentYear = 2026;
     const yearStart = new Date(`${currentYear}-01-01T00:00:00Z`);
-    const now = new Date(); 
-    const yearSoFarConditions = [
-      Prisma.sql`"date" IS NOT NULL AND "date" >= ${yearStart} AND "date" <= ${now}`,
-      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
-      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
-    ];
-    const [yearStats] = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float as total
+    const now = new Date();
+    const currentMonth = now.getUTCMonth() + 1; // 1–12
+
+    // Monthly totals for all 2026 data recorded so far
+    const monthlyRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        EXTRACT(MONTH FROM "date")::int AS month,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+                          WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+                          ELSE 0 END), 0)::float AS total,
+        COUNT(*)::int AS txn_count
       FROM "google_sheet_offline_sales"
-      WHERE ${Prisma.join(yearSoFarConditions, ' AND ')}
+      WHERE "date" IS NOT NULL
+        AND "date" >= ${yearStart}
+        AND "date" <= ${now}
+        AND ("amount" IS NULL OR "amount" >= 0)
+        AND ("title" IS NULL OR "title" !~* '^E-')
+      GROUP BY 1
+      ORDER BY 1
     `);
-    const totalSoFar = Number(yearStats?.total ?? 0);
+
+    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // Split into complete months vs current month
+    const completeMonths = monthlyRows.filter((r: any) => Number(r.month) < currentMonth);
+    const currentMonthRow = monthlyRows.find((r: any) => Number(r.month) === currentMonth);
+
+    // Days elapsed in current month and total days in current month
+    const daysInCurrentMonth = new Date(Date.UTC(currentYear, now.getUTCMonth() + 1, 0)).getUTCDate();
+    const daysElapsedInCurrentMonth = Math.max(1, now.getUTCDate());
+    const currentMonthActual = currentMonthRow ? Number(currentMonthRow.total) : 0;
+    const currentMonthProjected = (currentMonthActual / daysElapsedInCurrentMonth) * daysInCurrentMonth;
+
+    // Weighted average of up to last 3 complete months (newest = highest weight)
+    const recentComplete = completeMonths.slice(-3);
+    let weightedMonthlyAvg: number;
+    if (recentComplete.length > 0) {
+      const weights = recentComplete.map((_: any, i: number) => i + 1); // 1,2,3
+      const totalWeight = weights.reduce((a: number, b: number) => a + b, 0);
+      weightedMonthlyAvg = recentComplete.reduce(
+        (acc: number, m: any, i: number) => acc + Number(m.total) * (weights[i] ?? 1), 0
+      ) / totalWeight;
+    } else {
+      weightedMonthlyAvg = currentMonthProjected;
+    }
+
+    // Build full year monthly breakdown (Jan–Dec)
+    const monthlyBreakdown = Array.from({ length: 12 }, (_, idx) => {
+      const m = idx + 1;
+      const isComplete = m < currentMonth;
+      const isCurrent  = m === currentMonth;
+      const row = monthlyRows.find((r: any) => Number(r.month) === m);
+      if (isComplete) {
+        return { month: m, name: MONTH_NAMES[idx], actual: round2(row ? Number(row.total) : 0), projected: null, isComplete: true, isCurrent: false };
+      }
+      if (isCurrent) {
+        return { month: m, name: MONTH_NAMES[idx], actual: round2(currentMonthActual), projected: round2(currentMonthProjected), isComplete: false, isCurrent: true, daysElapsed: daysElapsedInCurrentMonth, totalDays: daysInCurrentMonth };
+      }
+      return { month: m, name: MONTH_NAMES[idx], actual: null, projected: round2(weightedMonthlyAvg), isComplete: false, isCurrent: false };
+    });
+
+    const totalSoFar = completeMonths.reduce((acc: number, m: any) => acc + Number(m.total), 0) + currentMonthActual;
     const daysElapsed = Math.ceil(Math.max(1, now.getTime() - yearStart.getTime()) / 86400000);
     const dailyAvg = totalSoFar / daysElapsed;
     const remainingDays = Math.ceil((new Date(`${currentYear}-12-31T23:59:59Z`).getTime() - now.getTime()) / 86400000);
+    const projectedRemaining = round2((currentMonthProjected - currentMonthActual) + (12 - currentMonth) * weightedMonthlyAvg);
+    const totalProjected = round2(totalSoFar + projectedRemaining);
+
     (result as any).projection = {
-      year: currentYear, 
-      totalSoFar: round2(totalSoFar), 
-      daysElapsed, 
+      year: currentYear,
+      totalSoFar: round2(totalSoFar),
+      daysElapsed,
       dailyAvg: round2(dailyAvg),
-      remainingDays, 
-      projectedRemaining: round2(dailyAvg * remainingDays),
-      totalProjected: round2(totalSoFar + dailyAvg * remainingDays)
+      remainingDays,
+      projectedRemaining,
+      totalProjected,
+      weightedMonthlyAvg: round2(weightedMonthlyAvg),
+      currentMonth,
+      monthlyBreakdown,
     };
 
     summaryCache.set(cacheKey, result);
@@ -581,15 +635,17 @@ router.get("/counts", async (req, res) => {
   // Removed end date default filter to allow future records
 
   try {
-    const conditions = [
-      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
-      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
-    ];
-    if (start) conditions.push(Prisma.sql`"date" >= ${start}`);
-    if (endDate) {
-       const until = new Date(endDate);
-       until.setUTCHours(23,59,59,999);
-       conditions.push(Prisma.sql`"date" <= ${until}`);
+    const conditions: any[] = [Prisma.sql`TRUE`];
+    if (start && endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditions.push(Prisma.sql`("date" IS NULL OR ("date" >= ${start} AND "date" <= ${until}))`);
+    } else if (start) {
+      conditions.push(Prisma.sql`("date" IS NULL OR "date" >= ${start})`);
+    } else if (endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditions.push(Prisma.sql`("date" IS NULL OR "date" <= ${until})`);
     }
     if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
     if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
@@ -672,7 +728,7 @@ router.get("/daily-details", async (req, res) => {
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query parameters" });
   
-  const { date, days, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
+  const { date, days, limit, offset, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
 
   try {
     const conditions = [
@@ -732,21 +788,33 @@ router.get("/daily-details", async (req, res) => {
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
         COALESCE(SUM("qty"), 0)::int AS qty,
-        COALESCE(MAX("publisher"), 'N/A') AS publisher
+        COALESCE(MAX("publisher"), 'N/A') AS publisher,
+        COALESCE(MAX("author"), 'N/A') AS author,
+        COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${whereClause}
       GROUP BY 1
       ORDER BY total DESC
+      LIMIT ${limit ?? 100} OFFSET ${offset ?? 0}
+    `);
+
+    const countRes = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', ''))::int AS total_count
+      FROM "google_sheet_offline_sales"
+      ${whereClause}
     `);
 
     return res.json({
       ok: true,
       items: details.map(r => ({
         title: r.title,
-        total: round2(Number(r.total)),
-        qty: Number(r.qty) || 0,
-        publisher: r.publisher
-      }))
+        total: round2(r.total),
+        qty: r.qty,
+        publisher: r.publisher,
+        author: r.author,
+        rate: r.rate > 0 ? round2(r.rate) : round2(r.total / (r.qty || 1))
+      })),
+      totalCount: countRes[0]?.total_count ?? 0
     });
   } catch (e: any) {
     console.error("offline_daily_details_failed", e);
@@ -768,7 +836,7 @@ router.get("/google-sheets", async (req, res) => {
 // POST /api/offline-sales/push
 router.post("/push", async (req, res) => {
   const token = req.headers["x-sync-token"];
-  if (!token || token !== (process.env.GOOGLE_SYNC_TOKEN || "rk_default_token_2026")) return res.status(401).json({ ok: false });
+  if (!token || token !== (process.env.GOOGLE_SYNC_TOKEN || "rk_secure_push_25")) return res.status(401).json({ ok: false });
   const { data, isFirstBatch } = req.body;
   try {
     if (isFirstBatch) await prisma.googleSheetOfflineSale.deleteMany({});

@@ -22,7 +22,9 @@
     "test": "vitest run",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma"
+    "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma",
+    "sync:mumbai": "tsx scripts/sync-mumbai.ts",
+    "sync:patna": "tsx scripts/sync-patna.ts"
   },
   "engines": {
     "node": "20.x"

@@ -9,3 +9,5 @@ export { default as Settings } from "./Settings";
 export { default as Language } from "./Language";
 export { default as Login } from "./Login";
 export { default as OfflineSheetSales } from "./OfflineSheetSales";
+export { default as MumbaiOfflineSales } from "./MumbaiOfflineSales";
+export { default as PatnaOfflineSales } from "./PatnaOfflineSales";

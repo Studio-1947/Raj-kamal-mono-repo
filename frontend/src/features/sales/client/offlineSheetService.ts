@@ -21,7 +21,14 @@ import type {
   OfflineSheetDailyDetailResponse,
 } from './offlineSheetTypes';
 
-const BASE = 'offline-sales';
+const REGION_MAP = {
+  delhi: 'offline-sales',
+  mumbai: 'mumbai-offline-sales',
+  patna: 'patna-offline-sales',
+};
+
+type Region = keyof typeof REGION_MAP;
+
 const STALE = 5 * 60 * 1000;   // 5 min
 const GC    = 15 * 60 * 1000;  // 15 min
 
@@ -43,6 +50,7 @@ function buildQs(filters: OfflineSheetFilters, extra?: Record<string, string>): 
   if (filters.minAmount) p.set('minAmount', String(filters.minAmount));
   if (filters.maxAmount) p.set('maxAmount', String(filters.maxAmount));
   if (filters.title)     p.set('title', filters.title);
+  if (filters.type)      p.set('type', filters.type);
   
   const page = filters.page || 1;
   const limit = filters.limit || 100;
@@ -53,14 +61,18 @@ function buildQs(filters: OfflineSheetFilters, extra?: Record<string, string>): 
   return p.toString();
 }
 
+function getBase(region: Region = 'delhi') {
+  return REGION_MAP[region] || REGION_MAP.delhi;
+}
+
 // ── Counts hook ─────────────────────────────────────────────────────────────
 
-export function useOfflineSheetCounts(filters: OfflineSheetFilters) {
+export function useOfflineSheetCounts(filters: OfflineSheetFilters, region: Region = 'delhi') {
   return useQuery<OfflineSheetCountsResponse>({
-    queryKey: ['osheetCounts', filters],
+    queryKey: ['osheetCounts', region, filters],
     queryFn: ({ signal }) =>
       apiClient.get<OfflineSheetCountsResponse>(
-        `${BASE}/counts?${buildQs(filters)}`,
+        `${getBase(region)}/counts?${buildQs(filters)}`,
         { signal },
       ),
     staleTime: STALE,
@@ -72,12 +84,12 @@ export function useOfflineSheetCounts(filters: OfflineSheetFilters) {
 
 // ── Summary hook ─────────────────────────────────────────────────────────────
 
-export function useOfflineSheetSummary(filters: OfflineSheetFilters) {
+export function useOfflineSheetSummary(filters: OfflineSheetFilters, region: Region = 'delhi') {
   return useQuery<OfflineSheetSummaryResponse>({
-    queryKey: ['osheetSummary', filters],
+    queryKey: ['osheetSummary', region, filters],
     queryFn: ({ signal }) =>
       apiClient.get<OfflineSheetSummaryResponse>(
-        `${BASE}/summary?${buildQs(filters)}`,
+        `${getBase(region)}/summary?${buildQs(filters)}`,
         { signal },
       ),
     staleTime: STALE,
@@ -89,13 +101,13 @@ export function useOfflineSheetSummary(filters: OfflineSheetFilters) {
 
 // ── Daily Details hook ─────────────────────────────────────────────────────────────
 
-export function useOfflineSheetDailyDetails(filters: OfflineSheetFilters, date: string | null, enabled: boolean = true) {
+export function useOfflineSheetDailyDetails(filters: OfflineSheetFilters, date: string | null, enabled: boolean = true, region: Region = 'delhi') {
   return useQuery<OfflineSheetDailyDetailResponse>({
-    queryKey: ['osheetDailyDetails', filters, date],
+    queryKey: ['osheetDailyDetails', region, filters, date],
     queryFn: ({ signal }) => {
       const extraArgs: Record<string, string> = date ? { date } : {};
       return apiClient.get<OfflineSheetDailyDetailResponse>(
-        `${BASE}/daily-details?${buildQs(filters, extraArgs)}`,
+        `${getBase(region)}/daily-details?${buildQs(filters, extraArgs)}`,
         { signal },
       );
     },
@@ -107,12 +119,12 @@ export function useOfflineSheetDailyDetails(filters: OfflineSheetFilters, date: 
 
 // ── Paginated list hook ─────────────────────────────────────────────────────────
 
-export function useOfflineSheetList(filters: OfflineSheetFilters) {
+export function useOfflineSheetList(filters: OfflineSheetFilters, region: Region = 'delhi') {
   return useQuery<OfflineSheetListResponse>({
-    queryKey: ['osheetList', filters],
+    queryKey: ['osheetList', region, filters],
     queryFn: ({ signal }) =>
       apiClient.get<OfflineSheetListResponse>(
-        `${BASE}?${buildQs(filters)}`,
+        `${getBase(region)}?${buildQs(filters)}`,
         { signal },
       ),
     staleTime: STALE,
@@ -124,25 +136,27 @@ export function useOfflineSheetList(filters: OfflineSheetFilters) {
 
 // ── Sync mutation ─────────────────────────────────────────────────────────────
 
-export function useTriggerSync() {
+export function useTriggerSync(region: Region = 'delhi') {
   const qc = useQueryClient();
   return useMutation<OfflineSheetSyncResponse>({
-    mutationFn: () =>
-      apiClient.get<OfflineSheetSyncResponse>(`${BASE}/google-sheets`),
+    mutationFn: () => {
+      const endpoint = region === 'delhi' ? 'google-sheets' : 'sync';
+      return apiClient.get<OfflineSheetSyncResponse>(`${getBase(region)}/${endpoint}`);
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['osheetCounts'] });
-      qc.invalidateQueries({ queryKey: ['osheetSummary'] });
-      qc.invalidateQueries({ queryKey: ['osheetList'] });
+      qc.invalidateQueries({ queryKey: ['osheetCounts', region] });
+      qc.invalidateQueries({ queryKey: ['osheetSummary', region] });
+      qc.invalidateQueries({ queryKey: ['osheetList', region] });
     },
   });
 }
 
 // ── Options hook ─────────────────────────────────────────────────────────────
 
-export function useOfflineSheetOptions() {
+export function useOfflineSheetOptions(region: Region = 'delhi') {
   return useQuery<OfflineSheetOptionsResponse>({
-    queryKey: ['osheetOptions'],
-    queryFn: () => apiClient.get<OfflineSheetOptionsResponse>(`${BASE}/options`),
+    queryKey: ['osheetOptions', region],
+    queryFn: () => apiClient.get<OfflineSheetOptionsResponse>(`${getBase(region)}/options`),
     staleTime: 60 * 60 * 1000, // 1 hour
     gcTime: 24 * 60 * 60 * 1000, // 24 hours
   });

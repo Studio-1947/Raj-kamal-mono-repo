@@ -6,7 +6,7 @@ export function useOfflineSheetFilters() {
   const [s, setS] = useSearchParams();
 
   const filters = useMemo<OfflineSheetFilters>(() => ({
-    days: s.get('days') ? Number(s.get('days')) : 365,
+    days: s.get('days') ? Number(s.get('days')) : undefined,
     startDate: s.get('startDate') || undefined,
     endDate: s.get('endDate') || undefined,
     q: s.get('q') || undefined,
@@ -49,7 +49,7 @@ export function useOfflineSheetFilters() {
     setS((prev) => {
       prev.delete('startDate');
       prev.delete('endDate');
-      prev.set('days', '90');
+      prev.delete('days');
       prev.set('page', '1');
       return prev;
     });
@@ -84,7 +84,7 @@ export function useOfflineSheetFilters() {
   }, [setS]);
 
   const clearAll = useCallback(() => {
-    setS({ days: '90', page: '1', limit: '100' });
+    setS({ page: '1', limit: '100' });
   }, [setS]);
 
   const isFiltered = useMemo(() => {
