@@ -123,9 +123,20 @@ export class OfflineSyncService {
         }
       }
 
-      const rowContent = JSON.stringify(row);
-      // Added random suffix to disable deduplication and allow every row to be seeded
-      const rowHash = crypto.createHash('md5').update(rowContent).digest('hex') + "_" + crypto.randomBytes(4).toString('hex');
+      // Stable rowHash based on business fields
+      const businessData = {
+        slNo,
+        docNo,
+        date: date?.toISOString() || null,
+        isbn,
+        qty,
+        inQty,
+        amount,
+        inAmount,
+        customerName,
+        type
+      };
+      const rowHash = crypto.createHash('md5').update(JSON.stringify(businessData)).digest('hex');
 
       try {
         const existing = await prisma.googleSheetOfflineSale.findUnique({ where: { rowHash } });

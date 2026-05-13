@@ -635,7 +635,7 @@ router.get("/counts", async (req, res) => {
   // Removed end date default filter to allow future records
 
   try {
-    const conditions = [];
+    const conditions: any[] = [Prisma.sql`TRUE`];
     if (start && endDate) {
       const until = new Date(endDate);
       until.setUTCHours(23,59,59,999);
@@ -824,7 +824,7 @@ router.get("/google-sheets", async (req, res) => {
 // POST /api/offline-sales/push
 router.post("/push", async (req, res) => {
   const token = req.headers["x-sync-token"];
-  if (!token || token !== (process.env.GOOGLE_SYNC_TOKEN || "rk_default_token_2026")) return res.status(401).json({ ok: false });
+  if (!token || token !== (process.env.GOOGLE_SYNC_TOKEN || "rk_secure_push_25")) return res.status(401).json({ ok: false });
   const { data, isFirstBatch } = req.body;
   try {
     if (isFirstBatch) await prisma.googleSheetOfflineSale.deleteMany({});
