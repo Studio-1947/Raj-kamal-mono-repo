@@ -12,12 +12,13 @@ export interface SyncResult {
   skippedCount: number;
   error?: string;
 }
-
 export class OfflineSyncService {
   /**
    * Main entry point to process an array of rows from any source (Sheets, ERP, etc.)
+   * @param rows The data rows (including headers)
+   * @param targetModel The Prisma model delegate to use (default: prisma.googleSheetOfflineSale)
    */
-  async processData(rows: any[][]): Promise<SyncResult> {
+  async processData(rows: any[][], targetModel: any = prisma.googleSheetOfflineSale): Promise<SyncResult> {
     if (!rows || rows.length < 2) {
       return { success: true, importedCount: 0, skippedCount: 0 };
     }
@@ -162,7 +163,7 @@ export class OfflineSyncService {
         city,
         type,
         rowHash,
-        rawJson: row.map(v => (v === undefined ? null : v)) as any,
+        rawJson: Array.from({ length: headers.length }, (_, i) => (row[i] === undefined ? null : row[i])) as any,
       });
       count++;
     }
@@ -173,7 +174,7 @@ export class OfflineSyncService {
         const chunkSize = 1000;
         for (let i = 0; i < toInsert.length; i += chunkSize) {
           const chunk = toInsert.slice(i, i + chunkSize);
-          const result = await prisma.googleSheetOfflineSale.createMany({
+          const result = await targetModel.createMany({
             data: chunk,
             skipDuplicates: true,
           });
@@ -213,9 +214,45 @@ export class OfflineSyncService {
       }
 
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      return await this.processData(rows);
+      return await this.processData(rows, prisma.googleSheetOfflineSale);
     } catch (error) {
       console.error("Offline Sync Error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sync Mumbai Sales from Google Sheet
+   */
+  async syncMumbaiSales() {
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=696866974";
+    return this.syncFromGoogleSheet(URL, prisma.mumbaiOfflineSale);
+  }
+
+  /**
+   * Sync Patna Sales from Google Sheet
+   */
+  async syncPatnaSales() {
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=1521335023";
+    return this.syncFromGoogleSheet(URL, prisma.patnaOfflineSale);
+  }
+
+  private async syncFromGoogleSheet(url: string, targetModel: any) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch Google Sheet: ${response.statusText}`);
+      
+      const buffer = await response.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) throw new Error("No sheet name found in workbook.");
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook.`);
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      
+      return await this.processData(rows, targetModel);
+    } catch (error) {
+      console.error("Google Sheet Sync Error:", error);
       throw error;
     }
   }

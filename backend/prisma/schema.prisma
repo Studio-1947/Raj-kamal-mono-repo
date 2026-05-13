@@ -364,3 +364,75 @@ model RajkamalData {
   @@index([isbnNo])
   @@map("rajkamal_data")
 }
+
+model MumbaiOfflineSale {
+  id              BigInt            @id @default(autoincrement())
+  slNo            Int?
+  docNo           String?           // TrnsdocNo
+  date            DateTime?         // Trnsdocdate
+  dateStr         String?           // TrnsdocdateStr
+  isbn            String?           // BookCode
+  title           String?
+  author          String?
+  binding         String?
+  pubYear         Int?              // Pub-year
+  publisher       String?
+  qty             Int?              // OUT
+  inQty           Int?              // IN
+  currency        String?           // CURRENCYID
+  rate            Decimal?          @db.Decimal(12, 2) // BOOKRATE
+  discount        Decimal?          @db.Decimal(12, 2) // BookDiscount
+  addDiscount     Decimal?          @db.Decimal(12, 2) // BookAddDiscount
+  amount          Decimal?          @db.Decimal(12, 2) // OUTAmount
+  inAmount        Decimal?          @db.Decimal(12, 2) // INAmount
+  customerName    String?
+  state           String?           // StateName
+  city            String?           // CityName
+  type            String?           // Type
+  
+  rowHash         String?           @unique
+  rawJson         Json
+  createdAt       DateTime          @default(now())
+
+  @@index([date])
+  @@index([date, amount, qty, title])
+  @@index([customerName])
+  @@index([docNo])
+  @@map("mumbai_offline_sales")
+}
+
+model PatnaOfflineSale {
+  id              BigInt            @id @default(autoincrement())
+  slNo            Int?
+  docNo           String?           // TrnsdocNo
+  date            DateTime?         // Trnsdocdate
+  dateStr         String?           // TrnsdocdateStr
+  isbn            String?           // BookCode
+  title           String?
+  author          String?
+  binding         String?
+  pubYear         Int?              // Pub-year
+  publisher       String?
+  qty             Int?              // OUT
+  inQty           Int?              // IN
+  currency        String?           // CURRENCYID
+  rate            Decimal?          @db.Decimal(12, 2) // BOOKRATE
+  discount        Decimal?          @db.Decimal(12, 2) // BookDiscount
+  addDiscount     Decimal?          @db.Decimal(12, 2) // BookAddDiscount
+  amount          Decimal?          @db.Decimal(12, 2) // OUTAmount
+  inAmount        Decimal?          @db.Decimal(12, 2) // INAmount
+  customerName    String?
+  state           String?           // StateName
+  city            String?           // CityName
+  type            String?           // Type
+  
+  rowHash         String?           @unique
+  rawJson         Json
+  createdAt       DateTime          @default(now())
+
+  @@index([date])
+  @@index([date, amount, qty, title])
+  @@index([customerName])
+  @@index([docNo])
+  @@map("patna_offline_sales")
+}

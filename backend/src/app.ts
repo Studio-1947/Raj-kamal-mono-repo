@@ -16,6 +16,8 @@ import { mountOnlineSales } from "./features/sales/server/online.index.js";
 import { mountOfflineSales } from "./features/sales/server/offline.index.js";
 import { mountLokEventSales } from "./features/sales/server/lok-event.index.js";
 import { mountRajRadhaEventSales } from "./features/sales/server/rajradha-event.index.js";
+import { mountMumbaiOfflineSales } from "./features/sales/server/mumbai-offline.index.js";
+import { mountPatnaOfflineSales } from "./features/sales/server/patna-offline.index.js";
 import { notFound } from "./middleware/notFound.js";
 import { offlineSyncService } from "./features/sales/server/offlineSyncService.js";
 import swaggerUi from "swagger-ui-express";
@@ -176,6 +178,8 @@ mountOnlineSales(app, "/api/online-sales");
 mountOfflineSales(app, "/api/offline-sales");
 mountLokEventSales(app, "/api/lok-event-sales");
 mountRajRadhaEventSales(app, "/api/rajradha-event-sales");
+mountMumbaiOfflineSales(app, "/api/mumbai-offline-sales");
+mountPatnaOfflineSales(app, "/api/patna-offline-sales");
 
 // Fallback route for any unmatched requests
 app.use("*", (req, res) => {
@@ -206,8 +210,10 @@ app.use(errorHandler);
 // Basic background sync on startup (scalable fallback)
 if (process.env.NODE_ENV !== 'test') {
   setTimeout(() => {
-    console.log("Auto-syncing offline sales data...");
-    offlineSyncService.syncOfflineSales().catch(err => console.error("Auto-sync failed:", err));
+    console.log("Auto-syncing regional offline sales data...");
+    offlineSyncService.syncOfflineSales().catch(err => console.error("Delhi sync failed:", err));
+    offlineSyncService.syncMumbaiSales().catch(err => console.error("Mumbai sync failed:", err));
+    offlineSyncService.syncPatnaSales().catch(err => console.error("Patna sync failed:", err));
   }, 5000); // 5s delay to let server settle
 }
 
