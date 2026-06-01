@@ -25,6 +25,9 @@ const REGION_MAP = {
   delhi: 'offline-sales',
   mumbai: 'mumbai-offline-sales',
   patna: 'patna-offline-sales',
+  online: 'online-offline-sales',
+  bookfair: 'bookfair-offline-sales',
+  lokbharti: 'lokbharti-offline-sales',
 };
 
 type Region = keyof typeof REGION_MAP;

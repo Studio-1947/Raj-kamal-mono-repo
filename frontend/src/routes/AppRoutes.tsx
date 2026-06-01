@@ -14,6 +14,9 @@ import {
   OfflineSheetSales,
   MumbaiOfflineSales,
   PatnaOfflineSales,
+  OnlineOfflineSales,
+  BookFairOfflineSales,
+  LokbhartiOfflineSales,
 } from "../views";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -117,6 +120,30 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <PatnaOfflineSales />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/online-offline-sales"
+        element={
+          <ProtectedRoute>
+            <OnlineOfflineSales />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/bookfair-offline-sales"
+        element={
+          <ProtectedRoute>
+            <BookFairOfflineSales />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lokbharti-offline-sales"
+        element={
+          <ProtectedRoute>
+            <LokbhartiOfflineSales />
           </ProtectedRoute>
         }
       />

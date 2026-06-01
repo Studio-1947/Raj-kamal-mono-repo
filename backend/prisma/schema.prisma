@@ -245,7 +245,7 @@ model GoogleSheetOfflineSale {
   city            String?           // CityName
   type            String?           // Type
   
-  rowHash         String?           @unique
+  rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
 
@@ -390,7 +390,7 @@ model MumbaiOfflineSale {
   city            String?           // CityName
   type            String?           // Type
   
-  rowHash         String?           @unique
+  rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
 
@@ -426,7 +426,7 @@ model PatnaOfflineSale {
   city            String?           // CityName
   type            String?           // Type
   
-  rowHash         String?           @unique
+  rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
 
@@ -462,7 +462,7 @@ model OnlineOfflineSale {
   city            String?           // CityName
   type            String?           // Type
   
-  rowHash         String?           @unique
+  rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
 
@@ -498,7 +498,7 @@ model BookFairOfflineSale {
   city            String?           // CityName
   type            String?           // Type
   
-  rowHash         String?           @unique
+  rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
 
@@ -534,7 +534,7 @@ model LokbhartiOfflineSale {
   city            String?           // CityName
   type            String?           // Type
   
-  rowHash         String?           @unique
+  rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
 
