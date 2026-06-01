@@ -211,6 +211,7 @@ app.use(errorHandler);
 if (process.env.NODE_ENV !== 'test') {
   setTimeout(() => {
     console.log("Auto-syncing regional offline sales data...");
+    // Delhi, Mumbai, and Patna are all synced directly from the shared Google Sheet
     offlineSyncService.syncOfflineSales().catch(err => console.error("Delhi sync failed:", err));
     offlineSyncService.syncMumbaiSales().catch(err => console.error("Mumbai sync failed:", err));
     offlineSyncService.syncPatnaSales().catch(err => console.error("Patna sync failed:", err));

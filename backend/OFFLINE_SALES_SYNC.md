@@ -16,22 +16,22 @@ Each region has its own dedicated table to prevent data conflicts and allow for 
 ## 🚀 CLI Commands
 You can manually trigger a synchronization for any region using the following `npm` commands from the `backend` directory:
 
-### 1. Mumbai Sync
-Triggers sync from the Mumbai Google Sheet (GID: 696866974).
+### 1. Delhi/General Sync
+Triggers sync from the `"Offline"` sheet of the shared Google Sheet.
+```bash
+npm run sync:delhi
+```
+
+### 2. Mumbai Sync
+Triggers sync from the `"Mumbai"` sheet of the shared Google Sheet (GID: 696866974).
 ```bash
 npm run sync:mumbai
 ```
 
-### 2. Patna Sync
-Triggers sync from the Patna Google Sheet (GID: 1521335023).
+### 3. Patna Sync
+Triggers sync from the `"Patna"` sheet of the shared Google Sheet (GID: 1521335023).
 ```bash
 npm run sync:patna
-```
-
-### 3. General/Delhi Sync
-Triggers sync from the default ERP URL.
-```bash
-# This is currently triggered internally or via the /api/offline-sales/google-sheets endpoint
 ```
 
 ---
@@ -57,9 +57,10 @@ Each region has its own set of REST API endpoints for the frontend to consume.
 ---
 
 ## 🔄 Automatic Background Sync
-The system is configured to automatically perform a background sync for **all regions** every time the backend server starts. 
+The system is configured to automatically perform a background sync for **all three regions** (Delhi, Mumbai, Patna) every time the backend server starts. 
 - The sync begins 5 seconds after startup to ensure all services are ready.
-- It uses the `OfflineSyncService` to fetch, deduplicate (using `rowHash`), and ingest data.
+- For each region, it downloads the shared Google Sheet workbook, completely wipes the target table to ensure exact matching (preventing duplicates), and ingests the fresh data rows.
+- The sync uses the `OfflineSyncService` to fetch, deduplicate (using unique `rowHash`es present within the sheets), and ingest data.
 
 ---
 
@@ -70,5 +71,6 @@ The system is configured to automatically perform a background sync for **all re
     - `src/features/sales/server/patna-offline.routes.ts`
     - `src/features/sales/server/offline.routes.ts`
 - **Scripts**: 
+    - `scripts/sync-delhi.ts`
     - `scripts/sync-mumbai.ts`
     - `scripts/sync-patna.ts`

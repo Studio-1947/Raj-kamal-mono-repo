@@ -24,7 +24,8 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma",
     "sync:mumbai": "tsx scripts/sync-mumbai.ts",
-    "sync:patna": "tsx scripts/sync-patna.ts"
+    "sync:patna": "tsx scripts/sync-patna.ts",
+    "sync:delhi": "tsx scripts/sync-delhi.ts"
   },
   "engines": {
     "node": "20.x"

@@ -189,36 +189,13 @@ export class OfflineSyncService {
     console.log(`[SYNC LOG] Total Rows: ${count}, Newly Imported: ${importedCount}, Duplicates Skipped: ${duplicateCount}, Empty Skipped: ${skippedEmpty}`);
     return { success: true, importedCount, skippedCount: skippedEmpty };
   }
-
   /**
-   * Legacy/Background Sync from Direct ERP URL
+   * Sync Delhi/General Offline Sales from Google Sheet
    */
   async syncOfflineSales() {
-    console.log("Starting Offline Sales Sync from Direct ERP URL...");
-    
-    try {
-      const response = await fetch(REPORT_URL);
-      if (!response.ok) throw new Error(`Failed to fetch report from ERP: ${response.statusText}`);
-      
-      const buffer = await response.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "buffer" });
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) {
-        console.log("No sheet found in downloaded report.");
-        return { success: true, importedCount: 0, skippedCount: 0 };
-      }
-      const sheet = workbook.Sheets[sheetName];
-      if (!sheet) {
-        console.log("Sheet not found in downloaded workbook.");
-        return { success: true, importedCount: 0, skippedCount: 0 };
-      }
-
-      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      return await this.processData(rows, prisma.googleSheetOfflineSale);
-    } catch (error) {
-      console.error("Offline Sync Error:", error);
-      throw error;
-    }
+    console.log("Starting Delhi Offline Sales Sync from Google Sheet...");
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx";
+    return this.syncFromGoogleSheet(URL, prisma.googleSheetOfflineSale, "Offline");
   }
 
   /**
@@ -237,18 +214,28 @@ export class OfflineSyncService {
     return this.syncFromGoogleSheet(URL, prisma.patnaOfflineSale);
   }
 
-  private async syncFromGoogleSheet(url: string, targetModel: any) {
+  private async syncFromGoogleSheet(url: string, targetModel: any, sheetNamePreference?: string) {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Failed to fetch Google Sheet: ${response.statusText}`);
       
       const buffer = await response.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "buffer" });
-      const sheetName = workbook.SheetNames[0];
+      
+      let sheetName = workbook.SheetNames[0];
+      if (sheetNamePreference) {
+        const found = workbook.SheetNames.find(n => n.toLowerCase() === sheetNamePreference.toLowerCase());
+        if (found) sheetName = found;
+      }
+      
       if (!sheetName) throw new Error("No sheet name found in workbook.");
       const sheet = workbook.Sheets[sheetName];
       if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook.`);
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      
+      // Wipe the existing table completely before inserting the fresh Google Sheet data
+      console.log(`[SYNC] Wiping existing data in target model to ensure exact matching...`);
+      await targetModel.deleteMany({});
       
       return await this.processData(rows, targetModel);
     } catch (error) {
