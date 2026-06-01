@@ -214,6 +214,33 @@ export class OfflineSyncService {
     return this.syncFromGoogleSheet(URL, prisma.patnaOfflineSale);
   }
 
+  /**
+   * Sync Online Offline Sales from Google Sheet
+   */
+  async syncOnlineOfflineSales() {
+    console.log("Starting Online Offline Sales Sync...");
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=541252527";
+    return this.syncFromGoogleSheet(URL, prisma.onlineOfflineSale);
+  }
+
+  /**
+   * Sync BookFair Offline Sales from Google Sheet
+   */
+  async syncBookFairSales() {
+    console.log("Starting BookFair Offline Sales Sync...");
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=750818183";
+    return this.syncFromGoogleSheet(URL, prisma.bookFairOfflineSale);
+  }
+
+  /**
+   * Sync Lokbharti Offline Sales from Google Sheet
+   */
+  async syncLokbhartiSales() {
+    console.log("Starting Lokbharti Offline Sales Sync...");
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=428885829";
+    return this.syncFromGoogleSheet(URL, prisma.lokbhartiOfflineSale);
+  }
+
   private async syncFromGoogleSheet(url: string, targetModel: any, sheetNamePreference?: string) {
     try {
       const response = await fetch(url);

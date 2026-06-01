@@ -25,7 +25,10 @@
     "postinstall": "prisma generate && prisma generate --schema src/features/sales/prisma/schema.prisma",
     "sync:mumbai": "tsx scripts/sync-mumbai.ts",
     "sync:patna": "tsx scripts/sync-patna.ts",
-    "sync:delhi": "tsx scripts/sync-delhi.ts"
+    "sync:delhi": "tsx scripts/sync-delhi.ts",
+    "sync:online": "tsx scripts/sync-online.ts",
+    "sync:bookfair": "tsx scripts/sync-bookfair.ts",
+    "sync:lokbharti": "tsx scripts/sync-lokbharti.ts"
   },
   "engines": {
     "node": "20.x"
