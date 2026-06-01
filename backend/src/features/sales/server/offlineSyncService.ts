@@ -1,6 +1,7 @@
 import { prisma } from "../../../lib/prisma.js";
 import crypto from "crypto";
 import * as XLSX from "xlsx";
+import fetch from "node-fetch";
 
 const REPORT_URL = "https://rajkamal.cloudpub.in/Reports/rpttitlecustomerwisegriddataExport?FromDate=2026-01-01&ToDate=2026-12-31&iCompanyID=1&iBranchID=1,&cmbISBN=&CustomerName=&Documenttype=ALLS&TrnsDocID=&ManageEdition=false&CountryName=&StateName=&CityName=&SalesmanName=&SalesmanMgnrName=&chkshowclbal=N&BookCategoryID=&languageID=&PublisherID=&SelectDiscount=&TxtDiscount=0&AccountID=BookSeller&IncludeExcludeBranchSale=Exclude";
 
@@ -194,15 +195,15 @@ export class OfflineSyncService {
    */
   async syncOfflineSales() {
     console.log("Starting Delhi Offline Sales Sync from Google Sheet...");
-    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx";
-    return this.syncFromGoogleSheet(URL, prisma.googleSheetOfflineSale, "Offline");
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=csv";
+    return this.syncFromGoogleSheet(URL, prisma.googleSheetOfflineSale);
   }
 
   /**
    * Sync Mumbai Sales from Google Sheet
    */
   async syncMumbaiSales() {
-    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=696866974";
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=csv&gid=696866974";
     return this.syncFromGoogleSheet(URL, prisma.mumbaiOfflineSale);
   }
 
@@ -210,7 +211,7 @@ export class OfflineSyncService {
    * Sync Patna Sales from Google Sheet
    */
   async syncPatnaSales() {
-    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=1521335023";
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=csv&gid=1521335023";
     return this.syncFromGoogleSheet(URL, prisma.patnaOfflineSale);
   }
 
@@ -219,7 +220,7 @@ export class OfflineSyncService {
    */
   async syncOnlineOfflineSales() {
     console.log("Starting Online Offline Sales Sync...");
-    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=541252527";
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=csv&gid=541252527";
     return this.syncFromGoogleSheet(URL, prisma.onlineOfflineSale);
   }
 
@@ -228,7 +229,7 @@ export class OfflineSyncService {
    */
   async syncBookFairSales() {
     console.log("Starting BookFair Offline Sales Sync...");
-    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=750818183";
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=csv&gid=750818183";
     return this.syncFromGoogleSheet(URL, prisma.bookFairOfflineSale);
   }
 
@@ -237,7 +238,7 @@ export class OfflineSyncService {
    */
   async syncLokbhartiSales() {
     console.log("Starting Lokbharti Offline Sales Sync...");
-    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=xlsx&gid=428885829";
+    const URL = "https://docs.google.com/spreadsheets/d/1Idzu6Df1M1LhrWU9YogVkZgIgwYwYEPh1ZyfHGbdvjw/export?format=csv&gid=428885829";
     return this.syncFromGoogleSheet(URL, prisma.lokbhartiOfflineSale);
   }
 
