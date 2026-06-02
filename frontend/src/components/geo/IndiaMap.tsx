@@ -335,15 +335,15 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
       <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-gray-100 flex flex-col gap-2 text-xs">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm"></span>
-          <span className="font-medium text-gray-700">Top Performing</span>
+          <span className="font-normal text-gray-700">Top Performing</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-rose-500 shadow-sm"></span>
-          <span className="font-medium text-gray-700">Low Performing</span>
+          <span className="font-normal text-gray-700">Low Performing</span>
         </div>
         {choropleth && (
           <div className="mt-2 pt-2 border-t border-gray-100">
-            <div className="mb-1 font-medium text-gray-500">Sales Intensity</div>
+            <div className="mb-1 font-normal text-gray-500">Sales Intensity</div>
             <div className="h-2 w-32 rounded-full bg-gradient-to-r from-indigo-50 to-indigo-700"></div>
             <div className="flex justify-between mt-1 text-[10px] text-gray-400">
               <span>Low</span>
@@ -355,9 +355,9 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
 
       {/* Zoom controls */}
       <div className="absolute right-4 top-4 flex flex-col gap-2">
-        <button onClick={() => zoomBy(1.3)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-700 font-bold transition-transform active:scale-95">+</button>
-        <button onClick={() => zoomBy(1 / 1.3)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-700 font-bold transition-transform active:scale-95">-</button>
-        <button onClick={resetView} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-600 text-[10px] font-medium transition-transform active:scale-95">Fit</button>
+        <button onClick={() => zoomBy(1.3)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-700 font-normal transition-transform active:scale-95">+</button>
+        <button onClick={() => zoomBy(1 / 1.3)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-700 font-normal transition-transform active:scale-95">-</button>
+        <button onClick={resetView} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-md border border-gray-100 hover:bg-gray-50 text-gray-600 text-[10px] font-normal transition-transform active:scale-95">Fit</button>
       </div>
 
       {/* Tooltip */}
@@ -373,7 +373,7 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
           className="pointer-events-none z-50 min-w-[180px]"
         >
           <div className="bg-gray-900/90 backdrop-blur-md text-white p-3 rounded-xl shadow-xl border border-white/10">
-            <div className="font-bold text-sm mb-1">
+            <div className="font-normal text-sm mb-1">
               {hover.p.city}, {hover.p.state}
             </div>
             <div className="text-xs text-gray-300 mb-2">PIN: {hover.p.pincode}</div>
@@ -383,7 +383,7 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
             </div>
             <div className="flex justify-between items-center text-xs mt-1">
               <span className="text-gray-400">Revenue</span>
-              <span className="font-mono font-semibold text-emerald-400">
+              <span className="font-mono font-normal text-emerald-400">
                 {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(hover.p.total)}
               </span>
             </div>

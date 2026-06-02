@@ -66,7 +66,7 @@ export function ImageWithHover({
                                 style={{ maxHeight: '400px' }}
                             />
                             {showName && name && (
-                                <div className="mt-2 px-2 py-1 bg-gray-50 rounded text-sm font-medium text-gray-900 text-center">
+                                <div className="mt-2 px-2 py-1 bg-gray-50 rounded text-sm font-normal text-gray-900 text-center">
                                     {name}
                                 </div>
                             )}

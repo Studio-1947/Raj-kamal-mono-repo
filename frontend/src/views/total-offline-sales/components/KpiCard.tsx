@@ -13,8 +13,8 @@ export const KpiCard: React.FC<KpiCardProps> = ({ title, value, icon, badge }) =
       <div className="absolute top-0 right-0 p-6 opacity-10">
         {icon}
       </div>
-      <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{title}</p>
-      <p className="mt-2 text-xl sm:text-2xl xl:text-3xl font-black text-gray-900 tracking-tight truncate" title={value}>
+      <p className="text-sm font-normal text-gray-400 uppercase tracking-wider">{title}</p>
+      <p className="mt-2 text-xl sm:text-2xl xl:text-3xl font-normal text-gray-900 tracking-tight truncate" title={value}>
         {value}
       </p>
       {badge}

@@ -258,16 +258,16 @@ export default function SocialMediaOverview() {
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                    <span className="font-semibold text-[15px] text-[#000000]">
+                    <span className="font-normal text-[15px] text-[#000000]">
                         Social Media
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold border border-black/5 bg-[#E9F7EF] text-[#1E7B4F]">
+                    <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-normal border border-black/5 bg-[#E9F7EF] text-[#1E7B4F]">
                         All Good
                     </span>
                 </div>
                 <button
                     onClick={() => navigate("/social")}
-                    className="text-sm font-semibold text-[#3856B8] hover:underline"
+                    className="text-sm font-normal text-[#3856B8] hover:underline"
                 >
                     Know More
                 </button>
@@ -294,7 +294,7 @@ export default function SocialMediaOverview() {
                             </div>
 
                             {/* Platform Name */}
-                            <div className="text-xs font-medium text-gray-600 mb-1">
+                            <div className="text-xs font-normal text-gray-600 mb-1">
                                 {config.name}
                             </div>
 
@@ -305,7 +305,7 @@ export default function SocialMediaOverview() {
                                 <div className="text-xs text-amber-600 mb-1">Unavailable</div>
                             ) : (
                                 <>
-                                    <div className="text-2xl font-extrabold text-[#43547E] mb-1">
+                                    <div className="text-2xl font-normal text-[#43547E] mb-1">
                                         {metric.followers > 0 ? formatNumber(metric.followers) : "—"}
                                     </div>
                                     <div className="text-[11px] text-gray-500 mb-2">
@@ -316,7 +316,7 @@ export default function SocialMediaOverview() {
 
                             {/* Growth Badge */}
                             {!metric.loading && !metric.error && metric.followers > 0 && (
-                                <div className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700">
+                                <div className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-green-50 text-green-700">
                                     {calculateGrowth(metric.followers, metric.followers * 0.95)}
                                 </div>
                             )}
@@ -326,19 +326,19 @@ export default function SocialMediaOverview() {
                                 <div className="mt-3 pt-3 border-t border-gray-100 w-full space-y-1">
                                     <div className="flex justify-between text-[10px]">
                                         <span className="text-gray-500">Views</span>
-                                        <span className="font-semibold text-[#43547E]">
+                                        <span className="font-normal text-[#43547E]">
                                             {formatNumber(metric.views)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-[10px]">
                                         <span className="text-gray-500">Engagement</span>
-                                        <span className="font-semibold text-[#43547E]">
+                                        <span className="font-normal text-[#43547E]">
                                             {formatNumber(metric.engagement)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-[10px]">
                                         <span className="text-gray-500">Impressions</span>
-                                        <span className="font-semibold text-[#43547E]">
+                                        <span className="font-normal text-[#43547E]">
                                             {formatNumber(metric.impressions)}
                                         </span>
                                     </div>

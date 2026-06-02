@@ -212,7 +212,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                             key={section.key}
                             type="button"
                             onClick={() => setActiveSection(section.key)}
-                            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeSection === section.key
+                            className={`px-4 py-2 text-xs font-normal rounded-lg transition-all ${activeSection === section.key
                                 ? "bg-blue-600 text-white shadow-md"
                                 : "bg-gray-100 text-gray-900 hover:bg-gray-200"
                                 }`}
@@ -223,7 +223,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                 </div>
 
                 {/* Time Range Selector */}
-                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-900">
+                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-900">
                     {(["7d", "30d", "90d"] as TimeRangeKey[]).map((key) => (
                         <button
                             key={key}
@@ -250,7 +250,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                 : '⚠️'}
                         </span>
                         <div className="flex-1">
-                            <p className="text-sm font-semibold text-amber-900 mb-2">
+                            <p className="text-sm font-normal text-amber-900 mb-2">
                                 {error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')
                                     ? 'Rate Limit Reached'
                                     : '⚠️ Instagram Metrics Unavailable'}
@@ -285,7 +285,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                     <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">Account Overview</p>
+                                <p className="text-sm font-normal text-gray-900">Account Overview</p>
                                 <p className="text-xs text-gray-900">
                                     {overview?.from ?? ""} → {overview?.to ?? ""}
                                 </p>
@@ -301,7 +301,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                         alt="Profile"
                                         className="h-8 w-8 rounded-full object-cover"
                                     />
-                                    <span className="font-semibold text-gray-900">
+                                    <span className="font-normal text-gray-900">
                                         {overview?.profileName}
                                     </span>
                                 </div>
@@ -320,10 +320,10 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                     key={card.label}
                                     className="rounded-2xl bg-purple-50 px-4 py-3 text-center shadow-inner border border-purple-100"
                                 >
-                                    <p className="text-xs font-semibold text-gray-900">
+                                    <p className="text-xs font-normal text-gray-900">
                                         {card.label}
                                     </p>
-                                    <p className="text-xl font-bold text-gray-900">
+                                    <p className="text-xl font-normal text-gray-900">
                                         {formatNumber(card.value, "0")}
                                     </p>
                                 </div>
@@ -331,7 +331,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                         </div>
 
                         <div className="mt-6">
-                            <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                            <h3 className="text-sm font-normal text-gray-900 mb-2">
                                 Growth
                             </h3>
                             <div className="h-72">
@@ -376,14 +376,14 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                     <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5 space-y-4">
                         <header className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">
+                                <p className="text-sm font-normal text-gray-900">
                                     Balance of Followers
                                 </p>
                                 <p className="text-xs text-gray-900">
                                     {overview?.from ?? ""} → {overview?.to ?? ""}
                                 </p>
                             </div>
-                            <div className="flex gap-2 text-xs font-semibold">
+                            <div className="flex gap-2 text-xs font-normal">
                                 <span className="px-3 py-1 rounded-full bg-purple-50 text-purple-700">
                                     {formatNumber(overview?.followersChange)} Net change
                                 </span>
@@ -436,7 +436,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
             {activeSection !== "account" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900 capitalize">
+                        <p className="text-sm font-normal text-gray-900 capitalize">
                             {activeSection} - Impressions Over Time
                         </p>
                         <p className="text-xs text-gray-900">
@@ -480,7 +480,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
             {activeSection !== "account" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900 capitalize">
+                        <p className="text-sm font-normal text-gray-900 capitalize">
                             {activeSection} {activeSection === 'competitors' ? 'Analysis' : 'Items'}
                         </p>
                         <p className="text-xs text-gray-900">
@@ -517,7 +517,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                                             showName={true}
                                                             name={item.displayName || item.screenName || "Unknown"}
                                                         />
-                                                        <span className="font-medium">
+                                                        <span className="font-normal">
                                                             {item.displayName || item.screenName || "—"}
                                                         </span>
                                                     </div>

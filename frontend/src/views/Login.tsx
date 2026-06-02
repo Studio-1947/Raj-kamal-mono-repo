@@ -162,7 +162,7 @@ const Login: React.FC = () => {
           </div>
 
           <div className="mt-16 max-w-lg space-y-6 relative z-10">
-            <h2 className="text-4xl font-semibold leading-tight">
+            <h2 className="text-4xl font-normal leading-tight">
               Unlock sharper intelligence for the Rajkamal Dashboard.
             </h2>
             <p className="text-base text-rose-50/90">
@@ -201,14 +201,14 @@ const Login: React.FC = () => {
             emblemClassName="h-14 w-14"
           />
           <div className="mt-6 text-center">
-            <h1 className="text-3xl font-semibold text-slate-900">Welcome back</h1>
+            <h1 className="text-3xl font-normal text-slate-900">Welcome back</h1>
             <p className="mt-2 text-sm text-slate-500">Sign in to continue to your Rajkamal workspace.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-6">
             {/* Email Field */}
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-slate-600">
+              <label htmlFor="email" className="text-sm font-normal text-slate-600">
                 Work email
               </label>
               <input
@@ -243,11 +243,11 @@ const Login: React.FC = () => {
 
             {/* Password Field */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium text-slate-600">
+              <div className="flex items-center justify-between text-sm font-normal text-slate-600">
                 <label htmlFor="password">Password</label>
                 <a
                   href="mailto:support@rajkamal.com"
-                  className="text-xs font-semibold text-rose-500 hover:text-rose-600"
+                  className="text-xs font-normal text-rose-500 hover:text-rose-600"
                 >
                   Need help?
                 </a>
@@ -304,7 +304,7 @@ const Login: React.FC = () => {
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
                   </svg>
                   <div className="flex-1">
-                    <p className="font-medium">Authentication failed</p>
+                    <p className="font-normal">Authentication failed</p>
                     <p className="mt-1 leading-relaxed">{getGlobalErrorMessage()}</p>
                   </div>
                   <button
@@ -325,7 +325,7 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loginMutation.isPending}
-              className="flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-orange-400 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-orange-400 px-4 py-3 text-sm font-normal text-white shadow-lg transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loginMutation.isPending ? (
                 <div className="flex items-center gap-2">
@@ -341,7 +341,7 @@ const Login: React.FC = () => {
           <div className="mt-8 space-y-3 text-center text-sm text-slate-500">
             <p>
               New to Rajkamal?{' '}
-              <a href="mailto:partnerships@rajkamal.com" className="font-semibold text-rose-500 hover:text-rose-600">
+              <a href="mailto:partnerships@rajkamal.com" className="font-normal text-rose-500 hover:text-rose-600">
                 Request access
               </a>
             </p>

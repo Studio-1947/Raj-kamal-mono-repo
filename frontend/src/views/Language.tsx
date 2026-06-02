@@ -5,7 +5,7 @@ export default function Language() {
   const { lang, setLang, toggle, t } = useLang();
   return (
     <AppLayout>
-      <h1 className="text-3xl font-bold text-gray-900">{t('language')}</h1>
+      <h1 className="text-3xl font-normal text-gray-900">{t('language')}</h1>
       <p className="mt-3 text-gray-600">{t('select_language')}</p>
 
       <div className="mt-6 flex items-center gap-3">
@@ -30,7 +30,7 @@ export default function Language() {
       </div>
 
       <p className="mt-4 text-sm text-gray-600">
-        {t('current_language')}: <span className="font-semibold">{lang === 'en' ? t('english') : t('hindi')}</span>
+        {t('current_language')}: <span className="font-normal">{lang === 'en' ? t('english') : t('hindi')}</span>
       </p>
     </AppLayout>
   );

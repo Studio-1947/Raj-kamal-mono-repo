@@ -40,22 +40,22 @@ function Pagination({ currentPage, totalCount, pageSize, setPage, isLoading }: P
 
   return (
     <div className="mt-8 flex items-center justify-between border-t-2 border-gray-100 pt-6">
-      <div className="text-xl font-medium text-black">
+      <div className="text-xl font-normal text-black">
         Showing Page <span className="px-1 text-teal-700">{currentPage}</span> of <span className="px-1">{totalPages}</span>
-        <span className="ml-4 text-base font-medium text-gray-700">({totalCount.toLocaleString()} total transactions)</span>
+        <span className="ml-4 text-base font-normal text-gray-700">({totalCount.toLocaleString()} total transactions)</span>
       </div>
       <div className="flex items-center gap-3">
         <button
           onClick={() => setPage(currentPage - 1)}
           disabled={currentPage === 1 || isLoading}
-          className="rounded-xl border-2 border-gray-200 bg-white px-6 py-2 text-lg font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 transition-all active:scale-95"
+          className="rounded-xl border-2 border-gray-200 bg-white px-6 py-2 text-lg font-normal text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 transition-all active:scale-95"
         >
           ← Previous
         </button>
         <button
           onClick={() => setPage(currentPage + 1)}
           disabled={currentPage >= totalPages || isLoading}
-          className="rounded-xl border-2 border-teal-600 bg-teal-600 px-8 py-2 text-lg font-medium text-white shadow-md hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-95"
+          className="rounded-xl border-2 border-teal-600 bg-teal-600 px-8 py-2 text-lg font-normal text-white shadow-md hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-95"
         >
           Next Page →
         </button>
@@ -83,14 +83,14 @@ interface FilterBarProps {
 function FilterField({ id, label, placeholder, value, onChange, type = "text", width = "w-48" }: any) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-black uppercase tracking-wider">{label}</label>
+      <label htmlFor={id} className="text-sm font-normal text-black uppercase tracking-wider">{label}</label>
       <input
         id={id}
         type={type}
         placeholder={placeholder}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? undefined : (type === 'number' ? Number(e.target.value) : e.target.value))}
-        className={`${width} rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-medium text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all`}
+        className={`${width} rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all`}
       />
     </div>
   );
@@ -117,7 +117,7 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
 
   return (
     <div className={`flex flex-col gap-1.5 relative ${width}`} ref={dropdownRef}>
-      <label htmlFor={id} className="text-sm font-medium text-gray-800 uppercase tracking-wider">{label}</label>
+      <label htmlFor={id} className="text-sm font-normal text-gray-800 uppercase tracking-wider">{label}</label>
       <div className="relative">
         <input
           id={id}
@@ -132,7 +132,7 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
                 setIsOpen(false);
              }
           }}
-          className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-medium text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all pr-10"
+          className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all pr-10"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
@@ -150,7 +150,7 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
                   onChange(opt);
                   setIsOpen(false);
                 }}
-                className="w-full px-5 py-3 text-left text-base font-medium text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0"
+                className="w-full px-5 py-3 text-left text-base font-normal text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0"
               >
                 {opt}
               </button>
@@ -162,7 +162,7 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
             <button 
                type="button"
                onMouseDown={() => { onChange(search); setIsOpen(false); }}
-               className="w-full px-5 py-3 text-left text-xs font-bold text-black bg-teal-50/50 hover:bg-teal-100 uppercase tracking-tight sticky bottom-0 border-t border-teal-100"
+               className="w-full px-5 py-3 text-left text-xs font-normal text-black bg-teal-50/50 hover:bg-teal-100 uppercase tracking-tight sticky bottom-0 border-t border-teal-100"
             >
               Use Custom: "{search}"
             </button>
@@ -206,10 +206,10 @@ function FilterBar({
       <div className="flex flex-wrap items-end gap-6 border-b-2 border-gray-100 pb-6">
         <div className="flex flex-1 min-w-[350px] flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <label htmlFor="search-input" className="text-sm font-medium text-black uppercase tracking-wider">Global Search (All columns)</label>
+            <label htmlFor="search-input" className="text-sm font-normal text-black uppercase tracking-wider">Global Search (All columns)</label>
             <button 
               onClick={() => setIsExpanded(!isExpanded)}
-              className="text-xs font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 bg-teal-50 px-2 py-1 rounded-md border border-teal-100 transition-colors"
+              className="text-xs font-normal text-teal-700 hover:text-teal-900 flex items-center gap-1 bg-teal-50 px-2 py-1 rounded-md border border-teal-100 transition-colors"
             >
               {isExpanded ? 'Collapse Filters ↑' : `Manage Advanced Filters (${activeFilters.length}) ↓`}
             </button>
@@ -226,7 +226,7 @@ function FilterBar({
                   setQ(searchQuery);
                 }
               }}
-              className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-medium text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
+              className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-normal text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-teal-600/50">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -235,7 +235,7 @@ function FilterBar({
 
           {/* Quick Binding Selectors */}
           <div className="mt-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Binding:</span>
+            <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Binding:</span>
             <div className="flex flex-wrap items-center gap-4">
               {(useOfflineSheetOptions(region).data?.bindings ?? ['Paperback', 'Hardbound']).slice(0, 6).map((b) => {
                 const isActive = (filters.binding ?? '').split(',').includes(b);
@@ -257,7 +257,7 @@ function FilterBar({
                     <div className={`h-4 w-4 rounded-md flex items-center justify-center transition-colors ${isActive ? 'bg-white/20' : 'bg-gray-100'}`}>
                       {isActive && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M20 6L9 17l-5-5"/></svg>}
                     </div>
-                    <span className="text-xs font-bold uppercase tracking-tight">
+                    <span className="text-xs font-normal uppercase tracking-tight">
                       {b}
                     </span>
                   </button>
@@ -270,7 +270,7 @@ function FilterBar({
           {!isExpanded && activeFilters.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2 animate-fadeIn">
               {activeFilters.map(([key, value]) => (
-                <span key={key} className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 border border-gray-200">
+                <span key={key} className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2 py-1 text-xs font-normal text-gray-700 border border-gray-200">
                   <span className="opacity-50 uppercase text-[10px]">{key}:</span>
                   {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                   <button onClick={() => updateFilter(key as any, undefined)} className="text-gray-400 hover:text-red-500">×</button>
@@ -278,7 +278,7 @@ function FilterBar({
               ))}
               <button 
                 onClick={clearAll}
-                className="text-[10px] font-bold text-red-600 uppercase hover:underline"
+                className="text-[10px] font-normal text-red-600 uppercase hover:underline"
               >
                 Clear All
               </button>
@@ -287,13 +287,13 @@ function FilterBar({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-black uppercase tracking-wider">Quick Period</span>
+          <span className="text-sm font-normal text-black uppercase tracking-wider">Quick Period</span>
           <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
             {[30, 90, 180, 365].map((d) => (
               <button
                 key={d}
                 onClick={() => setDays(d)}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                className={`rounded-lg px-4 py-2 text-sm font-normal transition-all ${
                   filters.days === d && !filters.startDate
                     ? 'bg-teal-600 text-white shadow-lg'
                     : 'text-gray-600 hover:bg-gray-200'
@@ -307,11 +307,11 @@ function FilterBar({
 
         <div className="flex items-center gap-3 ml-auto">
           {lastSyncResult && (
-            <span className="text-xs font-medium text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
+            <span className="text-xs font-normal text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
           )}
           <button
             onClick={() => setQ(searchQuery)}
-            className="flex items-center gap-2 rounded-xl bg-teal-600 px-8 py-3 text-base font-bold text-white shadow-xl hover:bg-teal-700 active:scale-95 transition-all"
+            className="flex items-center gap-2 rounded-xl bg-teal-600 px-8 py-3 text-base font-normal text-white shadow-xl hover:bg-teal-700 active:scale-95 transition-all"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             SEARCH
@@ -385,25 +385,25 @@ function FilterBar({
         {/* Third row: Dates, Ranges and Reset */}
         <div className="flex flex-wrap items-end gap-8 pt-2">
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-black uppercase tracking-wider">Date Range</span>
+            <span className="text-sm font-normal text-black uppercase tracking-wider">Date Range</span>
             <div className="flex items-center gap-2">
               <input
                 type="date"
                 title="Start Date"
                 aria-label="Start Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
+                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
                 value={filters.startDate?.slice(0, 10) ?? ''}
                 onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                 onChange={(e) => {
                   if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
                 }}
               />
-              <span className="text-black font-medium">→</span>
+              <span className="text-black font-normal">→</span>
               <input
                 type="date"
                 title="End Date"
                 aria-label="End Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
+                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
                 value={filters.endDate?.slice(0, 10) ?? ''}
                 onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                 onChange={(e) => {
@@ -414,29 +414,29 @@ function FilterBar({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-black uppercase tracking-wider">Price Range (₹)</span>
+            <span className="text-sm font-normal text-black uppercase tracking-wider">Price Range (₹)</span>
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 placeholder="Min"
                 value={filters.minAmount ?? ''}
                 onChange={(e) => updateFilter('minAmount', e.target.value ? Number(e.target.value) : undefined)}
-                className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+                className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none"
               />
-              <span className="text-gray-400 font-medium">—</span>
+              <span className="text-gray-400 font-normal">—</span>
               <input
                 type="number"
                 placeholder="Max"
                 value={filters.maxAmount ?? ''}
                 onChange={(e) => updateFilter('maxAmount', e.target.value ? Number(e.target.value) : undefined)}
-                className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-medium border-black/10 focus:border-teal-600 focus:outline-none"
+                className="w-28 rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none"
               />
             </div>
           </div>
 
           <button
             onClick={clearAll}
-            className="ml-auto text-base font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
+            className="ml-auto text-base font-normal text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
           >
             Reset All Filters
           </button>
@@ -475,14 +475,14 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
     <AppLayout>
       <div className="mb-6 flex items-center justify-between pt-6">
         <div>
-          <h1 className="text-3xl font-medium text-black tracking-tight uppercase">
+          <h1 className="text-3xl font-normal text-black tracking-tight uppercase">
             {region === 'delhi' ? 'Master' : region.charAt(0).toUpperCase() + region.slice(1)} Sales Dashboard
           </h1>
-          <p className="mt-1 text-base font-medium text-gray-500">
+          <p className="mt-1 text-base font-normal text-gray-500">
             Advanced Spreadsheet-style Filters & Legibility Optimized Data View
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-xl ring-4 ring-teal-500/20">
+        <div className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-normal text-white shadow-xl ring-4 ring-teal-500/20">
           <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse" />
           Live ERP Data
         </div>
@@ -528,8 +528,8 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
 
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-2xl font-medium text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
-          <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-lg">
+          <h3 className="text-2xl font-normal text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
+          <span className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-lg">
             {totalCount.toLocaleString()} TOTAL ROWS
           </span>
         </div>

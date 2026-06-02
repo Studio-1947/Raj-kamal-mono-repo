@@ -5,7 +5,7 @@ export default function Rankings() {
   const { t } = useLang();
   return (
     <AppLayout>
-      <h1 className="text-3xl font-bold text-gray-900">{t('rankings')}</h1>
+      <h1 className="text-3xl font-normal text-gray-900">{t('rankings')}</h1>
       <p className="mt-3 text-gray-600">{t('coming_soon')}</p>
     </AppLayout>
   );

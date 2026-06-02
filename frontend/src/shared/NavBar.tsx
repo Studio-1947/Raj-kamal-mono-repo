@@ -7,7 +7,7 @@ export default function NavBar() {
   return (
     <nav className="flex items-center justify-between py-4">
       <div className="flex items-center gap-4">
-        <Link className="font-semibold" to="/">RK</Link>
+        <Link className="font-normal" to="/">RK</Link>
         <Link className="text-sm text-gray-500 hover:text-gray-900" to="/">Home</Link>
         <Link className="text-sm text-gray-500 hover:text-gray-900" to="/dashboard">Dashboard</Link>
       </div>

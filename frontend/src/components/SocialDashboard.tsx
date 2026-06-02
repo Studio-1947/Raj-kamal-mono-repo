@@ -224,7 +224,7 @@ export default function SocialDashboard() {
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    <h1 className="text-2xl sm:text-3xl font-normal text-gray-900">
                         {t("social_media")}
                     </h1>
                     <p className="mt-1 text-sm text-gray-600">
@@ -232,7 +232,7 @@ export default function SocialDashboard() {
                     </p>
                 </div>
                 <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                    <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-700">
+                    <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-700">
                         {headerTabs.map((key) => (
                             <button
                                 key={key}
@@ -245,7 +245,7 @@ export default function SocialDashboard() {
                             </button>
                         ))}
                     </div>
-                    <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-700">
+                    <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-700">
                         {["7d", "30d", "90d"].map((key) => (
                             <button
                                 key={key}
@@ -297,7 +297,7 @@ export default function SocialDashboard() {
                         <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                             <header className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-semibold text-gray-900">
+                                    <p className="text-sm font-normal text-gray-900">
                                         Meta Ads Overview
                                     </p>
                                     <p className="text-xs text-gray-500">
@@ -321,10 +321,10 @@ export default function SocialDashboard() {
                                         key={index}
                                         className="rounded-2xl bg-sky-50 px-4 py-3 text-center shadow-inner border border-sky-100"
                                     >
-                                        <p className="text-xs font-semibold text-gray-500">
+                                        <p className="text-xs font-normal text-gray-500">
                                             {card.label}
                                         </p>
-                                        <p className="text-xl font-bold text-gray-900">
+                                        <p className="text-xl font-normal text-gray-900">
                                             {card.suffix
                                                 ? `${formatNumber(card.value)} ${card.suffix}`
                                                 : formatNumber(card.value)}
@@ -336,7 +336,7 @@ export default function SocialDashboard() {
 
                         <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5 space-y-4">
                             <header className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-gray-900">
+                                <p className="text-sm font-normal text-gray-900">
                                     Ads performance over time
                                 </p>
                                 <p className="text-xs text-gray-500">Spend vs impressions vs clicks</p>
@@ -388,7 +388,7 @@ export default function SocialDashboard() {
 
                         <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                             <header className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-gray-900">Campaigns</p>
+                                <p className="text-sm font-normal text-gray-900">Campaigns</p>
                                 <p className="text-xs text-gray-500">Spend, objective, status overview</p>
                             </header>
                             <div className="overflow-x-auto mt-4">

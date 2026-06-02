@@ -9,13 +9,13 @@ interface BestsellersTableProps {
 export const BestsellersTable: React.FC<BestsellersTableProps> = ({ topItems }) => {
   return (
     <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
-      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+      <h3 className="text-lg font-normal text-gray-800 mb-4 flex items-center gap-2">
         <FiBookOpen className="text-indigo-600" />
         Top 10 Bestsellers
       </h3>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm text-gray-600">
-          <thead className="bg-gray-50/50 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <thead className="bg-gray-50/50 text-xs font-normal text-gray-400 uppercase tracking-wider">
             <tr>
               <th className="px-4 py-3 rounded-l-2xl">Title</th>
               <th className="px-4 py-3 text-right">Copies Sold</th>
@@ -26,9 +26,9 @@ export const BestsellersTable: React.FC<BestsellersTableProps> = ({ topItems }) 
             {topItems && topItems.length > 0 ? (
               topItems.map((item: any, idx: number) => (
                 <tr key={idx} className="hover:bg-gray-50/40 transition-colors">
-                  <td className="px-4 py-3.5 font-semibold text-gray-900 truncate max-w-xs">{item.title}</td>
-                  <td className="px-4 py-3.5 text-right font-medium">{item.qty.toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-3.5 text-right font-bold text-indigo-600">{formatINR(item.total)}</td>
+                  <td className="px-4 py-3.5 font-normal text-gray-900 truncate max-w-xs">{item.title}</td>
+                  <td className="px-4 py-3.5 text-right font-normal">{item.qty.toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3.5 text-right font-normal text-indigo-600">{formatINR(item.total)}</td>
                 </tr>
               ))
             ) : (

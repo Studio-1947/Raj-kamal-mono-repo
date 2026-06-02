@@ -199,7 +199,7 @@ const GenericSalesWidget: React.FC<Props> = ({
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-sm text-gray-500">{title}</div>
-          <div className="mt-1 text-3xl font-medium text-gray-900">{formatINR(totalAmt)}</div>
+          <div className="mt-1 text-3xl font-normal text-gray-900">{formatINR(totalAmt)}</div>
           <div className="mt-1 text-sm text-gray-600">{totalOrders.toLocaleString('en-IN')} orders</div>
           {series.length > 0 && (
             <div className="mt-1 text-xs text-gray-600">
@@ -212,12 +212,12 @@ const GenericSalesWidget: React.FC<Props> = ({
           )}
           <div className="mt-1 text-sm text-gray-800">
             {projectionLabel}:{' '}
-            <span className="font-medium text-gray-900">{formatINR(projection365)}</span>
+            <span className="font-normal text-gray-900">{formatINR(projection365)}</span>
           </div>
           {actual365Total != null && (
             <div className="mt-1 text-sm text-gray-800">
               Last 365 days:{' '}
-              <span className="font-medium text-gray-900">{formatINR(actual365Total)}</span>
+              <span className="font-normal text-gray-900">{formatINR(actual365Total)}</span>
             </div>
           )}
           <div className="mt-1 text-xs text-gray-500">
@@ -225,7 +225,7 @@ const GenericSalesWidget: React.FC<Props> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ${badgeColor}`}>{title}</div>
+          <div className={`rounded-full px-3 py-1 text-xs font-normal ring-1 ${badgeColor}`}>{title}</div>
           <select
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             value={days}
@@ -273,7 +273,7 @@ const GenericSalesWidget: React.FC<Props> = ({
                 <span className="text-sm text-gray-500">Loading chart data…</span>
               ) : totalOrders > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-sm font-medium text-gray-700">Time-series chart unavailable</div>
+                  <div className="text-sm font-normal text-gray-700">Time-series chart unavailable</div>
                   <div className="text-xs text-gray-500 max-w-md">
                     Sales data exists but lacks date information for trend visualization.
                     <br />

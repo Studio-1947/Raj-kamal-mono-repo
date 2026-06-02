@@ -20,7 +20,7 @@ export const DailyTrendsChart: React.FC<DailyTrendsChartProps> = ({ timeSeries, 
     <div className="lg:col-span-2 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">Unified Daily Sales Trends</h3>
+          <h3 className="text-lg font-normal text-gray-800">Unified Daily Sales Trends</h3>
           <p className="text-xs text-gray-400">
             Regional sales volumes over the selected range ({dateRange === 'all' ? 'All Time' : `Last ${dateRange} Days`})
           </p>
@@ -57,15 +57,15 @@ export const DailyTrendsChart: React.FC<DailyTrendsChartProps> = ({ timeSeries, 
                   if (active && payload && payload.length) {
                     return (
                       <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xl space-y-2 max-h-80 overflow-y-auto text-left">
-                        <p className="text-xs font-bold text-gray-400">{label}</p>
+                        <p className="text-xs font-normal text-gray-400">{label}</p>
                         <div className="space-y-1.5">
                           {payload.map((p: any) => (
                             <div key={p.name} className="flex items-center gap-6 justify-between text-xs">
                               <div className="flex items-center gap-1.5">
                                 <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                                <span className="font-semibold text-gray-600">{KEY_MAP[p.name]}</span>
+                                <span className="font-normal text-gray-600">{KEY_MAP[p.name]}</span>
                               </div>
-                              <span className="font-black text-gray-900">{formatINR(p.value)}</span>
+                              <span className="font-normal text-gray-900">{formatINR(p.value)}</span>
                             </div>
                           ))}
                         </div>

@@ -538,10 +538,10 @@ export default function Dashboard() {
                         key={saleType.name}
                         className={`rounded-lg border p-4 ${saleType.color}`}
                       >
-                        <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                        <h3 className="text-sm font-normal text-gray-700 mb-2">
                           {saleType.displayName}
                         </h3>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-2xl font-normal text-gray-900">
                           {fmtINR(cur.totalAmount)}
                         </p>
                         <p className="text-sm text-gray-600 mt-1">
@@ -614,7 +614,7 @@ export default function Dashboard() {
   return (
     <AppLayout>
       {/* Dashboard Header */}
-      <h1 className="text-3xl font-bold text-gray-900">
+      <h1 className="text-3xl font-normal text-gray-900">
         {t("dashboard_title")}
       </h1>
       <p className="mt-2 text-[#C41E3A]">{t("dashboard_subtitle")}</p>
@@ -666,8 +666,8 @@ type StatProps = {
 function StatCard({ label, value, delta, fromLastWeek, negative }: StatProps) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 text-gray-900">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
+      <p className="text-sm font-normal text-gray-500">{label}</p>
+      <p className="mt-2 text-2xl font-normal text-gray-900">{value}</p>
       <p
         className={`mt-1 text-xs ${
           negative ? "text-red-600" : "text-green-600"
@@ -753,7 +753,7 @@ function CollapsibleSection({
   return (
     <div className={className}>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-700">{title}</h2>
+        <h2 className="text-lg font-normal text-gray-700">{title}</h2>
         <button
           onClick={toggle}
           className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
@@ -927,12 +927,12 @@ function TitlesPublishersPanel({ days }: { days: number }) {
             { key: 'lok', label: 'Lok Event' },
             { key: 'rajradha', label: 'RajRadha' },
           ].map((tab: any) => (
-            <button key={tab.key} className={`px-2.5 py-1 rounded-full font-semibold ${channel===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setChannel(tab.key)}>{tab.label}</button>
+            <button key={tab.key} className={`px-2.5 py-1 rounded-full font-normal ${channel===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setChannel(tab.key)}>{tab.label}</button>
           ))}
         </div>
         <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs ml-auto">
-          <button className={`px-2.5 py-1 rounded-full font-semibold ${view==='top' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setView('top')}>Top</button>
-          <button className={`px-2.5 py-1 rounded-full font-semibold ${view==='bottom' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setView('bottom')}>Bottom</button>
+          <button className={`px-2.5 py-1 rounded-full font-normal ${view==='top' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setView('top')}>Top</button>
+          <button className={`px-2.5 py-1 rounded-full font-normal ${view==='bottom' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`} onClick={() => setView('bottom')}>Bottom</button>
         </div>
         <label className="text-xs text-gray-600">Show</label>
         <select className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={topN} onChange={(e) => setTopN(Number(e.target.value))}>
@@ -944,10 +944,10 @@ function TitlesPublishersPanel({ days }: { days: number }) {
         <table className="min-w-full text-left text-sm text-gray-900">
           <thead>
             <tr className="border-b bg-gray-100 text-gray-800">
-              <th className="px-2 py-2 font-semibold">Title</th>
-              <th className="px-2 py-2 font-semibold">Publisher</th>
-              <th className="px-2 py-2 font-semibold">Units</th>
-              <th className="px-2 py-2 font-semibold">Revenue</th>
+              <th className="px-2 py-2 font-normal">Title</th>
+              <th className="px-2 py-2 font-normal">Publisher</th>
+              <th className="px-2 py-2 font-normal">Units</th>
+              <th className="px-2 py-2 font-normal">Revenue</th>
             </tr>
           </thead>
           <tbody>
@@ -1244,7 +1244,7 @@ function AuthorsPanel({ days }: { days: number }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       <div className="mb-3 flex items-center gap-2">
-        <div className="text-sm font-semibold text-gray-900">{entity === 'author' ? 'Author Rankings' : entity === 'publisher' ? 'Publisher Rankings' : 'Title Rankings'}</div>
+        <div className="text-sm font-normal text-gray-900">{entity === 'author' ? 'Author Rankings' : entity === 'publisher' ? 'Publisher Rankings' : 'Title Rankings'}</div>
         <div className="ml-auto flex items-center gap-3 text-sm">
           <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
             {[
@@ -1254,7 +1254,7 @@ function AuthorsPanel({ days }: { days: number }) {
             ].map((tab: any) => (
               <button
                 key={tab.key}
-                className={`px-2.5 py-1 rounded-full font-semibold ${entity===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+                className={`px-2.5 py-1 rounded-full font-normal ${entity===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
                 onClick={() => setEntity(tab.key)}
               >{tab.label}</button>
             ))}
@@ -1269,18 +1269,18 @@ function AuthorsPanel({ days }: { days: number }) {
             ].map((tab: any) => (
               <button
                 key={tab.key}
-                className={`px-2.5 py-1 rounded-full font-semibold ${channel===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+                className={`px-2.5 py-1 rounded-full font-normal ${channel===tab.key ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
                 onClick={() => setChannel(tab.key)}
               >{tab.label}</button>
             ))}
           </div>
           <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
             <button
-              className={`px-2.5 py-1 rounded-full font-semibold ${view==='top' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+              className={`px-2.5 py-1 rounded-full font-normal ${view==='top' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
               onClick={() => setView('top')}
             >Top</button>
             <button
-              className={`px-2.5 py-1 rounded-full font-semibold ${view==='bottom' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
+              className={`px-2.5 py-1 rounded-full font-normal ${view==='bottom' ? 'bg-white text-indigo-700 shadow' : 'text-gray-700 hover:text-gray-900'}`}
               onClick={() => setView('bottom')}
             >Bottom</button>
           </div>
@@ -1299,12 +1299,12 @@ function AuthorsPanel({ days }: { days: number }) {
         <table className="min-w-full text-left text-sm text-gray-900">
           <thead>
             <tr className="border-b bg-gray-100 text-gray-800">
-              <th className="px-2 py-2 font-semibold">{entity === 'author' ? 'Author' : entity === 'publisher' ? 'Publisher' : 'Title'}</th>
+              <th className="px-2 py-2 font-normal">{entity === 'author' ? 'Author' : entity === 'publisher' ? 'Publisher' : 'Title'}</th>
               {entity !== 'title' && (
-                <th className="px-2 py-2 font-semibold">Books</th>
+                <th className="px-2 py-2 font-normal">Books</th>
               )}
-              <th className="px-2 py-2 font-semibold">Units</th>
-              <th className="px-2 py-2 font-semibold">Revenue</th>
+              <th className="px-2 py-2 font-normal">Units</th>
+              <th className="px-2 py-2 font-normal">Revenue</th>
             </tr>
           </thead>
           <tbody>

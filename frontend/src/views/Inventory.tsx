@@ -675,7 +675,7 @@ export default function Inventory() {
     <AppLayout>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-3xl font-normal text-gray-900">
           {t("geo_insights")}
         </h1>
         <p className="mt-2 text-gray-600">
@@ -685,7 +685,7 @@ export default function Inventory() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-normal transition-all ${
               syncing
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                 : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow"
@@ -733,7 +733,7 @@ export default function Inventory() {
       {/* India Map visualization (collapsible) */}
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white">
         <div className="flex items-center justify-between px-4 py-3">
-          <div className="font-semibold text-gray-900">Geo Map</div>
+          <div className="font-normal text-gray-900">Geo Map</div>
           <button
             onClick={toggleMapOpen}
             className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
@@ -766,26 +766,26 @@ export default function Inventory() {
             />
             <div className="mt-4 flex flex-wrap items-center gap-6">
               <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Markers</span>
+                <span className="text-xs font-normal text-gray-400 uppercase tracking-wider">Markers</span>
                 <div className="flex bg-gray-100 p-1 rounded-lg">
-                  <button onClick={() => setMapKind('both')} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapKind === 'both' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>All</button>
-                  <button onClick={() => setMapKind('top')} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapKind === 'top' ? 'bg-emerald-50 shadow-sm text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Top</button>
-                  <button onClick={() => setMapKind('bottom')} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapKind === 'bottom' ? 'bg-rose-50 shadow-sm text-rose-700' : 'text-gray-500 hover:text-gray-700'}`}>Low</button>
+                  <button onClick={() => setMapKind('both')} className={`px-3 py-1.5 rounded-md text-xs font-normal transition-all ${mapKind === 'both' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>All</button>
+                  <button onClick={() => setMapKind('top')} className={`px-3 py-1.5 rounded-md text-xs font-normal transition-all ${mapKind === 'top' ? 'bg-emerald-50 shadow-sm text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Top</button>
+                  <button onClick={() => setMapKind('bottom')} className={`px-3 py-1.5 rounded-md text-xs font-normal transition-all ${mapKind === 'bottom' ? 'bg-rose-50 shadow-sm text-rose-700' : 'text-gray-500 hover:text-gray-700'}`}>Low</button>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Visualization</span>
+                <span className="text-xs font-normal text-gray-400 uppercase tracking-wider">Visualization</span>
                 <div className="flex bg-gray-100 p-1 rounded-lg">
-                  <button onClick={() => setMapChoropleth(true)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mapChoropleth ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>Heatmap</button>
-                  <button onClick={() => setMapChoropleth(false)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${!mapChoropleth ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Plain</button>
+                  <button onClick={() => setMapChoropleth(true)} className={`px-3 py-1.5 rounded-md text-xs font-normal transition-all ${mapChoropleth ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>Heatmap</button>
+                  <button onClick={() => setMapChoropleth(false)} className={`px-3 py-1.5 rounded-md text-xs font-normal transition-all ${!mapChoropleth ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Plain</button>
                 </div>
               </div>
 
               {stateFilter && (
                 <div className="flex items-center gap-2 animate-fadeIn">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Filter</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 border border-indigo-100">
+                  <span className="text-xs font-normal text-gray-400 uppercase tracking-wider">Filter</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-normal text-indigo-700 border border-indigo-100">
                     {stateFilter}
                     <button className="text-indigo-400 hover:text-indigo-900 ml-1" onClick={() => setStateFilter(null)}>×</button>
                   </span>
@@ -801,7 +801,7 @@ export default function Inventory() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Top Performers */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-green-900 mb-3 flex items-center gap-2">
+            <h3 className="text-lg font-normal text-green-900 mb-3 flex items-center gap-2">
               <span className="text-2xl">▲</span>
               Top 5 Performing Locations
             </h3>
@@ -812,14 +812,14 @@ export default function Inventory() {
                   className="flex justify-between items-center bg-white rounded p-2"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">
+                    <p className="font-normal text-gray-900">
                       {loc.city}, {loc.state}
                     </p>
                     <p className="text-xs text-gray-500">
                       Pin: {loc.pincode} • {loc.orderCount} orders
                     </p>
                   </div>
-                  <p className="font-bold text-green-700">
+                  <p className="font-normal text-green-700">
                     {formatINR(loc.totalAmount)}
                   </p>
                 </div>
@@ -829,7 +829,7 @@ export default function Inventory() {
 
           {/* Bottom Performers */}
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-orange-900 mb-3 flex items-center gap-2">
+            <h3 className="text-lg font-normal text-orange-900 mb-3 flex items-center gap-2">
               <span className="text-2xl">▼</span>
               Bottom 5 Performing Locations
             </h3>
@@ -840,14 +840,14 @@ export default function Inventory() {
                   className="flex justify-between items-center bg-white rounded p-2 shadow-sm hover:shadow transition-shadow"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">
+                    <p className="font-normal text-gray-900">
                       {loc.city}, {loc.state}
                     </p>
                     <p className="text-xs text-gray-500">
                       Pin: {loc.pincode} • {loc.orderCount} orders
                     </p>
                   </div>
-                  <p className="font-bold text-orange-700">
+                  <p className="font-normal text-orange-700">
                     {formatINR(loc.totalAmount)}
                   </p>
                 </div>
@@ -1038,7 +1038,7 @@ export default function Inventory() {
                     data-key={`${loc.pincode}-${loc.city}-${loc.state}`}
                     className={`hover:bg-gray-50 transition-colors ${selectedKey === `${loc.pincode}-${loc.city}-${loc.state}` ? 'ring-2 ring-amber-300' : ''}`}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-gray-900">
                       {loc.pincode}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">
@@ -1047,7 +1047,7 @@ export default function Inventory() {
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {loc.state}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-gray-900 text-right">
                       {formatINR(loc.totalAmount)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700 text-right">
@@ -1150,7 +1150,7 @@ function SummaryCard({
       {loading ? (
         <div className="h-8 bg-gray-200 rounded animate-pulse w-24"></div>
       ) : (
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-2xl font-normal text-gray-900">{value}</p>
       )}
     </div>
   );
@@ -1174,7 +1174,7 @@ function SortableHeader({
 
   return (
     <th
-      className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${align === "right" ? "text-right" : "text-left"
+      className={`px-6 py-3 text-xs font-normal text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${align === "right" ? "text-right" : "text-left"
         }`}
       onClick={() => onSort(sortKey)}
     >
