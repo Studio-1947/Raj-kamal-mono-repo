@@ -74,11 +74,13 @@ export default function Sidebar() {
   }
 
   const items: Item[] = [
-    { label: t("home"), to: "/", icon: <span />, disabled: true },
+    { label: t("home"), to: "/", icon: <span /> },
     { label: "Delhi Offline", to: "/offline-sheet-sales", icon: <span /> },
     { label: "Mumbai Offline", to: "/mumbai-offline-sales", icon: <span /> },
     { label: "Patna Offline", to: "/patna-offline-sales", icon: <span /> },
-    { label: t("sales"), to: "/dashboard", icon: <span /> },
+    { label: "Online - Website", to: "/online-offline-sales", icon: <span /> },
+    { label: "BookFair Offline", to: "/bookfair-offline-sales", icon: <span /> },
+    { label: "Lokbharti - Allahabad", to: "/lokbharti-offline-sales", icon: <span /> },
     { label: t("geo_insights"), to: "/inventory", icon: <span />, disabled: true },
     { label: t("inventory"), to: "/stock", icon: <span />, disabled: true },
     { label: t("rankings"), to: "/rankings", icon: <span />, disabled: true },
@@ -159,7 +161,7 @@ export default function Sidebar() {
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                ) : it.to === "/mumbai-offline-sales" || it.to === "/patna-offline-sales" ? (
+                ) : it.to === "/mumbai-offline-sales" || it.to === "/patna-offline-sales" || it.to === "/online-offline-sales" || it.to === "/bookfair-offline-sales" || it.to === "/lokbharti-offline-sales" ? (
                   <svg
                     className="h-5 w-5"
                     fill="none"

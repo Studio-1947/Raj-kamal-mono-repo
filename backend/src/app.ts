@@ -18,6 +18,10 @@ import { mountLokEventSales } from "./features/sales/server/lok-event.index.js";
 import { mountRajRadhaEventSales } from "./features/sales/server/rajradha-event.index.js";
 import { mountMumbaiOfflineSales } from "./features/sales/server/mumbai-offline.index.js";
 import { mountPatnaOfflineSales } from "./features/sales/server/patna-offline.index.js";
+import { mountOnlineOfflineSales } from "./features/sales/server/online-offline.index.js";
+import { mountBookFairOfflineSales } from "./features/sales/server/bookfair-offline.index.js";
+import { mountLokbhartiOfflineSales } from "./features/sales/server/lokbharti-offline.index.js";
+import { mountTotalOfflineSales } from "./features/sales/server/total-offline.index.js";
 import { notFound } from "./middleware/notFound.js";
 import { offlineSyncService } from "./features/sales/server/offlineSyncService.js";
 import swaggerUi from "swagger-ui-express";
@@ -180,6 +184,10 @@ mountLokEventSales(app, "/api/lok-event-sales");
 mountRajRadhaEventSales(app, "/api/rajradha-event-sales");
 mountMumbaiOfflineSales(app, "/api/mumbai-offline-sales");
 mountPatnaOfflineSales(app, "/api/patna-offline-sales");
+mountOnlineOfflineSales(app, "/api/online-offline-sales");
+mountBookFairOfflineSales(app, "/api/bookfair-offline-sales");
+mountLokbhartiOfflineSales(app, "/api/lokbharti-offline-sales");
+mountTotalOfflineSales(app, "/api/total-offline-sales");
 
 // Fallback route for any unmatched requests
 app.use("*", (req, res) => {
@@ -209,11 +217,16 @@ app.use(errorHandler);
 
 // Basic background sync on startup (scalable fallback)
 if (process.env.NODE_ENV !== 'test') {
-  setTimeout(() => {
+  setTimeout(async () => {
     console.log("Auto-syncing regional offline sales data...");
-    offlineSyncService.syncOfflineSales().catch(err => console.error("Delhi sync failed:", err));
-    offlineSyncService.syncMumbaiSales().catch(err => console.error("Mumbai sync failed:", err));
-    offlineSyncService.syncPatnaSales().catch(err => console.error("Patna sync failed:", err));
+    await Promise.all([
+      offlineSyncService.syncOfflineSales(),
+      offlineSyncService.syncMumbaiSales(),
+      offlineSyncService.syncPatnaSales(),
+      offlineSyncService.syncOnlineOfflineSales(),
+      offlineSyncService.syncBookFairSales(),
+      offlineSyncService.syncLokbhartiSales()
+    ]).catch(err => console.error("Sync failed:", err));
   }, 5000); // 5s delay to let server settle
 }
 

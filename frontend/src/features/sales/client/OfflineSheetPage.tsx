@@ -77,7 +77,7 @@ interface FilterBarProps {
   onSync: () => void;
   isSyncing: boolean;
   lastSyncResult?: string | null;
-  region?: 'delhi' | 'mumbai' | 'patna';
+  region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti';
 }
 
 function FilterField({ id, label, placeholder, value, onChange, type = "text", width = "w-48" }: any) {
@@ -448,7 +448,7 @@ function FilterBar({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' }) {
+export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
   const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, setPage, clearAll } = useOfflineSheetFilters();
   const [resetVersion, setResetVersion] = useState(0);
 
