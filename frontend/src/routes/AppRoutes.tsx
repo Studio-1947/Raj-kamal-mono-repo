@@ -17,6 +17,7 @@ import {
   OnlineOfflineSales,
   BookFairOfflineSales,
   LokbhartiOfflineSales,
+  TotalOfflineSales,
 } from "../views";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -31,7 +32,7 @@ const AppRoutes: React.FC = () => {
         path="/"
         element={
           <ProtectedRoute>
-            <Navigate to="/offline-sheet-sales" replace />
+            <TotalOfflineSales />
           </ProtectedRoute>
         }
       />

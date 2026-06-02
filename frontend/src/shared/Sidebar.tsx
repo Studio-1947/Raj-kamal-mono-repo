@@ -74,14 +74,13 @@ export default function Sidebar() {
   }
 
   const items: Item[] = [
-    { label: t("home"), to: "/", icon: <span />, disabled: true },
+    { label: t("home"), to: "/", icon: <span /> },
     { label: "Delhi Offline", to: "/offline-sheet-sales", icon: <span /> },
     { label: "Mumbai Offline", to: "/mumbai-offline-sales", icon: <span /> },
     { label: "Patna Offline", to: "/patna-offline-sales", icon: <span /> },
     { label: "Online - Website", to: "/online-offline-sales", icon: <span /> },
     { label: "BookFair Offline", to: "/bookfair-offline-sales", icon: <span /> },
     { label: "Lokbharti - Allahabad", to: "/lokbharti-offline-sales", icon: <span /> },
-    { label: t("sales"), to: "/dashboard", icon: <span /> },
     { label: t("geo_insights"), to: "/inventory", icon: <span />, disabled: true },
     { label: t("inventory"), to: "/stock", icon: <span />, disabled: true },
     { label: t("rankings"), to: "/rankings", icon: <span />, disabled: true },
