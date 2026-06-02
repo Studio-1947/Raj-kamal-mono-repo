@@ -580,6 +580,25 @@ export default function TotalOfflineSales() {
                 {pieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xl space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: REGIONAL_COLORS[data.name] }} />
+                                  <p className="text-xs font-bold text-gray-400 uppercase">{data.name}</p>
+                                </div>
+                                <p className="text-lg font-black text-gray-900">
+                                  {activeTab === 'revenue' ? formatINR(data.value) : `${data.value.toLocaleString('en-IN')} copies`}
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                       <Pie
                         data={pieData}
                         cx="50%"
@@ -590,7 +609,11 @@ export default function TotalOfflineSales() {
                         dataKey="value"
                       >
                         {pieData.map((entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={REGIONAL_COLORS[entry.name]} />
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={REGIONAL_COLORS[entry.name]}
+                            className="transition-all duration-300 hover:opacity-80 focus:outline-none cursor-pointer"
+                          />
                         ))}
                       </Pie>
                     </PieChart>
