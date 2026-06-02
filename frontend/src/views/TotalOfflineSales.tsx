@@ -12,7 +12,8 @@ import {
   DailyTrendsChart,
   ChannelShareDonut,
   BestsellersTable,
-  RecentTransactionsTable
+  RecentTransactionsTable,
+  LoadingSkeleton
 } from './total-offline-sales/components';
 
 export default function TotalOfflineSales() {
@@ -136,19 +137,7 @@ export default function TotalOfflineSales() {
         </div>
       )}
       {loading ? (
-        <div className="space-y-6 animate-pulse mb-6">
-          {/* Skeleton Cards */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-32 bg-gray-200 rounded-3xl" />
-            ))}
-          </div>
-          {/* Skeleton Charts */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2 h-96 bg-gray-200 rounded-3xl" />
-            <div className="h-96 bg-gray-200 rounded-3xl" />
-          </div>
-        </div>
+        <LoadingSkeleton />
       ) : (
         <div className="space-y-10 animate-fadeIn">
           {/* 1. Premium KPI Metrics Grid */}
