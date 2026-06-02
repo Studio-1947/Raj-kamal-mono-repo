@@ -184,7 +184,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
 }
 
 // ─── Daily Details Panel ────────────────────────────────────────────────────
-function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange }: { date: string; filters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void; onClose: () => void; onDateChange?: (d: string) => void }) {
+function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange, region = 'delhi' }: { date: string; filters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void; onClose: () => void; onDateChange?: (d: string) => void; region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
   const [mode, setMode] = useState<'single' | 'range'>('single');
   const [isFullScreen, setIsFullScreen] = useState(false);
   
@@ -209,7 +209,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
 
   useEffect(() => { setPage(1); }, [date, mode, q, pub]);
 
-  const { data: optData } = useOfflineSheetOptions();
+  const { data: optData } = useOfflineSheetOptions(region);
 
   const actualDate = mode === 'single' ? date : null;
   
@@ -227,7 +227,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
      delete panelFilters.days;
   }
 
-  const { data: details, isLoading } = useOfflineSheetDailyDetails(panelFilters, actualDate, true);
+  const { data: details, isLoading } = useOfflineSheetDailyDetails(panelFilters, actualDate, true, region);
 
   const totalRev = details?.items?.reduce((acc, it) => acc + it.total, 0) || 0;
   const totalQty = details?.items?.reduce((acc, it) => acc + it.qty, 0) || 0;
@@ -442,7 +442,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
 }
 
 // ─── Revenue Trend Chart Component ──────────────────────────────────────────
-function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: OfflineSheetSummaryResponse; globalFilters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void }) {
+function RevenueTrendChart({ data, globalFilters, onApplyGlobal, region = 'delhi' }: { data: OfflineSheetSummaryResponse; globalFilters: OfflineSheetFilters; onApplyGlobal?: (s: string, e: string) => void; region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const latestDate = data.timeSeries && data.timeSeries.length > 0 
@@ -507,6 +507,7 @@ function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: Offli
                  onClose={() => setSelectedDate(null)} 
                  onApplyGlobal={onApplyGlobal} 
                  onDateChange={setSelectedDate} 
+                 region={region}
               />
             </div>
           </div>
@@ -523,9 +524,10 @@ interface ChartBlockProps {
   globalFilters: OfflineSheetFilters;
   render: (data: OfflineSheetSummaryResponse) => React.ReactNode;
   resetVersion?: number;
+  region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti';
 }
 
-function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlockProps) {
+function ChartBlock({ id, title, globalFilters, render, resetVersion, region = 'delhi' }: ChartBlockProps) {
   const [localFilters, setLocalFilters] = useState<OfflineSheetFilters>(() => {
     const saved = localStorage.getItem(`rk_chart_filters_${id}`);
     if (saved) {
@@ -547,7 +549,7 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
     }
   }, [resetVersion, id]);
 
-  const { data: optData } = useOfflineSheetOptions();
+  const { data: optData } = useOfflineSheetOptions(region);
 
   useEffect(() => {
     async function fetchChart() {
@@ -575,7 +577,8 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
           }
         });
 
-        const resp = await apiClient.get<OfflineSheetSummaryResponse>(`offline-sales/summary?${p.toString()}`);
+        const base = REGION_MAP[region] || 'offline-sales';
+        const resp = await apiClient.get<OfflineSheetSummaryResponse>(`${base}/summary?${p.toString()}`);
         setData(resp);
         localStorage.setItem(`rk_chart_filters_${id}`, JSON.stringify(localFilters));
       } catch (e) {
@@ -585,7 +588,7 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
       }
     }
     fetchChart();
-  }, [id, localFilters, globalFilters]);
+  }, [id, localFilters, globalFilters, region]);
 
   const updateF = (key: keyof OfflineSheetFilters, val: any) => {
     setLocalFilters(prev => {
@@ -764,11 +767,21 @@ interface Props {
   filters: OfflineSheetFilters;
   resetVersion?: number;
   onApplyDateRange?: (start: string, end: string) => void;
+  region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti';
 }
+
+const REGION_MAP = {
+  delhi: 'offline-sales',
+  mumbai: 'mumbai-offline-sales',
+  patna: 'patna-offline-sales',
+  online: 'online-offline-sales',
+  bookfair: 'bookfair-offline-sales',
+  lokbharti: 'lokbharti-offline-sales',
+};
 
 const DEFAULT_ORDER = ['revenue-trend', 'sales-by-type', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'top-items-qty', 'bottom-items'];
 
-export default function OfflineSheetCharts({ filters: globalFilters, resetVersion, onApplyDateRange }: Props) {
+export default function OfflineSheetCharts({ filters: globalFilters, resetVersion, onApplyDateRange, region = 'delhi' }: Props) {
   const [items, setItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('rk_offline_charts_order');
     if (saved) {
@@ -820,7 +833,7 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
   const chartConfigs: Record<string, { title: string; render: (data: OfflineSheetSummaryResponse) => React.ReactNode }> = {
     'revenue-trend': {
       title: 'Revenue Trend',
-      render: (data) => <RevenueTrendChart data={data} globalFilters={globalFilters} onApplyGlobal={onApplyDateRange} />
+      render: (data) => <RevenueTrendChart data={data} globalFilters={globalFilters} onApplyGlobal={onApplyDateRange} region={region} />
     },
     'sales-by-state': {
       title: 'Sales by State',
@@ -969,7 +982,7 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
             const isStretched = stretchedItems.includes(id);
             return (
               <SortableItem key={id} id={id} isStretched={isStretched} onToggleStretch={toggleStretch} className={isStretched ? 'lg:col-span-2' : ''}>
-                <ChartBlock id={id} title={config.title} globalFilters={globalFilters} render={config.render} resetVersion={resetVersion} />
+                <ChartBlock id={id} title={config.title} globalFilters={globalFilters} render={config.render} resetVersion={resetVersion} region={region} />
               </SortableItem>
             );
           })}
