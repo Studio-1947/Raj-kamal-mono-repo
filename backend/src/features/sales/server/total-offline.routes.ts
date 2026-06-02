@@ -22,11 +22,25 @@ const REGION_LABEL: Record<ChannelKey, string> = {
 
 const toNum = (v: any): number => Number(v?.toString() ?? '0');
 
+function getFinancialYearStart(): Date {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0 = Jan, 11 = Dec
+  const startYear = currentMonth >= 3 ? currentYear : currentYear - 1;
+  return new Date(`${startYear}-04-01T00:00:00.000Z`);
+}
+
 function buildDateFilter(range: string): Record<string, Date> | undefined {
   const ago = (d: number) => new Date(Date.now() - d * 86_400_000);
   if (range === '7')   return { gte: ago(7) };
   if (range === '30')  return { gte: ago(30) };
   if (range === '90')  return { gte: ago(90) };
+  if (range === '180') return { gte: ago(180) };
+  if (range === '365') return { gte: ago(365) };
+  if (range === 'fytd') return {
+    gte: getFinancialYearStart(),
+    lte: new Date(),
+  };
   if (range === 'ytd') return {
     gte: new Date('2026-01-01T00:00:00.000Z'),
     lte: new Date('2026-12-31T23:59:59.999Z'),

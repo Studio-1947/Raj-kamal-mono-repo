@@ -567,7 +567,11 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
-    return { days: globalFilters.days || 90 };
+    // If global filters has date bounds (e.g. default FYTD), default to inheriting them
+    if (globalFilters.startDate || globalFilters.endDate || globalFilters.days) {
+      return {};
+    }
+    return { days: 90 };
   });
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -655,19 +659,43 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
         <div className="flex items-center gap-2">
           {/* Quick Days Selector */}
           <div className="flex items-center gap-1 rounded-xl bg-gray-50 p-1 border border-gray-100">
-            {[30, 90, 180, 365].map((d) => (
-              <button
-                key={d}
-                onClick={() => updateF('days', d)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-normal transition-all ${
-                  localFilters.days === d
-                    ? 'bg-teal-600 text-white shadow-md'
-                    : 'text-gray-500 hover:bg-white hover:text-teal-600'
-                }`}
-              >
-                {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
-              </button>
-            ))}
+            {[
+              { label: 'FYTD', value: 'fytd' },
+              { label: '1M', value: 30 },
+              { label: '3M', value: 90 },
+              { label: '6M', value: 180 },
+              { label: '1Y', value: 365 },
+              { label: 'All', value: 10000 }
+            ].map((p) => {
+              const isSelected = p.value === 'fytd'
+                ? (!localFilters.days && !localFilters.startDate && !localFilters.endDate)
+                : (localFilters.days === p.value && !localFilters.startDate);
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => {
+                    if (p.value === 'fytd') {
+                      setLocalFilters(prev => {
+                        const next = { ...prev };
+                        delete next.days;
+                        delete next.startDate;
+                        delete next.endDate;
+                        return next;
+                      });
+                    } else {
+                      updateF('days', p.value as number);
+                    }
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-normal transition-all ${
+                    isSelected
+                      ? 'bg-teal-600 text-white shadow-md'
+                      : 'text-gray-500 hover:bg-white hover:text-teal-600'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
             {(localFilters.startDate || localFilters.endDate) && (
               <span className="px-2 py-1 text-[10px] font-normal text-teal-600 uppercase tracking-tight bg-teal-50 rounded-lg border border-teal-100">Custom</span>
             )}

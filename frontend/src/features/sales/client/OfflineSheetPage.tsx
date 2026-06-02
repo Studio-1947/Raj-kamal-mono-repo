@@ -9,7 +9,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useMemo, useState, useEffect, useTransition } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../../../shared/AppLayout';
+import SalesDashboardTabs from '../../../components/SalesDashboardTabs';
 import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
@@ -219,6 +221,7 @@ function FilterBar({
   lastSyncResult,
   region = 'delhi',
 }: FilterBarProps) {
+  const [searchParams] = useSearchParams();
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState(filters.q ?? '');
   const [isOpen, setIsOpen] = React.useState(false);
@@ -429,19 +432,37 @@ function FilterBar({
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-normal text-black uppercase tracking-wider">Quick Period</span>
           <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-            {[30, 90, 180, 365].map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={`rounded-lg px-4 py-2 text-sm font-normal transition-all ${
-                  filters.days === d && !filters.startDate
-                    ? 'bg-teal-600 text-white shadow-lg'
-                    : 'text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
-              </button>
-            ))}
+            {[
+              { label: 'FYTD', value: 'fytd' },
+              { label: '1M', value: 30 },
+              { label: '3M', value: 90 },
+              { label: '6M', value: 180 },
+              { label: '1Y', value: 365 },
+              { label: 'All', value: 10000 }
+            ].map((p) => {
+              const isSelected = p.value === 'fytd'
+                ? (!filters.days && !searchParams.get('startDate') && !searchParams.get('endDate'))
+                : (filters.days === p.value && !searchParams.get('startDate'));
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => {
+                    if (p.value === 'fytd') {
+                      clearDateRange();
+                    } else {
+                      setDays(p.value as number);
+                    }
+                  }}
+                  className={`rounded-lg px-4 py-2 text-sm font-normal transition-all ${
+                    isSelected
+                      ? 'bg-teal-600 text-white shadow-lg'
+                      : 'text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -613,7 +634,10 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
 
   return (
     <AppLayout>
-      <div className="mb-6 flex items-center justify-between pt-6">
+      <div className="pt-6">
+        <SalesDashboardTabs />
+      </div>
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-normal text-black tracking-tight uppercase">
             {region === 'delhi' ? 'Master' : region.charAt(0).toUpperCase() + region.slice(1)} Sales Dashboard
