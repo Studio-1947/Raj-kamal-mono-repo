@@ -348,4 +348,67 @@ router.get('/projections', async (req, res) => {
   }
 });
 
+// ─── GET /api/total-offline-sales/publisher-details ───────────────────────────
+
+router.get('/publisher-details', async (req, res) => {
+  try {
+    const channel   = req.query.channel as string;
+    const publisher = req.query.publisher as string;
+    const range     = (req.query.range as string) || '30';
+
+    if (!channel || !publisher) {
+      return res.status(400).json({ ok: false, error: 'Missing channel or publisher parameters' });
+    }
+
+    const dateFilter = buildDateFilter(range);
+    const where: any = {
+      publisher: { equals: publisher },
+      title: { not: '' },
+    };
+    if (dateFilter) {
+      where.date = dateFilter;
+    }
+
+    const model = getModel(channel as ChannelKey);
+    if (!model) {
+      return res.status(400).json({ ok: false, error: 'Invalid channel parameter' });
+    }
+
+    // Query top 10 books by amount (revenue) desc
+    const topBooks = await model.groupBy({
+      by: ['title'],
+      _sum: { amount: true, qty: true },
+      where,
+      orderBy: { _sum: { amount: 'desc' } },
+      take: 10,
+    });
+
+    // Query bottom 10 books by amount (revenue) asc (but amount > 0 to filter out invalid records)
+    const bottomBooks = await model.groupBy({
+      by: ['title'],
+      _sum: { amount: true, qty: true },
+      where: { ...where, amount: { gt: 0 } },
+      orderBy: { _sum: { amount: 'asc' } },
+      take: 10,
+    });
+
+    return res.json({
+      ok: true,
+      topBooks: topBooks.map((b: any) => ({
+        title: b.title || 'Unknown Title',
+        revenue: toNum(b._sum?.amount),
+        qty: toNum(b._sum?.qty),
+      })),
+      bottomBooks: bottomBooks.map((b: any) => ({
+        title: b.title || 'Unknown Title',
+        revenue: toNum(b._sum?.amount),
+        qty: toNum(b._sum?.qty),
+      })),
+    });
+  } catch (err: any) {
+    console.error('Failed to get publisher details:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to fetch publisher details' });
+  }
+});
+
 export default router;

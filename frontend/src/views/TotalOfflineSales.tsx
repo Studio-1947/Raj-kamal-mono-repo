@@ -317,6 +317,7 @@ export default function TotalOfflineSales() {
                 topPublishersByChannel={summary.topPublishersByChannel}
                 activeChannel={activeChannel}
                 activeTab={activeTab}
+                dateRange={dateRange}
               />
             </div>
           )}
