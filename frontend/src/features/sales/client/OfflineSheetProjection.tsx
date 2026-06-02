@@ -37,19 +37,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   const d = payload[0]?.payload;
   return (
     <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-2xl text-sm min-w-[160px]">
-      <p className="font-bold text-gray-900 mb-2 text-base">{label}</p>
+      <p className="font-normal text-gray-900 mb-2 text-base">{label}</p>
       {d.isComplete && (
-        <p className="text-teal-700 font-semibold">Actual: {fmtCr(d.actual)}</p>
+        <p className="text-teal-700 font-normal">Actual: {fmtCr(d.actual)}</p>
       )}
       {d.isCurrent && (
         <>
-          <p className="text-teal-700 font-semibold">Actual so far: {fmtCr(d.actual)}</p>
-          <p className="text-orange-500 font-semibold">Full month est.: {fmtCr(d.projected)}</p>
+          <p className="text-teal-700 font-normal">Actual so far: {fmtCr(d.actual)}</p>
+          <p className="text-orange-500 font-normal">Full month est.: {fmtCr(d.projected)}</p>
           <p className="text-gray-400 text-xs mt-1">{d.daysElapsed} of {d.totalDays} days</p>
         </>
       )}
       {!d.isComplete && !d.isCurrent && (
-        <p className="text-gray-400 font-semibold">Projected: {fmtCr(d.projected)}</p>
+        <p className="text-gray-400 font-normal">Projected: {fmtCr(d.projected)}</p>
       )}
     </div>
   );
@@ -93,27 +93,27 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
       <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-xl font-semibold tracking-tight text-gray-900">
+            <h2 className="text-xl font-normal tracking-tight text-gray-900">
               2026 Revenue Projection
             </h2>
-            <span className="rounded-full bg-teal-600 px-2.5 py-0.5 text-[9px] font-bold uppercase text-white">Live</span>
+            <span className="rounded-full bg-teal-600 px-2.5 py-0.5 text-[9px] font-normal uppercase text-white">Live</span>
             {!isExpanded && (
-              <span className="rounded-full bg-black px-2.5 py-0.5 text-[9px] font-bold uppercase text-white">
+              <span className="rounded-full bg-black px-2.5 py-0.5 text-[9px] font-normal uppercase text-white">
                 {progress.toFixed(1)}% Achieved
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-sm font-medium text-gray-400">
+          <p className="mt-0.5 text-sm font-normal text-gray-400">
             Weighted run rate (last {Math.min(p.currentMonth - 1, 3)} months):{' '}
-            <span className="text-teal-600 font-semibold">{fmtCr(p.weightedMonthlyAvg)}</span>
+            <span className="text-teal-600 font-normal">{fmtCr(p.weightedMonthlyAvg)}</span>
             <span className="text-[10px] opacity-60"> / month</span>
           </p>
         </div>
 
         <div className="flex items-center gap-6">
           <div className="text-right">
-            <div className="text-[9px] font-bold uppercase tracking-widest text-gray-300 mb-0.5">Yearly Estimate</div>
-            <div className="text-3xl font-semibold text-black tabular-nums tracking-tight">
+            <div className="text-[9px] font-normal uppercase tracking-widest text-gray-300 mb-0.5">Yearly Estimate</div>
+            <div className="text-3xl font-normal text-black tabular-nums tracking-tight">
               {fmtCr(p.totalProjected)}
             </div>
           </div>
@@ -130,32 +130,32 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
         {/* KPI tiles */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <div className="rounded-lg bg-gray-50 p-3 border border-gray-200/50">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Actual So Far</div>
-            <div className="mt-0.5 text-xl font-bold text-teal-800">{fmtCr(p.totalSoFar)}</div>
-            <div className="text-[10px] font-medium text-gray-400">{p.daysElapsed} days in</div>
+            <div className="text-[9px] font-normal uppercase tracking-wider text-gray-400">Actual So Far</div>
+            <div className="mt-0.5 text-xl font-normal text-teal-800">{fmtCr(p.totalSoFar)}</div>
+            <div className="text-[10px] font-normal text-gray-400">{p.daysElapsed} days in</div>
           </div>
           <div className="rounded-lg bg-gray-50 p-3 border border-gray-200/50">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Projected Rem.</div>
-            <div className="mt-0.5 text-xl font-bold text-gray-700">{fmtCr(p.projectedRemaining)}</div>
-            <div className="text-[10px] font-medium text-gray-400">{p.remainingDays} days left</div>
+            <div className="text-[9px] font-normal uppercase tracking-wider text-gray-400">Projected Rem.</div>
+            <div className="mt-0.5 text-xl font-normal text-gray-700">{fmtCr(p.projectedRemaining)}</div>
+            <div className="text-[10px] font-normal text-gray-400">{p.remainingDays} days left</div>
           </div>
           <div className="rounded-lg bg-teal-600 p-3 shadow-sm">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-teal-100">Monthly Avg (Wtd)</div>
-            <div className="mt-0.5 text-xl font-bold text-white">{fmtCr(p.weightedMonthlyAvg)}</div>
-            <div className="text-[10px] font-medium text-teal-100/70">Recent {Math.min(p.currentMonth - 1, 3)} months</div>
+            <div className="text-[9px] font-normal uppercase tracking-wider text-teal-100">Monthly Avg (Wtd)</div>
+            <div className="mt-0.5 text-xl font-normal text-white">{fmtCr(p.weightedMonthlyAvg)}</div>
+            <div className="text-[10px] font-normal text-teal-100/70">Recent {Math.min(p.currentMonth - 1, 3)} months</div>
           </div>
           <div className="rounded-lg bg-black p-3 shadow-sm">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Achievement</div>
-            <div className="mt-0.5 text-xl font-bold text-white">{progress.toFixed(1)}%</div>
-            <div className="text-[10px] font-medium text-gray-500">of Yearly Est.</div>
+            <div className="text-[9px] font-normal uppercase tracking-wider text-gray-400">Achievement</div>
+            <div className="mt-0.5 text-xl font-normal text-white">{progress.toFixed(1)}%</div>
+            <div className="text-[10px] font-normal text-gray-500">of Yearly Est.</div>
           </div>
         </div>
 
         {/* Monthly bar chart */}
         <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Month-wise Breakdown — 2026</span>
-            <div className="flex items-center gap-4 text-[10px] font-semibold uppercase tracking-wide">
+            <span className="text-[10px] font-normal uppercase tracking-wider text-gray-400">Month-wise Breakdown — 2026</span>
+            <div className="flex items-center gap-4 text-[10px] font-normal uppercase tracking-wide">
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-teal-600" />Actual</span>
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-orange-400" />Current (est.)</span>
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-gray-300" />Projected</span>
@@ -195,7 +195,7 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
             {p.monthlyBreakdown.map((m) => (
               <div
                 key={m.month}
-                className={`text-center text-[9px] font-semibold px-0.5 py-1 rounded ${
+                className={`text-center text-[9px] font-normal px-0.5 py-1 rounded ${
                   m.isCurrent ? 'bg-orange-50 text-orange-600' : m.isComplete ? 'text-teal-700' : 'text-gray-400'
                 }`}
               >
@@ -210,17 +210,17 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
         {/* Year progress bar */}
         <div className="mt-5 pt-4 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Year Progress</span>
+            <span className="text-[10px] font-normal uppercase tracking-wider text-gray-400">Year Progress</span>
             <div className="text-right">
-              <span className="text-[10px] font-bold text-teal-700">{progress.toFixed(1)}% Revenue</span>
-              <span className="text-[10px] font-bold text-gray-300 mx-1.5">/</span>
-              <span className="text-[10px] font-bold text-gray-500">{timeProgress.toFixed(1)}% Time</span>
+              <span className="text-[10px] font-normal text-teal-700">{progress.toFixed(1)}% Revenue</span>
+              <span className="text-[10px] font-normal text-gray-300 mx-1.5">/</span>
+              <span className="text-[10px] font-normal text-gray-500">{timeProgress.toFixed(1)}% Time</span>
             </div>
           </div>
           <div className="h-3 w-full rounded-full bg-gray-100 overflow-hidden relative">
             <div className="h-full bg-teal-600 transition-all duration-1000 ease-out" style={{ width: `${Math.min(progress, 100)}%` }} />
           </div>
-          <div className="mt-1 flex justify-between text-[9px] font-bold text-gray-300 uppercase tracking-widest">
+          <div className="mt-1 flex justify-between text-[9px] font-normal text-gray-300 uppercase tracking-widest">
             <span>Jan 1</span><span>Dec 31</span>
           </div>
         </div>

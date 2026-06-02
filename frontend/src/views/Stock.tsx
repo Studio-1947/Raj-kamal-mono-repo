@@ -42,7 +42,7 @@ function InventorySummary() {
           className="rounded-xl border border-gray-200 bg-white p-4"
         >
           <p className="text-xs text-gray-500">{it.label}</p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900">
+          <p className="mt-1 text-2xl font-normal text-gray-900">
             {it.value}
           </p>
         </div>
@@ -71,14 +71,14 @@ function InventoryTable() {
           <thead>
             <tr className="text-gray-500 bg-gray-50">
               {/* Core stock columns */}
-              <th className="px-4 py-2 text-left font-medium">Title</th>
-              <th className="px-4 py-2 text-left font-medium">Author</th>
-              <th className="px-4 py-2 text-left font-medium">ISBN</th>
-              <th className="px-4 py-2 text-right font-medium">In Stock</th>
-              <th className="px-4 py-2 text-right font-medium">
+              <th className="px-4 py-2 text-left font-normal">Title</th>
+              <th className="px-4 py-2 text-left font-normal">Author</th>
+              <th className="px-4 py-2 text-left font-normal">ISBN</th>
+              <th className="px-4 py-2 text-right font-normal">In Stock</th>
+              <th className="px-4 py-2 text-right font-normal">
                 Reorder Level
               </th>
-              <th className="px-4 py-2 text-right font-medium">Actions</th>
+              <th className="px-4 py-2 text-right font-normal">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -129,7 +129,7 @@ export default function Stock() {
   return (
     <AppLayout>
       {/* Page header */}
-      <h1 className="text-3xl font-bold text-gray-900">{t("inventory")}</h1>
+      <h1 className="text-3xl font-normal text-gray-900">{t("inventory")}</h1>
       <p className="mt-2 text-gray-600">
         Track and manage stock levels across titles.
       </p>

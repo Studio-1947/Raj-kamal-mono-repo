@@ -75,7 +75,7 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
               key={col.key}
               title={text}
               style={{ width: col.width }}
-              className="px-4 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-medium text-black"
+              className="px-4 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-normal text-black"
             >
               {text}
             </div>
@@ -111,9 +111,9 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
           <div
             key={col.key}
             style={{ width: col.width }}
-            className={`flex flex-col px-3 py-3 text-xs font-medium uppercase tracking-widest border-r border-gray-200 last:border-r-0 ${isFiltered ? 'bg-teal-50' : 'bg-gray-100'}`}
+            className={`flex flex-col px-3 py-3 text-xs font-normal uppercase tracking-widest border-r border-gray-200 last:border-r-0 ${isFiltered ? 'bg-teal-50' : 'bg-gray-100'}`}
           >
-            <div className="mb-2 text-black font-bold flex items-center justify-between">
+            <div className="mb-2 text-black font-normal flex items-center justify-between">
               {col.label}
               {isFiltered && <div className="h-2 w-2 rounded-full bg-teal-600 animate-pulse" />}
             </div>
@@ -123,7 +123,7 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
                 placeholder={`Filter...`}
                 value={(filters[fKey as keyof OfflineSheetFilters] as string) ?? ''}
                 onChange={(e) => onFilterChange(fKey as any, e.target.value)}
-                className={`w-full rounded-md border-2 px-2 py-1 text-[11px] font-medium transition-all focus:outline-none focus:ring-4 focus:ring-teal-500/10 ${
+                className={`w-full rounded-md border-2 px-2 py-1 text-[11px] font-normal transition-all focus:outline-none focus:ring-4 focus:ring-teal-500/10 ${
                   isFiltered 
                     ? 'border-teal-500 bg-white text-teal-900 placeholder:text-teal-200' 
                     : 'border-gray-300 bg-gray-50/50 text-gray-700 placeholder:text-gray-300 focus:border-black focus:bg-white'
@@ -144,8 +144,8 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
         <svg className="h-16 w-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-        <p className="text-2xl font-medium text-black">No matching transactions</p>
-        <p className="text-lg text-gray-400 font-medium mt-1">Try adjusting your filters or Search terms</p>
+        <p className="text-2xl font-normal text-black">No matching transactions</p>
+        <p className="text-lg text-gray-400 font-normal mt-1">Try adjusting your filters or Search terms</p>
       </div>
     );
   }
@@ -168,7 +168,7 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
         </div>
       </div>
       <div className="bg-gray-50 px-6 py-3 border-t-2 border-gray-200 flex justify-end">
-        <p className="text-sm font-medium text-black uppercase tracking-widest">
+        <p className="text-sm font-normal text-black uppercase tracking-widest">
            Showing {rows.length.toLocaleString('en-IN')} Records in this page
         </p>
       </div>

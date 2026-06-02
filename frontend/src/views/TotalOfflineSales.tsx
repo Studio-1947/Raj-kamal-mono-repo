@@ -23,7 +23,7 @@ export default function TotalOfflineSales() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [projectionData, setProjectionData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'revenue' | 'volume'>('revenue');
-  const [dateRange, setDateRange] = useState<string>('30');
+  const [dateRange, setDateRange] = useState<string>('ytd');
 
   async function fetchData(rangeStr = dateRange) {
     setLoading(true);
@@ -87,7 +87,7 @@ export default function TotalOfflineSales() {
       {/* Upper Dashboard Header */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 border-b border-gray-100 pb-6">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-3xl font-normal text-gray-900 tracking-tight flex items-center gap-2">
             <span className="bg-gradient-to-r from-indigo-600 to-teal-500 bg-clip-text text-transparent">
               Total Sales Dashboard
             </span>
@@ -103,7 +103,7 @@ export default function TotalOfflineSales() {
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="appearance-none rounded-2xl bg-white border border-gray-200 pl-4 pr-10 py-2.5 text-xs font-bold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all hover:bg-gray-50 cursor-pointer"
+              className="appearance-none rounded-2xl bg-white border border-gray-200 pl-4 pr-10 py-2.5 text-xs font-normal text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all hover:bg-gray-50 cursor-pointer"
             >
               <option value="7">Last 7 Days</option>
               <option value="30">Last 30 Days</option>
@@ -121,7 +121,7 @@ export default function TotalOfflineSales() {
           <button
             onClick={() => fetchData(dateRange)}
             disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition-all hover:shadow-lg hover:shadow-indigo-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 shrink-0"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 text-sm font-normal text-white shadow-md shadow-indigo-200 transition-all hover:shadow-lg hover:shadow-indigo-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 shrink-0"
           >
             <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh Analysis
@@ -132,7 +132,7 @@ export default function TotalOfflineSales() {
       {error && (
         <div className="mb-6 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-800 flex items-center gap-2">
           <span>⚠️ {error}</span>
-          <button onClick={() => fetchData(dateRange)} className="underline font-bold ml-auto hover:text-red-950">Retry</button>
+          <button onClick={() => fetchData(dateRange)} className="underline font-normal ml-auto hover:text-red-950">Retry</button>
         </div>
       )}
       {loading ? (
@@ -159,7 +159,7 @@ export default function TotalOfflineSales() {
               value={formatINR(summary?.counts?.totalRevenue || 0)}
               icon={<FiTrendingUp className="h-20 w-20 text-indigo-600" />}
               badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full w-fit">
+                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-green-600 bg-green-50 px-2.5 py-1 rounded-full w-fit">
                   <span>Active Channels: 6 / 6</span>
                 </div>
               }
@@ -171,7 +171,7 @@ export default function TotalOfflineSales() {
               value={(summary?.counts?.totalQty || 0).toLocaleString('en-IN')}
               icon={<FiShoppingBag className="h-20 w-20 text-teal-600" />}
               badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full w-fit">
+                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full w-fit">
                   <span>Avg Rate: {formatINR((summary?.counts?.totalRevenue || 0) / Math.max(1, summary?.counts?.totalQty || 0))}</span>
                 </div>
               }
@@ -183,7 +183,7 @@ export default function TotalOfflineSales() {
               value={formatINR(projectedAnnualRevenue)}
               icon={<FiTrendingUp className="h-20 w-20 text-indigo-600 animate-pulse" />}
               badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full w-fit">
+                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full w-fit">
                   <span>Velocity: {formatINR(totalRangeRevenue / Math.max(1, rangeDaysCount))} / day</span>
                 </div>
               }
@@ -195,7 +195,7 @@ export default function TotalOfflineSales() {
               value={(summary?.counts?.totalCount || 0).toLocaleString('en-IN')}
               icon={<FiDatabase className="h-20 w-20 text-purple-600" />}
               badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full w-fit">
+                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full w-fit">
                   <span>100% Sheet Synchronization</span>
                 </div>
               }

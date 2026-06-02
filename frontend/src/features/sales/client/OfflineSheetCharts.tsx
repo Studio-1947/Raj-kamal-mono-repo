@@ -62,7 +62,7 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
     return (
       <div className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-2xl ring-4 ring-black/5 select-none min-w-[240px] animate-in zoom-in-95 duration-200">
         <div className="mb-3 border-b border-gray-100 pb-2">
-           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[220px]">
+           <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest truncate max-w-[220px]">
             {originalData.date && !isNaN(new Date(originalData.date).getTime())
               ? new Date(originalData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
               : (label || title || "Details")}
@@ -71,8 +71,8 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
         
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex flex-col">
-            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-tight">{title || entry.name}</span>
-            <p className="text-2xl font-medium text-black leading-none mt-0.5">
+            <span className="text-[10px] font-normal text-gray-500 uppercase tracking-tight">{title || entry.name}</span>
+            <p className="text-2xl font-normal text-black leading-none mt-0.5">
               {fmtINR(entry.value)}
             </p>
           </div>
@@ -80,8 +80,8 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
 
         {originalData?.qty ? (
           <div className="mt-3 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-            <span className="text-[10px] font-medium text-gray-400 uppercase">Volume</span>
-            <span className="text-sm font-medium text-black">{originalData.qty.toLocaleString('en-IN')} units</span>
+            <span className="text-[10px] font-normal text-gray-400 uppercase">Volume</span>
+            <span className="text-sm font-normal text-black">{originalData.qty.toLocaleString('en-IN')} units</span>
           </div>
         ) : null}
       </div>
@@ -95,13 +95,13 @@ const CustomTooltip = ({ active, payload, label, title }: any) => {
 function BlockFilterField({ label, value, onChange, placeholder, type = "text" }: any) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{label}</label>
+      <label className="text-[10px] font-normal text-gray-400 uppercase tracking-tight">{label}</label>
       <input
         type={type}
         placeholder={placeholder}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? undefined : (type === 'number' ? Number(e.target.value) : e.target.value))}
-        className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300"
+        className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300"
       />
     </div>
   );
@@ -128,7 +128,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
 
   return (
     <div className="flex flex-col gap-1 relative" ref={dropdownRef}>
-      <label className="text-[10px] font-bold text-gray-600 uppercase tracking-tight">{label}</label>
+      <label className="text-[10px] font-normal text-gray-600 uppercase tracking-tight">{label}</label>
       <div className="relative">
         <input
           type="text"
@@ -142,7 +142,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
                 setIsOpen(false);
              }
           }}
-          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 pr-6"
+          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 pr-6"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
@@ -160,7 +160,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
                   onChange(opt);
                   setIsOpen(false);
                 }}
-                className="w-full px-3 py-2 text-left text-xs font-medium text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0"
+                className="w-full px-3 py-2 text-left text-xs font-normal text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0"
               >
                 {opt}
               </button>
@@ -172,7 +172,7 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
             <button 
                type="button"
                onMouseDown={() => { onChange(search); setIsOpen(false); }}
-               className="w-full px-3 py-2 text-left text-[10px] font-bold text-black bg-teal-50/50 hover:bg-teal-100 uppercase tracking-tight sticky bottom-0 border-t border-teal-100"
+               className="w-full px-3 py-2 text-left text-[10px] font-normal text-black bg-teal-50/50 hover:bg-teal-100 uppercase tracking-tight sticky bottom-0 border-t border-teal-100"
             >
               Use Custom: "{search}"
             </button>
@@ -253,10 +253,10 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
         <div className="border-b border-gray-200 bg-white p-5 sm:p-6 shrink-0">
           <div className="flex items-start justify-between mb-2">
             <div>
-              <h4 className="text-[10px] font-medium text-gray-400 uppercase tracking-widest mb-1">{mode === 'single' ? 'Daily Summary' : 'Range Summary'}</h4>
+              <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">{mode === 'single' ? 'Daily Summary' : 'Range Summary'}</h4>
               {mode === 'single' ? (
                 <div className="relative group min-h-[30px]">
-                  <p className="text-sm font-semibold text-black flex items-center gap-2">
+                  <p className="text-sm font-normal text-black flex items-center gap-2">
                     {new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM16 2v2M8 2v2M3 7h18"/></svg>
                   </p>
@@ -277,16 +277,16 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
                     type="date" 
                     value={localStart ? new Date(localStart).toISOString().split('T')[0] : ''} 
                     onChange={e => setLocalStart(e.target.value ? new Date(e.target.value).toISOString() : '')} 
-                    className="w-[105px] border-b-2 border-teal-400 bg-teal-50 px-1 py-0.5 rounded-t text-xs font-semibold text-teal-900 focus:outline-none cursor-pointer hover:bg-teal-100 transition-colors"
+                    className="w-[105px] border-b-2 border-teal-400 bg-teal-50 px-1 py-0.5 rounded-t text-xs font-normal text-teal-900 focus:outline-none cursor-pointer hover:bg-teal-100 transition-colors"
                     onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                     title="Start Date"
                   />
-                  <span className="text-gray-300 font-bold text-xs">→</span>
+                  <span className="text-gray-300 font-normal text-xs">→</span>
                   <input 
                     type="date" 
                     value={localEnd ? new Date(localEnd).toISOString().split('T')[0] : ''} 
                     onChange={e => setLocalEnd(e.target.value ? new Date(e.target.value).toISOString() : '')} 
-                    className="w-[105px] border-b-2 border-teal-400 bg-teal-50 px-1 py-0.5 rounded-t text-xs font-semibold text-teal-900 focus:outline-none cursor-pointer hover:bg-teal-100 transition-colors"
+                    className="w-[105px] border-b-2 border-teal-400 bg-teal-50 px-1 py-0.5 rounded-t text-xs font-normal text-teal-900 focus:outline-none cursor-pointer hover:bg-teal-100 transition-colors"
                     onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                     title="End Date"
                   />
@@ -316,20 +316,20 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
           </div>
 
           <div className="flex bg-gray-100 p-0.5 rounded-lg w-max mb-4 mt-1">
-            <button onClick={() => setMode('single')} className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all tracking-wider ${mode === 'single' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-black'}`}>Single Day</button>
-            <button onClick={() => setMode('range')} className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all tracking-wider ${mode === 'range' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-black'}`}>Date Range</button>
+            <button onClick={() => setMode('single')} className={`px-3 py-1 rounded-md text-[10px] font-normal uppercase transition-all tracking-wider ${mode === 'single' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-black'}`}>Single Day</button>
+            <button onClick={() => setMode('range')} className={`px-3 py-1 rounded-md text-[10px] font-normal uppercase transition-all tracking-wider ${mode === 'range' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-black'}`}>Date Range</button>
           </div>
 
           {!isLoading && (
             <div className="space-y-4">
               <div className={`flex gap-4 ${isFullScreen ? 'max-w-xl' : ''}`}>
                 <div className="flex-1 rounded-xl bg-teal-600 px-3 py-2 text-white shadow-inner">
-                  <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Revenue</span>
-                  <p className="text-base font-semibold leading-none">{fmtINR(totalRev)}</p>
+                  <span className="text-[9px] font-normal uppercase opacity-80 block mb-0.5">Revenue</span>
+                  <p className="text-base font-normal leading-none">{fmtINR(totalRev)}</p>
                 </div>
                 <div className="flex-1 rounded-xl bg-black px-3 py-2 text-white shadow-inner">
-                  <span className="text-[9px] font-medium uppercase opacity-80 block mb-0.5">Units</span>
-                  <p className="text-base font-semibold leading-none">{totalQty.toLocaleString('en-IN')}</p>
+                  <span className="text-[9px] font-normal uppercase opacity-80 block mb-0.5">Units</span>
+                  <p className="text-base font-normal leading-none">{totalQty.toLocaleString('en-IN')}</p>
                 </div>
               </div>
 
@@ -341,14 +341,14 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
                       placeholder="Search items..." 
                       value={q}
                       onChange={e => setQ(e.target.value)}
-                      className="w-full rounded-lg border border-gray-200 bg-gray-50 pl-8 pr-3 py-2 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-400"
+                      className="w-full rounded-lg border border-gray-200 bg-gray-50 pl-8 pr-3 py-2 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-400"
                     />
                     <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                  </div>
                  <select 
                    value={pub}
                    onChange={e => setPub(e.target.value)}
-                   className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all"
+                   className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all"
                  >
                    <option value="">All Publishers</option>
                    {optData?.publishers?.map(p => <option key={p} value={p}>{p}</option>)}
@@ -368,31 +368,31 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
                <div key={i} className={`rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow flex flex-col ${isFullScreen ? 'p-5' : 'p-3'}`}>
                   <div className="flex justify-between items-start gap-3 mb-2">
                      <div>
-                        <p className={`font-semibold text-black leading-tight line-clamp-2 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{it.title}</p>
+                        <p className={`font-normal text-black leading-tight line-clamp-2 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{it.title}</p>
                         {it.author && it.author !== 'N/A' && (
-                          <p className={`text-gray-500 font-medium mt-1 truncate ${isFullScreen ? 'text-xs' : 'text-[9px]'}`}>{it.author}</p>
+                          <p className={`text-gray-500 font-normal mt-1 truncate ${isFullScreen ? 'text-xs' : 'text-[9px]'}`}>{it.author}</p>
                         )}
                      </div>
-                     <span className={`shrink-0 rounded-lg bg-gray-100 font-bold text-gray-700 flex items-center justify-center ${isFullScreen ? 'w-10 h-10 text-xs' : 'w-8 h-8 text-[10px]'}`}>×{it.qty}</span>
+                     <span className={`shrink-0 rounded-lg bg-gray-100 font-normal text-gray-700 flex items-center justify-center ${isFullScreen ? 'w-10 h-10 text-xs' : 'w-8 h-8 text-[10px]'}`}>×{it.qty}</span>
                   </div>
                   <div className="mt-auto border-t border-gray-50 pt-3 flex justify-between items-center">
                      <div className="flex flex-col">
-                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-tighter">Publisher</span>
-                        <p className={`font-medium text-gray-500 uppercase truncate ${isFullScreen ? 'text-[10px] max-w-[200px]' : 'text-[9px] max-w-[120px]'}`} title={it.publisher}>{it.publisher}</p>
+                        <span className="text-[8px] font-normal text-gray-300 uppercase tracking-tighter">Publisher</span>
+                        <p className={`font-normal text-gray-500 uppercase truncate ${isFullScreen ? 'text-[10px] max-w-[200px]' : 'text-[9px] max-w-[120px]'}`} title={it.publisher}>{it.publisher}</p>
                      </div>
                      <div className="flex flex-col text-center border-x border-gray-100 px-3">
-                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-tighter">Rate</span>
-                        <p className={`font-medium text-gray-900 ${isFullScreen ? 'text-[11px]' : 'text-[10px]'}`}>{fmtINR(it.rate ?? 0)}</p>
+                        <span className="text-[8px] font-normal text-gray-300 uppercase tracking-tighter">Rate</span>
+                        <p className={`font-normal text-gray-900 ${isFullScreen ? 'text-[11px]' : 'text-[10px]'}`}>{fmtINR(it.rate ?? 0)}</p>
                      </div>
                      <div className="text-right">
-                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-tighter">Total</span>
-                        <p className={`font-bold text-teal-600 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{fmtINR(it.total)}</p>
+                        <span className="text-[8px] font-normal text-gray-300 uppercase tracking-tighter">Total</span>
+                        <p className={`font-normal text-teal-600 ${isFullScreen ? 'text-sm' : 'text-[11px]'}`}>{fmtINR(it.total)}</p>
                      </div>
                   </div>
                </div>
             ))
           ) : (
-            <p className={`text-center text-[10px] font-medium text-gray-300 py-10 uppercase italic ${isFullScreen ? 'col-span-full' : ''}`}>No sales records</p>
+            <p className={`text-center text-[10px] font-normal text-gray-300 py-10 uppercase italic ${isFullScreen ? 'col-span-full' : ''}`}>No sales records</p>
           )}
         </div>
 
@@ -400,7 +400,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
            <div className="p-4 sm:p-5 bg-white border-t border-gray-200 mt-auto shrink-0 space-y-3">
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{totalCount} items found</p>
+                  <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">{totalCount} items found</p>
                   <div className="flex items-center gap-1">
                     <button 
                       disabled={page === 1}
@@ -409,7 +409,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m15 18-6-6 6-6"/></svg>
                     </button>
-                    <span className="text-xs font-bold text-black min-w-[3rem] text-center">{page} / {totalPages}</span>
+                    <span className="text-xs font-normal text-black min-w-[3rem] text-center">{page} / {totalPages}</span>
                     <button 
                       disabled={page === totalPages}
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
@@ -430,7 +430,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
                   }
                   if (isFullScreen) setIsFullScreen(false);
                 }}
-                className="w-full rounded-xl bg-teal-600 py-3 text-[10px] font-semibold text-white hover:bg-teal-700 transition-all uppercase tracking-widest shadow-md"
+                className="w-full rounded-xl bg-teal-600 py-3 text-[10px] font-normal text-white hover:bg-teal-700 transition-all uppercase tracking-widest shadow-md"
               >
                 Analyze Dashboard With Picked Dates
               </button>
@@ -453,12 +453,12 @@ function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: Offli
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white">
       {/* Top Action Bar */}
       <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Interactive Analysis</p>
+        <p className="text-[10px] font-normal uppercase tracking-widest text-gray-400">Interactive Analysis</p>
         <button 
           onClick={() => {
             if (latestDate) setSelectedDate(latestDate);
           }}
-          className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg transition-all hover:bg-teal-700 active:scale-95"
+          className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-[10px] font-normal uppercase tracking-widest text-white shadow-lg transition-all hover:bg-teal-700 active:scale-95"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Daily Summary
@@ -495,7 +495,7 @@ function RevenueTrendChart({ data, globalFilters, onApplyGlobal }: { data: Offli
               />
             </AreaChart>
           </ResponsiveContainer>
-          {selectedDate && <div className="mt-4 text-center lg:hidden"><button onClick={() => setSelectedDate(null)} className="text-[10px] font-bold text-gray-400 uppercase underline">Close Details ↑</button></div>}
+          {selectedDate && <div className="mt-4 text-center lg:hidden"><button onClick={() => setSelectedDate(null)} className="text-[10px] font-normal text-gray-400 uppercase underline">Close Details ↑</button></div>}
         </div>
 
         {selectedDate && (
@@ -607,9 +607,9 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
     <div className="flex flex-col h-full rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-teal-500/30 hover:shadow-xl transition-all duration-300 relative group/block">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <h3 className="text-xl font-medium text-black border-b-4 border-teal-500 pb-1 inline-block uppercase tracking-tight">{title}</h3>
+          <h3 className="text-xl font-normal text-black border-b-4 border-teal-500 pb-1 inline-block uppercase tracking-tight">{title}</h3>
           {activeFilterCount > 0 && (
-            <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700 border border-teal-200">
+            <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-normal text-teal-700 border border-teal-200">
               {activeFilterCount} ACTIVE FILTERS
             </span>
           )}
@@ -622,7 +622,7 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
               <button
                 key={d}
                 onClick={() => updateF('days', d)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-normal transition-all ${
                   localFilters.days === d
                     ? 'bg-teal-600 text-white shadow-md'
                     : 'text-gray-500 hover:bg-white hover:text-teal-600'
@@ -632,7 +632,7 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
               </button>
             ))}
             {(localFilters.startDate || localFilters.endDate) && (
-              <span className="px-2 py-1 text-[10px] font-bold text-teal-600 uppercase tracking-tight bg-teal-50 rounded-lg border border-teal-100">Custom</span>
+              <span className="px-2 py-1 text-[10px] font-normal text-teal-600 uppercase tracking-tight bg-teal-50 rounded-lg border border-teal-100">Custom</span>
             )}
           </div>
 
@@ -666,19 +666,19 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
              <div className="flex-1"><BlockFilterField label="Max ₹" type="number" value={localFilters.maxAmount} onChange={(v:any) => updateF('maxAmount', v)} /></div>
           </div>
           <div className="col-span-full flex flex-col gap-1.5 mt-1 pt-3 border-t border-teal-100/50">
-             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Custom Date Range</label>
+             <label className="text-[10px] font-normal text-gray-400 uppercase tracking-tight">Custom Date Range</label>
              <div className="flex items-center gap-2">
                <input 
                  type="date" 
-                 className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 cursor-pointer" 
+                 className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 cursor-pointer" 
                  value={localFilters.startDate ? new Date(localFilters.startDate).toISOString().split('T')[0] : ''} 
                  onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                  onChange={(e) => updateF('startDate', e.target.value ? new Date(e.target.value).toISOString() : undefined)} 
                />
-               <span className="text-gray-400 font-bold text-xs">→</span>
+               <span className="text-gray-400 font-normal text-xs">→</span>
                <input 
                  type="date" 
-                 className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 cursor-pointer" 
+                 className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 cursor-pointer" 
                  value={localFilters.endDate ? new Date(localFilters.endDate).toISOString().split('T')[0] : ''} 
                  onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
                  onChange={(e) => updateF('endDate', e.target.value ? new Date(e.target.value).toISOString() : undefined)} 
@@ -686,12 +686,12 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion }: ChartBlo
              </div>
           </div>
           <div className="col-span-full mt-2 pt-3 flex justify-between items-center border-t border-teal-100/70">
-             <button onClick={() => setLocalFilters({ days: 90 })} className="text-[10px] font-bold text-red-600 uppercase hover:underline">Reset Filters</button>
+             <button onClick={() => setLocalFilters({ days: 90 })} className="text-[10px] font-normal text-red-600 uppercase hover:underline">Reset Filters</button>
              <div className="flex items-center gap-3">
-               <button onClick={() => setIsFilterOpen(false)} className="text-[10px] font-bold text-gray-500 uppercase hover:text-black">Cancel</button>
+               <button onClick={() => setIsFilterOpen(false)} className="text-[10px] font-normal text-gray-500 uppercase hover:text-black">Cancel</button>
                <button 
                  onClick={() => setIsFilterOpen(false)} 
-                 className="rounded-lg bg-teal-600 px-4 py-2 text-[10px] font-bold text-white uppercase tracking-widest shadow-md hover:bg-teal-700 transition-all active:scale-95"
+                 className="rounded-lg bg-teal-600 px-4 py-2 text-[10px] font-normal text-white uppercase tracking-widest shadow-md hover:bg-teal-700 transition-all active:scale-95"
                >
                  Apply Filters
                </button>

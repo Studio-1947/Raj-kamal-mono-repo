@@ -135,7 +135,7 @@ const OnlineSalesWidget: React.FC<Props> = ({ days: daysProp, onDaysChange }) =>
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-sm text-gray-500">Revenue Overview</div>
-          <div className="mt-1 text-3xl font-medium text-gray-900">{formatINR(totalAmt)}</div>
+          <div className="mt-1 text-3xl font-normal text-gray-900">{formatINR(totalAmt)}</div>
           <div className="mt-1 text-xs text-gray-600">
             <span className={growth.dir === 'down' ? 'text-red-600' : 'text-green-600'}>
               {growth.pct >= 0 ? '+' : ''}{growth.pct.toFixed(2)}%
@@ -143,17 +143,17 @@ const OnlineSalesWidget: React.FC<Props> = ({ days: daysProp, onDaysChange }) =>
             <span className="ml-1">vs previous period</span>
           </div>
           <div className="mt-1 text-sm text-gray-800">
-            {projectionLabel}: <span className="font-medium text-gray-900">{formatINR(projection365)}</span>
+            {projectionLabel}: <span className="font-normal text-gray-900">{formatINR(projection365)}</span>
           </div>
           {actual365Total != null && (
             <div className="mt-1 text-sm text-gray-800">
-              Last 365 days total: <span className="font-medium text-gray-900">{formatINR(actual365Total)}</span>
+              Last 365 days total: <span className="font-normal text-gray-900">{formatINR(actual365Total)}</span>
             </div>
           )}
           <div className="mt-1 text-xs text-gray-500">{since.toLocaleDateString()} – {now.toLocaleDateString()}</div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200">Online</div>
+          <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-normal text-indigo-700 ring-1 ring-indigo-200">Online</div>
           <select className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[30, 60, 90, 180, 365].map((d) => <option key={d} value={d}>{d === 30 ? 'This Month' : `${d} days`}</option>)}
           </select>

@@ -83,7 +83,7 @@ function Pill({
   };
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold border border-black/5 ${tones[tone]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-normal border border-black/5 ${tones[tone]} ${className}`}
     >
       {children}
     </span>
@@ -99,7 +99,7 @@ function FooterButton({
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-xl bg-[#F4F7FA] b-1 b-[#E5ECF4] text-[#3856B8] font-semibold py-2.5 text-sm hover:brightness-95 transition-all hover:shadow-md"
+      className="w-full rounded-xl bg-[#F4F7FA] b-1 b-[#E5ECF4] text-[#3856B8] font-normal py-2.5 text-sm hover:brightness-95 transition-all hover:shadow-md"
     >
       {children}
     </button>
@@ -130,7 +130,7 @@ function Card({
       {title && (
         <header className="px-4 sm:px-5 py-2 sm:py-3 flex-shrink-0">
           {typeof title === "string" ? (
-            <h2 className="text-sm sm:text-[15px] font-semibold text-gray-900">
+            <h2 className="text-sm sm:text-[15px] font-normal text-gray-900">
               {title}
             </h2>
           ) : (
@@ -256,7 +256,7 @@ function RevenueCard({
     <Card
       title={
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-[#292929] font-semibold">Revenue Overview</span>
+          <span className="text-[#292929] font-normal">Revenue Overview</span>
 
           {/* View tabs */}
           <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 text-xs">
@@ -269,7 +269,7 @@ function RevenueCard({
                 key={t.label}
                 type="button"
                 onClick={() => setActiveView(t.value)}
-                className={`px-2.5 py-1 rounded-full font-semibold transition-all ${activeView === t.value
+                className={`px-2.5 py-1 rounded-full font-normal transition-all ${activeView === t.value
                   ? "bg-white text-[#1e3a8a] shadow"
                   : "text-gray-600 hover:text-gray-900"
                   }`}
@@ -308,7 +308,7 @@ function RevenueCard({
     >
       {/* headline row */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="text-3xl sm:text-4xl font-extrabold text-[#43547E] transition-all">
+        <div className="text-3xl sm:text-4xl font-normal text-[#43547E] transition-all">
           {loading ? (
             <span className="animate-pulse bg-gray-200 rounded px-8 py-2 inline-block">
               Reading...
@@ -355,20 +355,20 @@ function RevenueCard({
           ) : growth.dir === "down" ? (
             <MdOutlineKeyboardArrowDown className="w-5 h-5 text-red-600" />
           ) : null}
-          <span className="font-semibold text-[#43547E]">
+          <span className="font-normal text-[#43547E]">
             {Math.abs(growth.pct).toFixed(2)}%
           </span>
           <span className="text-gray-500">from previous period</span>
         </span>
         <span className="inline-flex items-center gap-2 text-gray-700">
-          <span className="font-semibold text-[#43547E]">
+          <span className="font-normal text-[#43547E]">
             {formatIN(totalOrders)}
           </span>
           <span className="text-gray-500">total orders</span>
         </span>
         {counts?.uniqueCustomers && (
           <span className="inline-flex items-center gap-2">
-            <span className="font-semibold text-[#43547E]">
+            <span className="font-normal text-[#43547E]">
               {formatIN(counts.uniqueCustomers)}
             </span>
             <span className="text-gray-500">customers</span>
@@ -490,11 +490,11 @@ function TopBookCard({
     <Card
       title={
         <div className="flex items-center">
-          <span className="font-semibold text-[16px] text-[#000000]">
+          <span className="font-normal text-[16px] text-[#000000]">
             Top Book
           </span>
           <div className="ml-auto flex items-center gap-2 text-xs">
-            <span className="font-semibold text-[#43547E] text-[16px]">
+            <span className="font-normal text-[#43547E] text-[16px]">
               This Period
             </span>
           </div>
@@ -517,11 +517,11 @@ function TopBookCard({
         </div>
       ) : topBook ? (
         <div className="flex items-start gap-5">
-          <div className="h-16 w-12 rounded-md bg-gradient-to-br from-indigo-100 to-purple-200 flex items-center justify-center text-2xl font-bold text-indigo-700 shadow-sm">
+          <div className="h-16 w-12 rounded-md bg-gradient-to-br from-indigo-100 to-purple-200 flex items-center justify-center text-2xl font-normal text-indigo-700 shadow-sm">
             {topBook.title.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="font-semibold text-gray-900">{topBook.title}</div>
+            <div className="font-normal text-gray-900">{topBook.title}</div>
             <div className="text-sm text-gray-600">
               {topBook.author || "Author not specified"}
             </div>
@@ -530,7 +530,7 @@ function TopBookCard({
                 <p className="text-xs text-gray-500">
                   {topBook.isbn && (
                     <>
-                      <span className="font-semibold text-[#43547E]">
+                      <span className="font-normal text-[#43547E]">
                         ISBN:
                       </span>{" "}
                       {topBook.isbn}
@@ -539,7 +539,7 @@ function TopBookCard({
                   )}
                   {topBook.language && (
                     <>
-                      <span className="font-semibold text-[#43547E]">
+                      <span className="font-normal text-[#43547E]">
                         Language:
                       </span>{" "}
                       {topBook.language}
@@ -550,17 +550,17 @@ function TopBookCard({
               <p className="text-xs text-gray-500">
                 {topBook.qty > 0 && (
                   <>
-                    <span className="font-semibold text-[#43547E]">Sold:</span>{" "}
+                    <span className="font-normal text-[#43547E]">Sold:</span>{" "}
                     {topBook.qty} units •{" "}
                   </>
                 )}
-                <span className="font-semibold text-[#43547E]">Revenue:</span>{" "}
+                <span className="font-normal text-[#43547E]">Revenue:</span>{" "}
                 {formatINR(topBook.total)}
               </p>
             </div>
           </div>
           <div className="ml-auto text-right">
-            <div className="text-3xl font-extrabold text-[#43547E] inline-flex items-center gap-1">
+            <div className="text-3xl font-normal text-[#43547E] inline-flex items-center gap-1">
               {growthPercent}%
               <ArrowUp className="w-4 h-4 text-green-600" />
             </div>
@@ -572,7 +572,7 @@ function TopBookCard({
       ) : (
         <div className="text-center text-gray-500 py-6">
           <div className="text-2xl mb-2">📚</div>
-          <div className="text-sm font-medium">No sales data available</div>
+          <div className="text-sm font-normal">No sales data available</div>
           <div className="text-xs mt-1">
             Start selling to see your top books!
           </div>
@@ -638,11 +638,11 @@ function TopAuthorCard({
     <Card
       title={
         <div className="flex items-center">
-          <span className="font-semibold text-[#000000] text-[16px]">
+          <span className="font-normal text-[#000000] text-[16px]">
             Top Author
           </span>
           <div className="ml-auto flex items-center gap-2 text-xs">
-            <span className="font-semibold text-[#43547E] text-[16px]">
+            <span className="font-normal text-[#43547E] text-[16px]">
               This Period
             </span>
           </div>
@@ -665,17 +665,17 @@ function TopAuthorCard({
         </div>
       ) : topAuthor ? (
         <div className="flex items-start gap-3">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-xl font-bold text-green-700 shadow-sm">
+          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center text-xl font-normal text-green-700 shadow-sm">
             {topAuthor.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="font-semibold text-gray-900">{topAuthor.name}</div>
+            <div className="font-normal text-gray-900">{topAuthor.name}</div>
             <div className="text-xs text-gray-600">
               {topAuthor.books} book{topAuthor.books !== 1 ? "s" : ""} in top 10
             </div>
           </div>
           <div className="ml-auto text-right">
-            <div className="text-3xl font-extrabold text-[#43547E] inline-flex items-center gap-1">
+            <div className="text-3xl font-normal text-[#43547E] inline-flex items-center gap-1">
               {topAuthor.contributionPercent}%
               <ArrowUp className="w-4 h-4 text-green-600" />
             </div>
@@ -689,7 +689,7 @@ function TopAuthorCard({
       ) : (
         <div className="text-center text-gray-500 py-6">
           <div className="text-2xl mb-2">✍️</div>
-          <div className="text-sm font-medium">No author data available</div>
+          <div className="text-sm font-normal">No author data available</div>
           <div className="text-xs mt-1">
             Authors will appear as sales data grows
           </div>
@@ -751,7 +751,7 @@ function InventoryCard({
     <Card
       title={
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-[#000000]">Inventory</span>
+          <span className="font-normal text-[#000000]">Inventory</span>
           <Pill tone="red">Critical</Pill>
         </div>
       }
@@ -776,12 +776,12 @@ function InventoryCard({
               className="rounded-2xl bg-[#F3F6FD]/60 border border-black/10 p-3 hover:shadow-md transition-all"
             >
               <div className="flex items-start gap-3">
-                <div className="h-20 w-16 rounded-md bg-gradient-to-br from-orange-100 to-red-200 flex items-center justify-center text-2xl font-bold text-orange-700 shadow-sm">
+                <div className="h-20 w-16 rounded-md bg-gradient-to-br from-orange-100 to-red-200 flex items-center justify-center text-2xl font-normal text-orange-700 shadow-sm">
                   {item.title.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div
-                    className="font-semibold text-[#163060] truncate"
+                    className="font-normal text-[#163060] truncate"
                     title={item.title}
                   >
                     {item.title}
@@ -797,14 +797,14 @@ function InventoryCard({
                   <div className="text-xs text-gray-600 mt-1">
                     {item.qtySold > 0 ? (
                       <span>
-                        <span className="font-semibold text-[#163060]">
+                        <span className="font-normal text-[#163060]">
                           Sold:
                         </span>{" "}
                         {item.qtySold} units
                       </span>
                     ) : (
                       <span>
-                        <span className="font-semibold text-[#163060]">
+                        <span className="font-normal text-[#163060]">
                           Revenue:
                         </span>{" "}
                         {formatINR(item.revenue)}
@@ -812,11 +812,11 @@ function InventoryCard({
                     )}
                   </div>
                   <div className="mt-2">
-                    <div className="text-[11px] text-[#C03548] font-semibold">
+                    <div className="text-[11px] text-[#C03548] font-normal">
                       Stock Available (Est.)
                     </div>
                     <div className="flex items-baseline gap-2">
-                      <div className="text-2xl font-extrabold text-[#971A34]">
+                      <div className="text-2xl font-normal text-[#971A34]">
                         {item.available}
                       </div>
                       <div className="text-[11px] text-gray-500">
@@ -828,7 +828,7 @@ function InventoryCard({
               </div>
               {/* alert strip */}
               <div
-                className={`mt-3 rounded-xl px-3 py-2 text-xs font-medium flex items-start gap-2 ${item.alert.tone === "red"
+                className={`mt-3 rounded-xl px-3 py-2 text-xs font-normal flex items-start gap-2 ${item.alert.tone === "red"
                   ? "bg-[#FDEBEE] text-[#A12B3A]"
                   : "bg-[#FFF4DE] text-[#A35C00]"
                   }`}
@@ -842,7 +842,7 @@ function InventoryCard({
       ) : (
         <div className="text-center text-gray-500 py-8">
           <div className="text-3xl mb-2">📦</div>
-          <div className="text-sm font-medium">No inventory alerts</div>
+          <div className="text-sm font-normal">No inventory alerts</div>
           <div className="text-xs mt-1">
             Your best-selling items will appear here
           </div>
@@ -1039,7 +1039,7 @@ function TopLocationsCard({ days }: { days: number }) {
   return (
     <Card
       title={
-        <span className="font-semibold text-[#000000]">
+        <span className="font-normal text-[#000000]">
           Top 5 Performing Locations
         </span>
       }
@@ -1065,11 +1065,11 @@ function TopLocationsCard({ days }: { days: number }) {
           <table className="min-w-full text-xs">
             <thead>
               <tr className="text-gray-500">
-                <th className="py-1 pr-2 text-left font-medium">#</th>
-                <th className="py-1 pr-2 text-left font-medium">Pincode</th>
-                <th className="py-1 pr-2 text-left font-medium">City</th>
-                <th className="py-1 pr-2 text-left font-medium">State</th>
-                <th className="py-1 pl-2 text-right font-medium">Sales</th>
+                <th className="py-1 pr-2 text-left font-normal">#</th>
+                <th className="py-1 pr-2 text-left font-normal">Pincode</th>
+                <th className="py-1 pr-2 text-left font-normal">City</th>
+                <th className="py-1 pr-2 text-left font-normal">State</th>
+                <th className="py-1 pl-2 text-right font-normal">Sales</th>
               </tr>
             </thead>
             <tbody>
@@ -1079,12 +1079,12 @@ function TopLocationsCard({ days }: { days: number }) {
                   className="border-t border-gray-100"
                 >
                   <td className="py-1 pr-2">{idx + 1}</td>
-                  <td className="py-1 pr-2 font-semibold text-gray-900">
+                  <td className="py-1 pr-2 font-normal text-gray-900">
                     {r.pincode}
                   </td>
                   <td className="py-1 pr-2 text-gray-700">{r.city}</td>
                   <td className="py-1 pr-2 text-gray-700">{r.state}</td>
-                  <td className="py-1 pl-2 text-right font-semibold text-gray-900">
+                  <td className="py-1 pl-2 text-right font-normal text-gray-900">
                     {formatINR(r.totalAmount)}
                   </td>
                 </tr>
@@ -1102,7 +1102,7 @@ function SocialMediaCard() {
     <Card
       title={
         <div className="flex items-center gap-2">
-          <span className="font-semibold">Social Media</span>
+          <span className="font-normal">Social Media</span>
           <Pill tone="green">All Good</Pill>
         </div>
       }
@@ -1113,17 +1113,17 @@ function SocialMediaCard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Panel 1 - Instagram */}
         <div className="rounded-xl border border-black/10 p-3 hover:shadow-md transition-all">
-          <div className="flex flex-col items-center gap-1 text-xs font-medium text-gray-700 mb-3">
+          <div className="flex flex-col items-center gap-1 text-xs font-normal text-gray-700 mb-3">
             <CameraIcon className="w-5 h-5" />
             <span>Instagram</span>
           </div>
           <div className="space-y-2">
             <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
-              <div className="text-2xl font-extrabold text-gray-900">+835</div>
+              <div className="text-2xl font-normal text-gray-900">+835</div>
               <div className="text-[11px] text-gray-600">Followers</div>
             </div>
             <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
-              <div className="text-2xl font-extrabold text-gray-900">+20%</div>
+              <div className="text-2xl font-normal text-gray-900">+20%</div>
               <div className="text-[11px] text-gray-600">Views</div>
             </div>
           </div>
@@ -1131,17 +1131,17 @@ function SocialMediaCard() {
 
         {/* Panel 2 - Facebook */}
         <div className="rounded-xl border border-black/10 p-3 hover:shadow-md transition-all">
-          <div className="flex flex-col items-center gap-1 text-xs font-medium text-gray-700 mb-3">
+          <div className="flex flex-col items-center gap-1 text-xs font-normal text-gray-700 mb-3">
             <FacebookIcon className="w-5 h-5" />
             <span>Facebook</span>
           </div>
           <div className="space-y-2">
             <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
-              <div className="text-2xl font-extrabold text-gray-900">+635</div>
+              <div className="text-2xl font-normal text-gray-900">+635</div>
               <div className="text-[11px] text-gray-600">Followers</div>
             </div>
             <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
-              <div className="text-2xl font-extrabold text-gray-900">+15%</div>
+              <div className="text-2xl font-normal text-gray-900">+15%</div>
               <div className="text-[11px] text-gray-600">Engagement</div>
             </div>
           </div>
@@ -1149,7 +1149,7 @@ function SocialMediaCard() {
 
         {/* Panel 3 - Twitter/X */}
         <div className="rounded-xl border border-black/10 p-3 hover:shadow-md transition-all">
-          <div className="flex flex-col items-center gap-1 text-xs font-medium text-gray-700 mb-3">
+          <div className="flex flex-col items-center gap-1 text-xs font-normal text-gray-700 mb-3">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
             </svg>
@@ -1157,11 +1157,11 @@ function SocialMediaCard() {
           </div>
           <div className="space-y-2">
             <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
-              <div className="text-2xl font-extrabold text-gray-900">+1.2K</div>
+              <div className="text-2xl font-normal text-gray-900">+1.2K</div>
               <div className="text-[11px] text-gray-600">Followers</div>
             </div>
             <div className="rounded-lg bg-[#EAF1FF] px-3 py-2">
-              <div className="text-2xl font-extrabold text-gray-900">+25%</div>
+              <div className="text-2xl font-normal text-gray-900">+25%</div>
               <div className="text-[11px] text-gray-600">Impressions</div>
             </div>
           </div>

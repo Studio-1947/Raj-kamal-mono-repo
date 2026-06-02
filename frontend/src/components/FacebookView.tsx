@@ -419,7 +419,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             key={section.key}
                             type="button"
                             onClick={() => setActiveSection(section.key)}
-                            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${activeSection === section.key
+                            className={`px-4 py-2 text-xs font-normal rounded-lg transition-all ${activeSection === section.key
                                 ? "bg-blue-600 text-white shadow-md"
                                 : "bg-gray-100 text-gray-900 hover:bg-gray-200"
                                 }`}
@@ -430,7 +430,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 </div>
 
                 {/* Time Range Selector */}
-                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-medium text-gray-900">
+                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-900">
                     {(["7d", "30d", "90d"] as TimeRangeKey[]).map((key) => (
                         <button
                             key={key}
@@ -457,7 +457,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                 : '⚠️'}
                         </span>
                         <div className="flex-1">
-                            <p className="font-semibold mb-1">
+                            <p className="font-normal mb-1">
                                 {error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')
                                     ? 'Rate Limit Reached'
                                     : 'Error Loading Data'}
@@ -486,7 +486,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">Page Overview</p>
+                                <p className="text-sm font-normal text-gray-900">Page Overview</p>
                                 <p className="text-xs text-gray-900">
                                     {networkFrom} → {networkTo}
                                 </p>
@@ -502,7 +502,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                         alt="Profile"
                                         className="h-8 w-8 rounded-full object-cover"
                                     />
-                                    <span className="font-semibold text-gray-900">
+                                    <span className="font-normal text-gray-900">
                                         {overview?.profileName}
                                     </span>
                                 </div>
@@ -521,10 +521,10 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     key={card.label}
                                     className="rounded-2xl bg-sky-50 px-4 py-3 text-center shadow-inner border border-sky-100"
                                 >
-                                    <p className="text-xs font-semibold text-gray-900">
+                                    <p className="text-xs font-normal text-gray-900">
                                         {card.label}
                                     </p>
-                                    <p className="text-xl font-bold text-gray-900">
+                                    <p className="text-xl font-normal text-gray-900">
                                         {formatNumber(card.value, "0")}
                                     </p>
                                 </div>
@@ -532,7 +532,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         </div>
 
                         <div className="mt-6">
-                            <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                            <h3 className="text-sm font-normal text-gray-900 mb-2">
                                 Growth
                             </h3>
                             <div className="h-72">
@@ -577,14 +577,14 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5 space-y-4">
                         <header className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">
+                                <p className="text-sm font-normal text-gray-900">
                                     Balance of Followers
                                 </p>
                                 <p className="text-xs text-gray-900">
                                     {networkFrom} → {networkTo}
                                 </p>
                             </div>
-                            <div className="flex gap-2 text-xs font-semibold">
+                            <div className="flex gap-2 text-xs font-normal">
                                 <span className="px-3 py-1 rounded-full bg-sky-50 text-sky-700">
                                     {formatNumber(overview?.followersChange)} Net change
                                 </span>
@@ -639,7 +639,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                         <header className="mb-4 flex justify-between items-start">
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">
+                                <p className="text-sm font-normal text-gray-900">
                                     Followers by Country
                                 </p>
                                 <p className="text-xs text-gray-900">
@@ -657,7 +657,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                                 sectionExcluding.style.display = sectionExcluding.style.display === 'none' ? 'block' : 'none';
                                             }
                                         }}
-                                        className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                        className="px-3 py-1 text-xs font-normal text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                                     >
                                         Toggle View
                                     </button>
@@ -696,8 +696,8 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                                     if (active && payload && payload.length) {
                                                         return (
                                                             <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
-                                                                <p className="text-xs font-semibold text-gray-900">{payload[0].payload.name}</p>
-                                                                <p className="text-xs text-blue-600 font-semibold">
+                                                                <p className="text-xs font-normal text-gray-900">{payload[0].payload.name}</p>
+                                                                <p className="text-xs text-blue-600 font-normal">
                                                                     {payload[0].payload.percentage}% of followers
                                                                 </p>
                                                             </div>
@@ -760,8 +760,8 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                                     if (active && payload && payload.length) {
                                                         return (
                                                             <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
-                                                                <p className="text-xs font-semibold text-gray-900">{payload[0].payload.name}</p>
-                                                                <p className="text-xs text-blue-600 font-semibold">
+                                                                <p className="text-xs font-normal text-gray-900">{payload[0].payload.name}</p>
+                                                                <p className="text-xs text-blue-600 font-normal">
                                                                     {payload[0].payload.percentage}% of followers
                                                                 </p>
                                                             </div>
@@ -784,7 +784,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
 
                     <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                         <header className="mb-4">
-                            <p className="text-sm font-semibold text-gray-900">
+                            <p className="text-sm font-normal text-gray-900">
                                 Top Cities
                             </p>
                             <p className="text-xs text-gray-900">
@@ -799,10 +799,10 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                     return (
                                         <div key={index} className="space-y-1">
                                             <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-900">
+                                                <span className="text-sm font-normal text-gray-900">
                                                     {item?.key ?? "—"}
                                                 </span>
-                                                <span className="text-sm font-semibold text-gray-900">
+                                                <span className="text-sm font-normal text-gray-900">
                                                     {formatNumber(item?.value)}
                                                 </span>
                                             </div>
@@ -835,7 +835,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             {activeSection === "clicks_on_page" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900">
+                        <p className="text-sm font-normal text-gray-900">
                             Clicks on Page
                         </p>
                         <p className="text-xs text-gray-900">
@@ -846,8 +846,8 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                         <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-center shadow-inner border border-emerald-100">
-                            <p className="text-xs font-semibold text-gray-900">Total clicks</p>
-                            <p className="text-2xl font-bold text-gray-900">
+                            <p className="text-xs font-normal text-gray-900">Total clicks</p>
+                            <p className="text-2xl font-normal text-gray-900">
                                 {formatNumber(
                                     clicksPoints.reduce((sum, point) => sum + (point.value || 0), 0),
                                     "0"
@@ -855,14 +855,14 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             </p>
                         </div>
                         <div className="rounded-2xl bg-purple-50 px-4 py-3 text-center shadow-inner border border-purple-100">
-                            <p className="text-xs font-semibold text-gray-900">Page visits</p>
-                            <p className="text-2xl font-bold text-gray-900">
+                            <p className="text-xs font-normal text-gray-900">Page visits</p>
+                            <p className="text-2xl font-normal text-gray-900">
                                 {formatNumber(overview?.pageVisits ?? 0, "0")}
                             </p>
                         </div>
                         <div className="rounded-2xl bg-amber-50 px-4 py-3 text-center shadow-inner border border-amber-100">
-                            <p className="text-xs font-semibold text-gray-900">Total content</p>
-                            <p className="text-2xl font-bold text-gray-900">
+                            <p className="text-xs font-normal text-gray-900">Total content</p>
+                            <p className="text-2xl font-normal text-gray-900">
                                 {formatNumber(overview?.totalContent ?? 0, "0")}
                             </p>
                         </div>
@@ -918,7 +918,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             {activeSection === "posts" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900">Recent Posts</p>
+                        <p className="text-sm font-normal text-gray-900">Recent Posts</p>
                         <p className="text-xs text-gray-900">
                             Top performing posts in this period
                         </p>
@@ -995,7 +995,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             {activeSection === "reels" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900">Facebook Reels</p>
+                        <p className="text-sm font-normal text-gray-900">Facebook Reels</p>
                         <p className="text-xs text-gray-900">
                             Performance metrics for your Reels content
                         </p>
@@ -1080,7 +1080,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             {activeSection === "stories" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900">Facebook Stories</p>
+                        <p className="text-sm font-normal text-gray-900">Facebook Stories</p>
                         <p className="text-xs text-gray-900">
                             Performance metrics for your Stories content
                         </p>
@@ -1161,7 +1161,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
             {activeSection === "competitors" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
-                        <p className="text-sm font-semibold text-gray-900">Competitors Analysis</p>
+                        <p className="text-sm font-normal text-gray-900">Competitors Analysis</p>
                         <p className="text-xs text-gray-900">
                             Compare your performance with competitors
                         </p>
@@ -1197,7 +1197,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                                             className="w-8 h-8 rounded-full object-cover border border-gray-200"
                                                         />
                                                     )}
-                                                    <span className="font-medium">
+                                                    <span className="font-normal">
                                                         {item.displayName || item.screenName || "—"}
                                                     </span>
                                                 </div>

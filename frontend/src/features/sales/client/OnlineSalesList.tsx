@@ -100,7 +100,7 @@ export default function OnlineSalesList({ days: daysProp }: Props) {
   return (
     <div className="mt-8 rounded-xl border border-gray-200 bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-gray-900">Raw Rows</div>
+        <div className="text-sm font-normal text-gray-900">Raw Rows</div>
         <div className="flex items-center gap-2">
           <input
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
@@ -139,13 +139,13 @@ export default function OnlineSalesList({ days: daysProp }: Props) {
         <table className="min-w-full text-left text-sm text-gray-900">
           <thead>
             <tr className="border-b bg-gray-100 text-gray-800">
-              <th className="px-2 py-2 font-semibold">Date</th>
-              <th className="px-2 py-2 font-semibold">Order</th>
-              <th className="px-2 py-2 font-semibold">Title</th>
-              <th className="px-2 py-2 font-semibold">Qty</th>
-              <th className="px-2 py-2 font-semibold">Amount</th>
-              <th className="px-2 py-2 font-semibold">Payment</th>
-              <th className="px-2 py-2 font-semibold">Raw</th>
+              <th className="px-2 py-2 font-normal">Date</th>
+              <th className="px-2 py-2 font-normal">Order</th>
+              <th className="px-2 py-2 font-normal">Title</th>
+              <th className="px-2 py-2 font-normal">Qty</th>
+              <th className="px-2 py-2 font-normal">Amount</th>
+              <th className="px-2 py-2 font-normal">Payment</th>
+              <th className="px-2 py-2 font-normal">Raw</th>
             </tr>
           </thead>
           <tbody className="text-gray-900">

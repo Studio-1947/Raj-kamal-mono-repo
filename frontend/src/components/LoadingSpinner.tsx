@@ -36,7 +36,7 @@ export function LoadingSpinner({
       </div>
       
       {message && (
-        <p className="text-sm text-gray-600 animate-pulse font-medium">{message}</p>
+        <p className="text-sm text-gray-600 animate-pulse font-normal">{message}</p>
       )}
     </div>
   );
@@ -48,7 +48,7 @@ export function FullPageLoader({ message = 'Loading your workspace...' }: { mess
       <div className="text-center">
         <LoadingSpinner size="xl" message={message} />
         <div className="mt-6">
-          <div className="text-rose-600 font-semibold text-lg">Rajkamal</div>
+          <div className="text-rose-600 font-normal text-lg">Rajkamal</div>
           <div className="text-gray-500 text-sm">Powering your business intelligence</div>
         </div>
       </div>
