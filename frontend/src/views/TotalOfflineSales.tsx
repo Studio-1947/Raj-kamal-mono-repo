@@ -18,6 +18,7 @@ import {
   ChannelComparisonChart,
   MonthlyBreakdownTable,
   TopStatesPanel,
+  TopPublishersPanel,
 } from './total-offline-sales/components';
 
 type ChannelKey = 'all' | 'Delhi' | 'Mumbai' | 'Patna' | 'Online' | 'BookFair' | 'Lokbharti';
@@ -308,6 +309,18 @@ export default function TotalOfflineSales() {
               />
             </div>
           )}
+
+          {/* 7.5. Publisher Performance Breakdown */}
+          {summary?.topPublishersByChannel && (
+            <div className="border-t border-gray-100 pt-8">
+              <TopPublishersPanel
+                topPublishersByChannel={summary.topPublishersByChannel}
+                activeChannel={activeChannel}
+                activeTab={activeTab}
+              />
+            </div>
+          )}
+
 
           {/* 8. Bestsellers + Transactions */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 border-t border-gray-100 pt-8">

@@ -57,8 +57,9 @@ function getModel(ch: ChannelKey): any {
 async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
   const model = getModel(ch);
   const stateWhere = { ...where, state: { not: null } };
+  const publisherWhere = { ...where, publisher: { not: null } };
 
-  const [count, agg, topBooks, tsRows, stateRows] = await Promise.all([
+  const [count, agg, topBooks, tsRows, stateRows, publisherRows] = await Promise.all([
     model.count({ where }),
     model.aggregate({ _sum: { amount: true, qty: true }, where }),
     model.groupBy({
@@ -76,12 +77,19 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
       orderBy: { _sum: { amount: 'desc' } },
       take: 5,
     }),
+    model.groupBy({
+      by: ['publisher'],
+      _sum: { amount: true, qty: true },
+      where: publisherWhere,
+      orderBy: { _sum: { amount: 'desc' } },
+      take: 5,
+    }),
   ]);
 
   const revenue = toNum(agg._sum.amount);
   const qty     = toNum(agg._sum.qty);
 
-  return { ch, count, revenue, qty, avgTicket: qty > 0 ? revenue / qty : 0, topBooks, tsRows, stateRows };
+  return { ch, count, revenue, qty, avgTicket: qty > 0 ? revenue / qty : 0, topBooks, tsRows, stateRows, publisherRows };
 }
 
 // ─── GET /api/total-offline-sales/summary ─────────────────────────────────────
@@ -140,6 +148,16 @@ router.get('/summary', async (req, res) => {
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
 
+    // ── Top Publishers by channel ─────────────────────────────────────────────
+    const topPublishersByChannel: Record<string, { publisher: string; revenue: number; qty: number }[]> = {};
+    for (const r of results) {
+      topPublishersByChannel[r.ch] = r.publisherRows.map((p: any) => ({
+        publisher: p.publisher || 'Unknown Publisher',
+        revenue: toNum(p._sum?.amount),
+        qty:     toNum(p._sum?.qty),
+      }));
+    }
+
     // ── Daily time series (channel-keyed) ─────────────────────────────────────
     const dailyMap = new Map<string, { Delhi: number; Mumbai: number; Patna: number; Online: number; BookFair: number; Lokbharti: number; total: number }>();
     for (const r of results) {
@@ -194,6 +212,7 @@ router.get('/summary', async (req, res) => {
       topItems,
       monthlyByChannel,
       topStatesByChannel,
+      topPublishersByChannel,
     });
   } catch (err: any) {
     console.error('Total Sales Summary Failed:', err);

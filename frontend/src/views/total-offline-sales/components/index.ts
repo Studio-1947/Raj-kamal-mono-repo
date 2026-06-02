@@ -10,3 +10,4 @@ export * from './ChannelKpiStrip';
 export * from './ChannelComparisonChart';
 export * from './MonthlyBreakdownTable';
 export * from './TopStatesPanel';
+export * from './TopPublishersPanel';
