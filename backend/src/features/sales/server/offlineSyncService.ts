@@ -19,7 +19,7 @@ export class OfflineSyncService {
    * @param rows The data rows (including headers)
    * @param targetModel The Prisma model delegate to use (default: prisma.googleSheetOfflineSale)
    */
-  async processData(rows: any[][], targetModel: any = prisma.googleSheetOfflineSale): Promise<SyncResult> {
+  async processData(rows: any[][], targetModel: any = prisma.googleSheetOfflineSale, txClient?: any): Promise<SyncResult> {
     if (!rows || rows.length < 2) {
       return { success: true, importedCount: 0, skippedCount: 0 };
     }
@@ -173,9 +173,10 @@ export class OfflineSyncService {
       try {
         // Chunk toInsert to avoid potential database limit issues with massive arrays
         const chunkSize = 1000;
+        const dbModel = txClient || targetModel;
         for (let i = 0; i < toInsert.length; i += chunkSize) {
           const chunk = toInsert.slice(i, i + chunkSize);
-          const result = await targetModel.createMany({
+          const result = await dbModel.createMany({
             data: chunk,
             skipDuplicates: true,
           });
@@ -184,6 +185,7 @@ export class OfflineSyncService {
         duplicateCount = toInsert.length - importedCount;
       } catch (err: any) {
         console.error(`[SYNC ERROR] createMany failed:`, err.message);
+        throw err;
       }
     }
 
@@ -261,11 +263,36 @@ export class OfflineSyncService {
       if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook.`);
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       
-      // Wipe the existing table completely before inserting the fresh Google Sheet data
-      console.log(`[SYNC] Wiping existing data in target model to ensure exact matching...`);
-      await targetModel.deleteMany({});
+      // Find the key of targetModel on prisma (e.g. 'googleSheetOfflineSale')
+      const modelKey = Object.keys(prisma).find(key => {
+        if (key.startsWith('$') || key.startsWith('_')) return false;
+        try {
+          return (prisma as any)[key] === targetModel;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (!modelKey) {
+        console.log(`[SYNC] Model key not found for atomic transaction. Falling back to non-atomic sync.`);
+        await targetModel.deleteMany({});
+        return await this.processData(rows, targetModel);
+      }
+
+      console.log(`[SYNC] Wiping and inserting data for ${modelKey} atomically inside transaction...`);
+      let syncResult: SyncResult = { success: false, importedCount: 0, skippedCount: 0 };
       
-      return await this.processData(rows, targetModel);
+      await prisma.$transaction(async (tx) => {
+        const txModel = (tx as any)[modelKey];
+        // Delete all rows inside transaction
+        await txModel.deleteMany({});
+        // Process and insert inside transaction
+        syncResult = await this.processData(rows, targetModel, txModel);
+      }, {
+        timeout: 90000, // 90 seconds timeout for large sheets
+      });
+
+      return syncResult;
     } catch (error) {
       console.error("Google Sheet Sync Error:", error);
       throw error;

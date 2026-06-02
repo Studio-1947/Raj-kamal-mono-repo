@@ -117,7 +117,9 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({ projectionData
         <div className="flex justify-between items-center mb-6">
           <div>
             <h3 className="text-lg font-normal text-gray-800">Month-Wise Breakdown — {projectionData.year}</h3>
-            <p className="text-xs text-gray-400">Teal columns show actuals, grey columns represent weighted projections</p>
+            <p className="text-xs text-gray-400">
+              Teal = actual revenue · Grey = projected · Current month = actual recorded + velocity extrapolation
+            </p>
           </div>
           
           {/* Custom Legend */}
@@ -125,6 +127,10 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({ projectionData
             <div className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded bg-teal-600" />
               Actual
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded bg-amber-400" />
+              Current (partial)
             </div>
             <div className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded bg-gray-200" />
@@ -154,25 +160,75 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({ projectionData
                 cursor={{ fill: '#F9FAFB', radius: 12 }}
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
-                    const data = payload[0].payload;
+                    const d = payload[0].payload;
+                    const isCurrent   = d.type === 'current';
+                    const isProjected = d.type === 'projected';
+
+                    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+                    const currentMonthIndex = new Date().getMonth();
+                    const currentDayInMonth = projectionData.currentDayInMonth ?? new Date().getDate();
+                    const dim = daysInMonths[currentMonthIndex] ?? 30;
+                    const daysLeft = Math.max(0, dim - currentDayInMonth);
+
+                    // Robust fallback for old/uncached API models
+                    const actualVal = d.actual !== undefined ? d.actual : (projectionData.currentMonthActual ?? 0);
+                    const projectedVal = d.projected !== undefined ? d.projected : Math.max(0, d.value - actualVal);
+
                     return (
-                      <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xl space-y-1 text-left">
-                        <p className="text-xs font-normal text-gray-400 uppercase">{data.name} 2026</p>
-                        <p className="text-lg font-normal text-gray-900">{formatINR(data.value)}</p>
-                        <span className={`inline-block text-[10px] font-normal uppercase tracking-wider px-2 py-0.5 rounded-full ${data.type === 'projected' ? 'bg-gray-100 text-gray-600' : 'bg-teal-50 text-teal-600'}`}>
-                          {data.type}
-                        </span>
+                      <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xl text-left min-w-[200px] space-y-2">
+                        <p className="text-xs font-normal text-gray-400 uppercase tracking-wide">
+                          {d.name} {projectionData.year}
+                        </p>
+
+                        {isCurrent ? (
+                          <>
+                            {/* Split view for current month */}
+                            <div className="space-y-1.5 border-b border-gray-100 pb-2">
+                              <div className="flex items-center justify-between gap-6">
+                                <span className="text-xs text-gray-500">Recorded (actual)</span>
+                                <span className="text-sm font-normal text-teal-700">{formatINR(actualVal)}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-6">
+                                <span className="text-xs text-gray-400">
+                                  Projected ({daysLeft} days left)
+                                </span>
+                                <span className="text-sm font-normal text-gray-400">{formatINR(projectedVal)}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-6">
+                              <span className="text-xs font-normal text-gray-600">Full Month Estimate</span>
+                              <span className="text-sm font-normal text-gray-900">{formatINR(d.value)}</span>
+                            </div>
+                            <span className="inline-block text-[10px] font-normal uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                              Partial — {currentDayInMonth} days recorded
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-lg font-normal text-gray-900">{formatINR(d.value)}</p>
+                            <span className={`inline-block text-[10px] font-normal uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                              isProjected ? 'bg-gray-100 text-gray-500' : 'bg-teal-50 text-teal-700'
+                            }`}>
+                              {isProjected ? 'Projected' : 'Actual'}
+                            </span>
+                          </>
+                        )}
                       </div>
                     );
                   }
                   return null;
                 }}
               />
+
               <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={44}>
                 {projectionData.chartData.map((entry: any, index: number) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.type === 'projected' ? '#E5E7EB' : '#0D9488'}
+                    fill={
+                      entry.type === 'projected' ? '#E5E7EB'
+                      : entry.type === 'current'  ? '#F59E0B'
+                      : '#0D9488'
+                    }
                     className="transition-all duration-300 hover:opacity-85"
                   />
                 ))}
@@ -185,10 +241,18 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({ projectionData
         <div className="grid grid-cols-12 text-center text-[10px] sm:text-xs font-normal text-gray-600 mt-4 border-t border-gray-50 pt-4">
           {projectionData.chartData.map((d: any, i: number) => (
             <div key={i} className="space-y-1">
-              <p className={`${d.type === 'projected' ? 'text-gray-400 font-normal' : 'text-teal-600 font-normal'}`}>
+              <p className={`${
+                d.type === 'projected' ? 'text-gray-400'
+                : d.type === 'current'  ? 'text-amber-600'
+                : 'text-teal-600'
+              } font-normal`}>
                 {formatChartValue(d.value)}
-                {d.type === 'current' && '*'}
               </p>
+              {d.type === 'current' && (
+                <p className="text-[9px] text-amber-400 leading-tight">
+                  {projectionData.currentDayInMonth ?? new Date().getDate()}d actual
+                </p>
+              )}
             </div>
           ))}
         </div>
