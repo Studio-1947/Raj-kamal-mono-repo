@@ -46,7 +46,9 @@ export function formatChartValue(n: number): string {
   } else if (n >= 100000) {
     const val = n / 100000;
     return `${val % 1 === 0 ? val : val.toFixed(1)}L`;
+  } else if (n >= 1000) {
+    return `${(n / 1000).toFixed(1)}K`;
   } else {
-    return `${Math.round(n / 1000)}K`;
+    return Math.round(n).toString();
   }
 }
