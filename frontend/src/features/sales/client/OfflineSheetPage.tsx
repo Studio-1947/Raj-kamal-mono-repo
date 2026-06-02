@@ -523,6 +523,7 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
           filters={filters} 
           resetVersion={resetVersion}
           onApplyDateRange={setDateRange}
+          region={region}
         />
       </div>
 

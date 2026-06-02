@@ -129,57 +129,407 @@ router.get("/", async (req, res) => {
 
 // GET /api/lokbharti-offline-sales/summary
 router.get("/summary", async (req, res) => {
-  try {
-    const [agg, topItems] = await Promise.all([
-      prisma.lokbhartiOfflineSale.aggregate({
-        _sum: { amount: true, qty: true },
-        _count: { _all: true }
-      }),
-      prisma.lokbhartiOfflineSale.groupBy({
-        by: ['title'],
-        _sum: { amount: true, qty: true },
-        orderBy: { _sum: { amount: 'desc' } },
-        take: 10
-      })
-    ]);
+  const Q = z.object({
+    days: z.string().regex(/^\d+$/).transform(Number).optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    binding: z.string().optional(),
+    title: z.string().optional(),
+    type: z.string().optional(),
+    q: z.string().optional(),
+  });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
+  const days = parsed.data.days;
+  const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
+  const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
+  const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
 
-    return res.json({
+  const cacheKey = `summary:${days ?? "all"}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${q ?? ""}`;
+  const cached = summaryCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const since = startDate ?? (days != null ? new Date(Date.now() - days * 86400000) : null);
+    if (since) since.setUTCHours(0,0,0,0);
+
+    const conditions = [
+      Prisma.sql`"date" IS NOT NULL`
+    ];
+
+    if (since) conditions.push(Prisma.sql`"date" >= ${since}`);
+    if (endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditions.push(Prisma.sql`"date" <= ${until}`);
+    }
+    if (q) {
+      const tokens = getSearchTokens(q);
+        tokens.forEach(t => {
+          const tr = toTokenRegex(t);
+          conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
+        });
+    }
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      conditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
+        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+      } else {
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
+    if (parsed.data.type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(parsed.data.type)}`);
+    if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
+    if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+
+    const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        to_char("date", 'YYYY-MM-DD') AS day,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty
+      FROM "lokbharti_offline_sales"
+      ${whereClause}
+      GROUP BY to_char("date", 'YYYY-MM-DD')
+      ORDER BY day ASC
+    `);
+
+    const itemConditions: any[] = [
+      Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
+      Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
+      Prisma.sql`("qty" IS NULL OR "qty" >= 0)`,
+      Prisma.sql`("title" IS NULL OR "title" !~* '^E-')`
+    ];
+    if (state)     itemConditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      itemConditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) itemConditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    itemConditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (isbn)      itemConditions.push(Prisma.sql`"isbn" ~* ${toTokenRegex(isbn)}`);
+    if (customerName) itemConditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        itemConditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
+        itemConditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+      } else {
+        itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
+    if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
+    if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+    const itemsWhereClause = itemConditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}` : Prisma.sql``;
+
+    const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
+      FROM "lokbharti_offline_sales"
+      ${itemsWhereClause}
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY total DESC LIMIT 10
+    `);
+
+    const topItemsRowsByQty = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
+      FROM "lokbharti_offline_sales"
+      ${itemsWhereClause}
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY qty DESC LIMIT 10
+    `);
+
+    const result: any = {
       ok: true,
-      totalAmount: round2(decToNumber(agg._sum.amount)),
-      totalQty: agg._sum.qty || 0,
-      totalCount: agg._count._all,
-      topItems: topItems.map(it => ({
-        title: it.title,
-        total: round2(decToNumber(it._sum.amount)),
-        qty: it._sum.qty || 0
-      }))
+      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
+      topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
+      topItemsByQty: topItemsRowsByQty.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
+    };
+
+    // --- BOTTOM ITEMS ---
+    const bottomItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
+        COALESCE(SUM("qty"), 0)::int AS qty,
+        COALESCE(MAX("rate"), 0)::float AS rate
+      FROM "lokbharti_offline_sales"
+      ${itemsWhereClause}
+      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      ORDER BY total ASC LIMIT 10
+    `);
+    result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
+
+    // --- REVENUE BY STATE ---
+    const revenueByStateRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "lokbharti_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.revenueByState = revenueByStateRows.map(r => ({ state: r.state, total: round2(Number(r.total)) }));
+
+    // --- REVENUE BY CITY ---
+    const revenueByCityRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT 
+        COALESCE(NULLIF(TRIM("city"), ''), 'Unknown City') AS city, 
+        MAX(COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')) AS state,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "lokbharti_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.revenueByCity = revenueByCityRows.map(r => ({ city: r.city, state: r.state, total: round2(Number(r.total)) }));
+
+    // --- REVENUE BY PUBLISHER ---
+    const revenueByPubRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "lokbharti_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.revenueByPublisher = revenueByPubRows.map(r => ({ publisher: r.publisher, total: round2(Number(r.total)) }));
+
+    // --- TOP CUSTOMERS ---
+    const topCustomerRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "lokbharti_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC LIMIT 10
+    `);
+    result.topCustomers = topCustomerRows.map(r => ({ customerName: r.customer_name, total: round2(Number(r.total)) }));
+
+    // --- REVENUE BY BINDING ---
+    const revenueByBindingRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total, COALESCE(SUM("qty"), 0)::int AS qty
+      FROM "lokbharti_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC
+    `);
+    result.revenueByBinding = revenueByBindingRows.map(r => ({ binding: r.binding, total: round2(Number(r.total)), qty: Number(r.qty) || 0 }));
+    
+    // --- REVENUE BY TYPE ---
+    const revenueByTypeRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COALESCE(NULLIF(TRIM("type"), ''), 'Unknown Type') AS type, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      FROM "lokbharti_offline_sales" ${whereClause}
+      GROUP BY 1 ORDER BY total DESC
+    `);
+    result.revenueByType = revenueByTypeRows.map(r => ({ type: r.type, total: round2(Number(r.total)) }));
+
+    // --- Projection Logic (Year 2026) — month-wise weighted ---
+    const currentYear = 2026;
+    const yearStart = new Date(`${currentYear}-01-01T00:00:00Z`);
+    const now = new Date();
+    const currentMonth = now.getUTCMonth() + 1; // 1–12
+
+    // Monthly totals for all 2026 data recorded so far
+    const monthlyRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        EXTRACT(MONTH FROM "date")::int AS month,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+                          WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
+                          ELSE 0 END), 0)::float AS total,
+        COUNT(*)::int AS txn_count
+      FROM "lokbharti_offline_sales"
+      WHERE "date" IS NOT NULL
+        AND "date" >= ${yearStart}
+        AND "date" <= ${now}
+        AND ("amount" IS NULL OR "amount" >= 0)
+        AND ("title" IS NULL OR "title" !~* '^E-')
+      GROUP BY 1
+      ORDER BY 1
+    `);
+
+    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // Split into complete months vs current month
+    const completeMonths = monthlyRows.filter((r: any) => Number(r.month) < currentMonth);
+    const currentMonthRow = monthlyRows.find((r: any) => Number(r.month) === currentMonth);
+
+    // Days elapsed in current month and total days in current month
+    const daysInCurrentMonth = new Date(Date.UTC(currentYear, now.getUTCMonth() + 1, 0)).getUTCDate();
+    const daysElapsedInCurrentMonth = Math.max(1, now.getUTCDate());
+    const currentMonthActual = currentMonthRow ? Number(currentMonthRow.total) : 0;
+    const currentMonthProjected = (currentMonthActual / daysElapsedInCurrentMonth) * daysInCurrentMonth;
+
+    // Weighted average of up to last 3 complete months (newest = highest weight)
+    const recentComplete = completeMonths.slice(-3);
+    let weightedMonthlyAvg: number;
+    if (recentComplete.length > 0) {
+      const weights = recentComplete.map((_, i) => i + 1); // 1,2,3
+      const totalWeight = weights.reduce((a, b) => a + b, 0);
+      weightedMonthlyAvg = recentComplete.reduce(
+        (acc: number, m: any, i: number) => acc + Number(m.total) * (weights[i] ?? 1), 0
+      ) / totalWeight;
+    } else {
+      weightedMonthlyAvg = currentMonthProjected;
+    }
+
+    // Build full year monthly breakdown (Jan–Dec)
+    const monthlyBreakdown = Array.from({ length: 12 }, (_, idx) => {
+      const m = idx + 1;
+      const isComplete = m < currentMonth;
+      const isCurrent  = m === currentMonth;
+      const row = monthlyRows.find((r: any) => Number(r.month) === m);
+      if (isComplete) {
+        return { month: m, name: MONTH_NAMES[idx], actual: round2(row ? Number(row.total) : 0), projected: null, isComplete: true, isCurrent: false };
+      }
+      if (isCurrent) {
+        return { month: m, name: MONTH_NAMES[idx], actual: round2(currentMonthActual), projected: round2(currentMonthProjected), isComplete: false, isCurrent: true, daysElapsed: daysElapsedInCurrentMonth, totalDays: daysInCurrentMonth };
+      }
+      return { month: m, name: MONTH_NAMES[idx], actual: null, projected: round2(weightedMonthlyAvg), isComplete: false, isCurrent: false };
     });
+
+    const totalSoFar = completeMonths.reduce((acc: number, m: any) => acc + Number(m.total), 0) + currentMonthActual;
+    const daysElapsed = Math.ceil(Math.max(1, now.getTime() - yearStart.getTime()) / 86400000);
+    const dailyAvg = totalSoFar / daysElapsed;
+    const remainingDays = Math.ceil((new Date(`${currentYear}-12-31T23:59:59Z`).getTime() - now.getTime()) / 86400000);
+    const projectedRemaining = round2((currentMonthProjected - currentMonthActual) + (12 - currentMonth) * weightedMonthlyAvg);
+    const totalProjected = round2(totalSoFar + projectedRemaining);
+
+    result.projection = {
+      year: currentYear,
+      totalSoFar: round2(totalSoFar),
+      daysElapsed,
+      dailyAvg: round2(dailyAvg),
+      remainingDays,
+      projectedRemaining,
+      totalProjected,
+      weightedMonthlyAvg: round2(weightedMonthlyAvg),
+      currentMonth,
+      monthlyBreakdown,
+    };
+
+    summaryCache.set(cacheKey, result);
+    return res.json(result);
   } catch (e: any) {
+    console.error("lokbharti_summary_failed", e);
     return res.status(500).json({ ok: false, error: "Summary failed" });
   }
 });
 
 // GET /api/lokbharti-offline-sales/counts
 router.get("/counts", async (req, res) => {
-  try {
-    const agg = await prisma.lokbhartiOfflineSale.aggregate({
-      _count: { _all: true },
-      _sum: { amount: true },
-    });
+  const Q = z.object({
+    days: z.string().regex(/^\d+$/).transform(Number).optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    publisher: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    customerName: z.string().optional(),
+    minAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    maxAmount: z.string().transform(v => v ? Number(v) : undefined).optional(),
+    binding: z.string().optional(),
+    title: z.string().optional(),
+    type: z.string().optional(),
+    q: z.string().optional(),
+  });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
+  const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title, type, q } = parsed.data;
 
-    const uniqueCustomers = await prisma.lokbhartiOfflineSale.groupBy({
-      by: ['customerName'],
-      _count: { _all: true },
-    });
+  const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
+  if (start) start.setUTCHours(0,0,0,0);
+
+  try {
+    const conditions: any[] = [Prisma.sql`TRUE`];
+    if (start && endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditions.push(Prisma.sql`("date" IS NULL OR ("date" >= ${start} AND "date" <= ${until}))`);
+    } else if (start) {
+      conditions.push(Prisma.sql`("date" IS NULL OR "date" >= ${start})`);
+    } else if (endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditions.push(Prisma.sql`("date" IS NULL OR "date" <= ${until})`);
+    }
+    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding) {
+      const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length > 0) {
+        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        const [_, t, b] = match;
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
+        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+      } else {
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
+    if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
+    if (q) {
+      const tokens = getSearchTokens(q);
+      tokens.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
+      });
+    }
+
+    const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+
+    const [agg] = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        COUNT(*)::bigint AS count,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total_amount,
+        COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers,
+        (SELECT TRIM("binding") FROM "lokbharti_offline_sales" ${whereClause} AND "binding" IS NOT NULL AND TRIM("binding") != '' GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1) AS top_binding
+      FROM "lokbharti_offline_sales"
+      ${whereClause}
+    `);
 
     return res.json({
       ok: true,
-      totalCount: agg._count._all,
-      totalAmount: round2(decToNumber(agg._sum.amount)),
-      uniqueCustomers: uniqueCustomers.length,
-      topBinding: 'N/A'
+      totalCount: Number(agg?.count ?? 0),
+      totalAmount: round2(Number(agg?.total_amount ?? 0)),
+      uniqueCustomers: Number(agg?.unique_customers ?? 0),
+      topBinding: agg?.top_binding ?? 'N/A'
     });
   } catch (e: any) {
+    console.error("lokbharti_counts_failed", e);
     return res.status(500).json({ ok: false, error: "Counts failed" });
   }
 });
