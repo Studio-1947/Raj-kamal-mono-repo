@@ -5,9 +5,58 @@
 // Optimised for 100-row pages.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import type { OfflineSheetItem, OfflineSheetFilters } from './offlineSheetTypes';
+import { debounce } from '../../../shared/searchUtils';
+
+interface TableHeaderFilterInputProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  isFiltered: boolean;
+}
+
+function TableHeaderFilterInput({ value, onChange, placeholder, isFiltered }: TableHeaderFilterInputProps) {
+  const [localVal, setLocalVal] = useState(value);
+
+  // Sync local state with parent filter value when changed externally (e.g. on Reset/Clear)
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const debouncedOnChange = useMemo(() => {
+    return debounce((val: string) => {
+      onChange(val);
+    }, 300);
+  }, [onChange]);
+
+  useEffect(() => {
+    return () => {
+      debouncedOnChange.cancel?.();
+    };
+  }, [debouncedOnChange]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setLocalVal(val);
+    debouncedOnChange(val);
+  };
+
+  return (
+    <input
+      type="text"
+      placeholder={placeholder}
+      value={localVal}
+      onChange={handleChange}
+      className={`w-full rounded-md border-2 px-2 py-1 text-[11px] font-normal transition-all focus:outline-none focus:ring-4 focus:ring-teal-500/10 ${
+        isFiltered 
+          ? 'border-teal-500 bg-white text-teal-900 placeholder:text-teal-200' 
+          : 'border-gray-300 bg-gray-50/50 text-gray-700 placeholder:text-gray-300 focus:border-black focus:bg-white'
+      }`}
+    />
+  );
+}
 
 const ROW_H = 55;
 const TABLE_H = 650;
@@ -118,16 +167,11 @@ export default function OfflineSheetTable({ rows, filters, onFilterChange }: Pro
               {isFiltered && <div className="h-2 w-2 rounded-full bg-teal-600 animate-pulse" />}
             </div>
             {fKey ? (
-              <input
-                type="text"
-                placeholder={`Filter...`}
+              <TableHeaderFilterInput
+                placeholder="Filter..."
                 value={(filters[fKey as keyof OfflineSheetFilters] as string) ?? ''}
-                onChange={(e) => onFilterChange(fKey as any, e.target.value)}
-                className={`w-full rounded-md border-2 px-2 py-1 text-[11px] font-normal transition-all focus:outline-none focus:ring-4 focus:ring-teal-500/10 ${
-                  isFiltered 
-                    ? 'border-teal-500 bg-white text-teal-900 placeholder:text-teal-200' 
-                    : 'border-gray-300 bg-gray-50/50 text-gray-700 placeholder:text-gray-300 focus:border-black focus:bg-white'
-                }`}
+                onChange={(val) => onFilterChange(fKey as any, val)}
+                isFiltered={!!isFiltered}
               />
             ) : (
               <div className="h-[25px]" /> // Spacer for non-filterable cols

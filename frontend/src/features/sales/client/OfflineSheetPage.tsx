@@ -8,8 +8,9 @@
 // All data fetching is TanStack Query with filter-aware cache keys.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useTransition } from 'react';
 import AppLayout from '../../../shared/AppLayout';
+import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
 import OfflineSheetTable  from './OfflineSheetTable';
@@ -99,6 +100,8 @@ function FilterField({ id, label, placeholder, value, onChange, type = "text", w
 function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-full", options = [] }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterQuery, setFilterQuery] = useState('');
+  const [isPending, startTransition] = useTransition();
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,9 +114,35 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt: string) => 
-    opt.toLowerCase().includes(search.toLowerCase())
-  );
+  // Debounce setting of filterQuery and wrap in transition to ensure input field remains fluid and responsive
+  useEffect(() => {
+    if (search === '') {
+      setFilterQuery('');
+      return;
+    }
+    const handler = setTimeout(() => {
+      startTransition(() => {
+        setFilterQuery(search);
+      });
+    }, 150);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
+
+  // Client-side fuzzy sorting of dropdown options
+  const filteredOptions = useMemo(() => {
+    if (!filterQuery) return options;
+    return options
+      .map((opt: string) => {
+        const match = fuzzyMatch(opt, filterQuery);
+        return { opt, ...match };
+      })
+      .filter((item: any) => item.matches)
+      .sort((a: any, b: any) => b.score - a.score)
+      .map((item: any) => item.opt);
+  }, [options, filterQuery]);
 
   return (
     <div className={`flex flex-col gap-1.5 relative ${width}`} ref={dropdownRef}>
@@ -135,7 +164,11 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
           className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all pr-10"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           {isPending ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-t-transparent inline-block" />
+           ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           )}
         </div>
       </div>
 
@@ -188,11 +221,68 @@ function FilterBar({
 }: FilterBarProps) {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState(filters.q ?? '');
+  const [isOpen, setIsOpen] = React.useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const { data: optData } = useOfflineSheetOptions(region);
 
   // Sync local search query if filters.q changes externally (e.g. on clear)
   React.useEffect(() => {
     setSearchQuery(filters.q ?? '');
   }, [filters.q]);
+
+  // Click outside to close global suggestions dropdown
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Debounce the query for auto-searching (500ms delay)
+  const debouncedSearchFilter = useDebounce(searchQuery, 500);
+
+  // Auto-run search when typing stops
+  React.useEffect(() => {
+    if ((filters.q ?? '') !== debouncedSearchFilter) {
+      setQ(debouncedSearchFilter);
+    }
+  }, [debouncedSearchFilter, setQ, filters.q]);
+
+  // Debounce for suggestions matching (150ms delay)
+  const debouncedSuggestQuery = useDebounce(searchQuery, 150);
+
+  // Compute suggestions list based on options
+  const suggestions = useMemo(() => {
+    if (!debouncedSuggestQuery || !optData) return [];
+    
+    const results: { value: string; type: string; score: number }[] = [];
+    const query = debouncedSuggestQuery.trim();
+    if (!query) return [];
+
+    const addMatches = (list: string[] | undefined, type: string) => {
+      if (!list) return;
+      for (const item of list) {
+        const match = fuzzyMatch(item, query);
+        if (match.matches) {
+          results.push({ value: item, type, score: match.score });
+        }
+      }
+    };
+
+    addMatches(optData.bookTitles, 'Book');
+    addMatches(optData.customerNames, 'Customer');
+    addMatches(optData.publishers, 'Publisher');
+    addMatches(optData.authors, 'Author');
+
+    // Sort combined results by relevance score, taking top 15
+    return results
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 15);
+  }, [optData, debouncedSuggestQuery]);
 
   // Helper to count active filters excluding defaults
   const activeFilters = Object.entries(filters).filter(([key, value]) => {
@@ -214,23 +304,73 @@ function FilterBar({
               {isExpanded ? 'Collapse Filters ↑' : `Manage Advanced Filters (${activeFilters.length}) ↓`}
             </button>
           </div>
-          <div className="relative">
+          
+          <div className="relative w-full" ref={dropdownRef}>
             <input
               id="search-input"
               type="text"
               placeholder="Search Title, Binding, Customer, State, Publisher..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsOpen(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsOpen(true);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   setQ(searchQuery);
+                  setIsOpen(false);
                 }
               }}
-              className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-normal text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
+              className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-normal text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all pr-12"
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-teal-600/50">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
+
+            {/* Suggestions Dropdown for Global Search */}
+            {isOpen && searchQuery.trim() !== '' && (
+              <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-[120] max-h-80 overflow-y-auto rounded-2xl border-2 border-gray-150 bg-white shadow-2xl ring-4 ring-black/5 animate-in fade-in slide-in-from-top-2 duration-200 custom-scrollbar">
+                {suggestions.length > 0 ? (
+                  suggestions.map((sug, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onMouseDown={() => {
+                        // Update specific filters based on suggestion type for superior UX
+                        if (sug.type === 'Book') {
+                          updateFilter('title', sug.value);
+                          setSearchQuery('');
+                          setQ('');
+                        } else if (sug.type === 'Customer') {
+                          updateFilter('customerName', sug.value);
+                          setSearchQuery('');
+                          setQ('');
+                        } else if (sug.type === 'Publisher') {
+                          updateFilter('publisher', sug.value);
+                          setSearchQuery('');
+                          setQ('');
+                        } else if (sug.type === 'Author') {
+                          updateFilter('author', sug.value);
+                          setSearchQuery('');
+                          setQ('');
+                        } else {
+                          setQ(sug.value);
+                          setSearchQuery(sug.value);
+                        }
+                        setIsOpen(false);
+                      }}
+                      className="w-full px-5 py-3.5 text-left text-base font-normal text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0 flex justify-between items-center"
+                    >
+                      <span className="truncate pr-4 font-normal text-gray-900">{sug.value}</span>
+                      <span className="text-[10px] shrink-0 font-medium uppercase tracking-wider text-teal-600 bg-teal-50/80 border border-teal-100 px-2.5 py-1 rounded-md">{sug.type}</span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-5 py-4 text-base text-gray-400 italic text-center">No matching suggestions found</div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Quick Binding Selectors */}

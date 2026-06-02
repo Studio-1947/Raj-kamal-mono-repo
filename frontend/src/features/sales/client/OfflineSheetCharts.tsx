@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition, useMemo } from 'react';
 import {
   ResponsiveContainer,
   AreaChart, Area,
@@ -10,6 +10,7 @@ import {
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
 import { apiClient } from '../../../lib/apiClient';
 import { useOfflineSheetOptions, useOfflineSheetDailyDetails } from './offlineSheetService';
+import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 
 // DnD Kit imports
 import {
@@ -110,6 +111,8 @@ function BlockFilterField({ label, value, onChange, placeholder, type = "text" }
 function BlockFilterDropdown({ label, value, onChange, placeholder, options = [] }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterQuery, setFilterQuery] = useState('');
+  const [isPending, startTransition] = useTransition();
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,9 +125,35 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt: string) => 
-    opt.toLowerCase().includes(search.toLowerCase())
-  );
+  // Debounce the setting of filterQuery and wrap in transition to ensure the input field remains completely fluid
+  useEffect(() => {
+    if (search === '') {
+      setFilterQuery('');
+      return;
+    }
+    const handler = setTimeout(() => {
+      startTransition(() => {
+        setFilterQuery(search);
+      });
+    }, 150);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
+
+  // Client-side fuzzy sorting of dropdown options
+  const filteredOptions = useMemo(() => {
+    if (!filterQuery) return options;
+    return options
+      .map((opt: string) => {
+        const match = fuzzyMatch(opt, filterQuery);
+        return { opt, ...match };
+      })
+      .filter((item: any) => item.matches)
+      .sort((a: any, b: any) => b.score - a.score)
+      .map((item: any) => item.opt);
+  }, [options, filterQuery]);
 
   return (
     <div className="flex flex-col gap-1 relative" ref={dropdownRef}>
@@ -145,7 +174,11 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
           className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 pr-6"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           {isPending ? (
+              <span className="h-3 w-3 animate-spin rounded-full border border-teal-500 border-t-transparent inline-block" />
+           ) : (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           )}
         </div>
       </div>
 
@@ -203,11 +236,12 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
 
   // Local filters for the details list
   const [q, setQ] = useState('');
+  const debouncedQ = useDebounce(q, 300);
   const [pub, setPub] = useState('');
   const [page, setPage] = useState(1);
   const limit = isFullScreen ? 24 : 12;
 
-  useEffect(() => { setPage(1); }, [date, mode, q, pub]);
+  useEffect(() => { setPage(1); }, [date, mode, debouncedQ, pub]);
 
   const { data: optData } = useOfflineSheetOptions(region);
 
@@ -215,7 +249,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
   
   const panelFilters: OfflineSheetFilters = { 
     ...filters,
-    q: q || undefined,
+    q: debouncedQ || undefined,
     publisher: pub || undefined,
     limit,
     page
