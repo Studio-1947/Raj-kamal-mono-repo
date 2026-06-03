@@ -229,26 +229,64 @@ export default function TotalOfflineSales() {
 
           {/* 1. KPI Cards */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Net Revenue = OUT minus IN (returns) */}
             <KpiCard
-              title="Total Sales Revenue"
+              title="Net Revenue (OUT − IN)"
               value={formatINR(summary?.counts?.totalRevenue || 0)}
               icon={<FiTrendingUp className="h-20 w-20 text-indigo-600" />}
-              badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-green-600 bg-green-50 px-2.5 py-1 rounded-full w-fit">
-                  <span>Active Channels: {summary?.regionalBreakdown?.length ?? 6} / 6</span>
-                </div>
-              }
+              badge={(() => {
+                const gross   = summary?.counts?.totalGrossRevenue   || 0;
+                const returns = summary?.counts?.totalReturnsRevenue || 0;
+                const retPct  = gross > 0 ? ((returns / gross) * 100).toFixed(1) : '0.0';
+                const netPct  = gross > 0 ? (((gross - returns) / gross) * 100).toFixed(1) : '100.0';
+                return (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 text-xs font-normal text-gray-500 bg-gray-50 px-2.5 py-1 rounded-full w-fit">
+                      OUT&nbsp;<span className="font-semibold text-gray-700">{formatINR(gross)}</span>
+                      &nbsp;−&nbsp;IN&nbsp;<span className="font-semibold text-red-500">{formatINR(returns)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs font-normal text-green-600 bg-green-50 px-2.5 py-1 rounded-full w-fit">
+                        Net&nbsp;<span className="font-semibold">{netPct}%</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-normal text-red-500 bg-red-50 px-2.5 py-1 rounded-full w-fit">
+                        Returns&nbsp;<span className="font-semibold">{retPct}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             />
+
+            {/* Copies Dispatched = gross OUT (not net) */}
             <KpiCard
-              title="Books Sold (Volume)"
-              value={(summary?.counts?.totalQty || 0).toLocaleString('en-IN')}
+              title="Copies Dispatched (OUT)"
+              value={(summary?.counts?.totalGrossQty || 0).toLocaleString('en-IN')}
               icon={<FiShoppingBag className="h-20 w-20 text-teal-600" />}
-              badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full w-fit">
-                  <span>Avg Rate: {formatINR((summary?.counts?.totalRevenue || 0) / Math.max(1, summary?.counts?.totalQty || 0))}</span>
-                </div>
-              }
+              badge={(() => {
+                const gross   = summary?.counts?.totalGrossQty   || 0;
+                const returns = summary?.counts?.totalReturnsQty || 0;
+                const net     = summary?.counts?.totalQty        || 0;
+                const retPct  = gross > 0 ? ((returns / gross) * 100).toFixed(1) : '0.0';
+                const netPct  = gross > 0 ? ((net / gross) * 100).toFixed(1) : '100.0';
+                return (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 text-xs font-normal text-gray-500 bg-gray-50 px-2.5 py-1 rounded-full w-fit">
+                      Returns (IN):&nbsp;<span className="font-semibold text-red-500">{returns.toLocaleString('en-IN')}</span>&nbsp;copies
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs font-normal text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full w-fit">
+                        Net&nbsp;<span className="font-semibold">{netPct}%</span>&nbsp;({net.toLocaleString('en-IN')})
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-normal text-red-500 bg-red-50 px-2.5 py-1 rounded-full w-fit">
+                        Ret&nbsp;<span className="font-semibold">{retPct}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             />
+
             <KpiCard
               title="Annual Projected Sales"
               value={formatINR(projectedAnnualRevenue)}

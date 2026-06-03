@@ -75,35 +75,84 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
 
   const [count, agg, topBooks, tsRows, stateRows, publisherRows] = await Promise.all([
     model.count({ where }),
-    model.aggregate({ _sum: { amount: true, qty: true }, where }),
+    model.aggregate({ _sum: { amount: true, inAmount: true, qty: true, inQty: true }, where }),
     model.groupBy({
       by: ['title'],
-      _sum: { amount: true, qty: true },
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
       where: bookWhere,
       orderBy: { _sum: { amount: 'desc' } },
       take: 10,
     }),
-    model.findMany({ where, select: { date: true, amount: true, qty: true } }),
+    model.findMany({ where, select: { date: true, amount: true, qty: true, inAmount: true, inQty: true } }),
     model.groupBy({
       by: ['state'],
-      _sum: { amount: true, qty: true },
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
       where: stateWhere,
       orderBy: { _sum: { amount: 'desc' } },
       take: 5,
     }),
     model.groupBy({
       by: ['publisher'],
-      _sum: { amount: true, qty: true },
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
       where: publisherWhere,
       orderBy: { _sum: { amount: 'desc' } },
       take: 5,
     }),
   ]);
 
-  const revenue = toNum(agg._sum.amount);
-  const qty     = toNum(agg._sum.qty);
+  const grossRevenue  = toNum(agg._sum.amount);
+  const returnsRevenue = toNum(agg._sum.inAmount);
+  const revenue        = grossRevenue - returnsRevenue;
 
-  return { ch, count, revenue, qty, avgTicket: qty > 0 ? revenue / qty : 0, topBooks, tsRows, stateRows, publisherRows };
+  const grossQty   = toNum(agg._sum.qty);
+  const returnsQty = toNum(agg._sum.inQty);
+  const qty        = grossQty - returnsQty;  // net copies dispatched minus returns
+
+  const mappedTopBooks = topBooks.map((b: any) => ({
+    title: b.title,
+    _sum: {
+      amount: toNum(b._sum.amount) - toNum(b._sum.inAmount),
+      qty: toNum(b._sum.qty) - toNum(b._sum.inQty)
+    }
+  }));
+
+  const mappedStateRows = stateRows.map((s: any) => ({
+    state: s.state,
+    _sum: {
+      amount: toNum(s._sum.amount) - toNum(s._sum.inAmount),
+      qty: toNum(s._sum.qty) - toNum(s._sum.inQty)
+    }
+  }));
+
+  const mappedPublisherRows = publisherRows.map((p: any) => ({
+    publisher: p.publisher,
+    _sum: {
+      amount: toNum(p._sum.amount) - toNum(p._sum.inAmount),
+      qty: toNum(p._sum.qty) - toNum(p._sum.inQty)
+    }
+  }));
+
+  const mappedTsRows = tsRows.map((t: any) => ({
+    date: t.date,
+    amount: toNum(t.amount) - toNum(t.inAmount),
+    qty: toNum(t.qty) - toNum(t.inQty)
+  }));
+
+  return {
+    ch,
+    count,
+    grossRevenue,
+    returnsRevenue,
+    revenue,          // net = OUT - IN
+    grossQty,         // raw OUT copies
+    returnsQty,       // IN (returned) copies
+    qty,              // net = OUT - IN copies
+    avgTicket: grossQty > 0 ? grossRevenue / grossQty : 0,
+    topBooks: mappedTopBooks,
+    tsRows: mappedTsRows,
+    stateRows: mappedStateRows,
+    publisherRows: mappedPublisherRows
+  };
 }
 
 // ─── GET /api/total-offline-sales/summary ─────────────────────────────────────
@@ -128,9 +177,13 @@ router.get('/summary', async (req, res) => {
     const results = await Promise.all(channels.map(ch => fetchChannelData(ch, where, bookWhere)));
 
     // ── Grand totals ──────────────────────────────────────────────────────────
-    const totalRevenue = results.reduce((s, r) => s + r.revenue, 0);
-    const totalQty     = results.reduce((s, r) => s + r.qty,     0);
-    const totalCount   = results.reduce((s, r) => s + r.count,   0);
+    const totalRevenue        = results.reduce((s, r) => s + r.revenue,        0);  // net OUT-IN
+    const totalQty            = results.reduce((s, r) => s + r.qty,            0);  // net OUT-IN copies
+    const totalGrossRevenue   = results.reduce((s, r) => s + r.grossRevenue,   0);  // gross OUT only
+    const totalGrossQty       = results.reduce((s, r) => s + r.grossQty,       0);  // gross OUT copies
+    const totalReturnsRevenue = results.reduce((s, r) => s + r.returnsRevenue, 0);  // IN returns ₹
+    const totalReturnsQty     = results.reduce((s, r) => s + r.returnsQty,     0);  // IN returned copies
+    const totalCount          = results.reduce((s, r) => s + r.count,          0);
 
     // ── Regional breakdown (per channel) ─────────────────────────────────────
     const regionalBreakdown = results.map(r => ({
@@ -220,7 +273,15 @@ router.get('/summary', async (req, res) => {
     return res.json({
       ok: true,
       channel,
-      counts: { totalCount, totalRevenue, totalQty },
+      counts: {
+        totalCount,
+        totalRevenue,        // net (OUT − IN)
+        totalQty,            // net (OUT − IN) copies
+        totalGrossRevenue,   // gross OUT revenue
+        totalGrossQty,       // gross OUT copies dispatched
+        totalReturnsRevenue, // IN returns revenue
+        totalReturnsQty,     // IN returned copies
+      },
       regionalBreakdown,
       timeSeries,
       topItems,
@@ -266,10 +327,10 @@ router.get('/transactions', async (req, res) => {
         date:         row.date ? new Date(row.date).toISOString().slice(0, 10) : 'N/A',
         title:        row.title        || 'Untitled Book',
         author:       row.author       || null,
-        qty:          row.qty          || 0,
+        qty:          (row.qty || 0) - (row.inQty || 0),
         rate:         toNum(row.rate),
         discount:     toNum(row.discount),
-        amount:       toNum(row.amount),
+        amount:       toNum(row.amount) - toNum(row.inAmount),
         customerName: row.customerName || 'Walk-in Customer',
         state:        row.state        || null,
         city:         row.city         || null,
@@ -307,12 +368,12 @@ router.get('/projections', async (req, res) => {
     };
 
     const [delhiD, mumbaiD, patnaD, onlineD, bookFairD, lokbhartiD] = await Promise.all([
-      prisma.googleSheetOfflineSale.groupBy({ by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.mumbaiOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.patnaOfflineSale.groupBy(       { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.onlineOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.bookFairOfflineSale.groupBy(    { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.lokbhartiOfflineSale.groupBy(   { by: ['date'], _sum: { amount: true }, where: whereClause }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.mumbaiOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.patnaOfflineSale.groupBy(       { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.onlineOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.bookFairOfflineSale.groupBy(    { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.lokbhartiOfflineSale.groupBy(   { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
     ]);
 
     const monthlyActuals = Array(12).fill(0);
@@ -322,7 +383,7 @@ router.get('/projections', async (req, res) => {
         const d = new Date(r.date);
         const m = d.getMonth();
         const relativeMonth = (m >= 3) ? (m - 3) : (m + 9);
-        monthlyActuals[relativeMonth] += toNum(r._sum.amount);
+        monthlyActuals[relativeMonth] += (toNum(r._sum.amount) - toNum(r._sum.inAmount));
       }
     };
     [delhiD, mumbaiD, patnaD, onlineD, bookFairD, lokbhartiD].forEach(processDaily);

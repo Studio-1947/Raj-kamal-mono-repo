@@ -113,7 +113,8 @@ router.get("/", async (req, res) => {
     const data = items.map((it: any) => ({
       ...it,
       id: it.id.toString(),
-      amount: it.amount != null ? round2(decToNumber(it.amount)) : null,
+      qty: it.qty != null ? decToNumber(it.qty) - decToNumber(it.inQty) : null,
+      amount: it.amount != null ? round2(decToNumber(it.amount) - decToNumber(it.inAmount)) : null,
       rate: it.rate != null ? round2(decToNumber(it.rate)) : null,
     }));
 
@@ -208,8 +209,8 @@ router.get("/summary", async (req, res) => {
     const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         to_char("date", 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty
       FROM "patna_offline_sales"
       ${whereClause}
       GROUP BY to_char("date", 'YYYY-MM-DD')
@@ -252,24 +253,24 @@ router.get("/summary", async (req, res) => {
     const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "patna_offline_sales"
       ${itemsWhereClause}
-      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY total DESC LIMIT 10
     `);
 
     const topItemsRowsByQty = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "patna_offline_sales"
       ${itemsWhereClause}
-      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY qty DESC LIMIT 10
     `);
 
@@ -284,19 +285,19 @@ router.get("/summary", async (req, res) => {
     const bottomItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "patna_offline_sales"
       ${itemsWhereClause}
-      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY total ASC LIMIT 10
     `);
     result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
 
     // --- REVENUE BY STATE ---
     const revenueByStateRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "patna_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -307,7 +308,7 @@ router.get("/summary", async (req, res) => {
       SELECT 
         COALESCE(NULLIF(TRIM("city"), ''), 'Unknown City') AS city, 
         MAX(COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')) AS state,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "patna_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -315,7 +316,7 @@ router.get("/summary", async (req, res) => {
 
     // --- REVENUE BY PUBLISHER ---
     const revenueByPubRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "patna_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -323,7 +324,7 @@ router.get("/summary", async (req, res) => {
 
     // --- TOP CUSTOMERS ---
     const topCustomerRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "patna_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -331,7 +332,7 @@ router.get("/summary", async (req, res) => {
 
     // --- REVENUE BY BINDING ---
     const revenueByBindingRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total, COALESCE(SUM("qty"), 0)::int AS qty
+      SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total, (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty
       FROM "patna_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC
     `);
@@ -339,7 +340,7 @@ router.get("/summary", async (req, res) => {
     
     // --- REVENUE BY TYPE ---
     const revenueByTypeRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("type"), ''), 'Unknown Type') AS type, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("type"), ''), 'Unknown Type') AS type, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "patna_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC
     `);
@@ -359,9 +360,11 @@ router.get("/summary", async (req, res) => {
     const monthlyRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         EXTRACT(MONTH FROM "date")::int AS month,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
                           WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-                          ELSE 0 END), 0)::float AS total,
+                          ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount"
+                          WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty"
+                          ELSE 0 END), 0))::float AS total,
         COUNT(*)::int AS txn_count
       FROM "patna_offline_sales"
       WHERE "date" IS NOT NULL
@@ -527,7 +530,7 @@ router.get("/counts", async (req, res) => {
     const [agg] = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         COUNT(*)::bigint AS count,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total_amount,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total_amount,
         COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers,
         (SELECT TRIM("binding") FROM "patna_offline_sales" ${whereClause} AND "binding" IS NOT NULL AND TRIM("binding") != '' GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1) AS top_binding
       FROM "patna_offline_sales"
@@ -650,8 +653,8 @@ router.get("/daily-details", async (req, res) => {
     const details = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("publisher"), 'N/A') AS publisher,
         COALESCE(MAX("author"), 'N/A') AS author,
         COALESCE(MAX("rate"), 0)::float AS rate

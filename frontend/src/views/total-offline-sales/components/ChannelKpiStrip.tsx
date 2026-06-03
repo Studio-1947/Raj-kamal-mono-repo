@@ -59,11 +59,11 @@ export const ChannelKpiStrip: React.FC<ChannelKpiStripProps> = ({
         </div>
         <div className="flex items-center gap-6 text-right">
           <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider">Revenue</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider">Net Revenue <span className="normal-case">(OUT−IN)</span></p>
             <p className="text-sm font-normal text-gray-900">{formatLakhsAndCrores(totalRevenue)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider">Volume</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider">Net Volume <span className="normal-case">(OUT−IN)</span></p>
             <p className="text-sm font-normal text-gray-900">{totalQty.toLocaleString('en-IN')}</p>
           </div>
         </div>

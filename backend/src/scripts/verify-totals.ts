@@ -42,12 +42,12 @@ async function verify() {
     const model = getModel(ch);
     const count = await model.count({ where: whereClause });
     const agg = await model.aggregate({
-      _sum: { amount: true, qty: true },
+      _sum: { amount: true, qty: true, inAmount: true, inQty: true },
       where: whereClause
     });
 
-    const revenue = Number(agg._sum.amount ?? 0);
-    const qty = Number(agg._sum.qty ?? 0);
+    const revenue = Number(agg._sum.amount ?? 0) - Number(agg._sum.inAmount ?? 0);
+    const qty = Number(agg._sum.qty ?? 0) - Number(agg._sum.inQty ?? 0);
 
     grandTotalRevenue += revenue;
     grandTotalQty += qty;
