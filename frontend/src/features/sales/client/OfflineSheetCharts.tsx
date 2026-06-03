@@ -270,11 +270,11 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
   const totalPages = Math.ceil(totalCount / limit);
 
   const wrapperClass = isFullScreen 
-    ? "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200"
+    ? "fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200 cursor-pointer"
     : "flex flex-col h-full border-l border-gray-100 bg-gray-50/50 overflow-hidden animate-in slide-in-from-right-4 duration-500 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]";
 
   const containerClass = isFullScreen
-    ? "w-full max-w-6xl max-h-[90vh] flex flex-col bg-gray-50 rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-in zoom-in-95 duration-200"
+    ? "w-full max-w-6xl max-h-[90vh] flex flex-col bg-gray-50 rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-in zoom-in-95 duration-200 cursor-default"
     : "flex flex-col h-full w-full";
 
   return (
@@ -284,7 +284,10 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
         if (isFullScreen && e.target === e.currentTarget) setIsFullScreen(false);
       }}
     >
-      <div className={containerClass}>
+      <div 
+        className={containerClass}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="border-b border-gray-200 bg-white p-5 sm:p-6 shrink-0">
           <div className="flex items-start justify-between mb-2">
             <div>

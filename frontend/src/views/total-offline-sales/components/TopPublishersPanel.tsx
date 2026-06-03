@@ -164,8 +164,14 @@ export const TopPublishersPanel: React.FC<TopPublishersPanelProps> = ({
 
       {/* ── Details Modal for Top and Bottom Books ──────────────────────────── */}
       {selectedPub && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white border border-gray-100 rounded-3xl max-w-4xl w-full p-8 shadow-2xl relative overflow-hidden flex flex-col justify-between max-h-[85vh] animate-scaleUp">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fadeIn cursor-pointer"
+          onClick={closeDetails}
+        >
+          <div 
+            className="bg-white border border-gray-100 rounded-3xl max-w-4xl w-full p-8 shadow-2xl relative overflow-hidden flex flex-col justify-between max-h-[85vh] animate-scaleUp cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-gray-100 mb-6">
               <div>
