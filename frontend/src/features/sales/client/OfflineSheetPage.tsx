@@ -24,7 +24,7 @@ import {
   useTriggerSync,
   useOfflineSheetOptions,
 } from './offlineSheetService';
-import { useOfflineSheetFilters } from './useOfflineSheetFilters';
+import { useOfflineSheetFilters, getFinancialYearStartDate } from './useOfflineSheetFilters';
 import type { OfflineSheetFilters } from './offlineSheetTypes';
 
 // ─── Pagination Component ───────────────────────────────────────────────────
@@ -76,6 +76,7 @@ interface FilterBarProps {
   clearDateRange: () => void;
   setQ: (q: string) => void;
   updateFilter: (key: keyof OfflineSheetFilters, value: string | number | undefined) => void;
+  updateFilters: (updates: Partial<Record<keyof OfflineSheetFilters, string | number | undefined>>) => void;
   clearAll: () => void;
   onSync: () => void;
   isSyncing: boolean;
@@ -155,7 +156,11 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
           type="text"
           placeholder={placeholder}
           value={isOpen ? search : (value ?? '')}
-          onFocus={() => { setIsOpen(true); setSearch(''); }}
+          onFocus={(e) => {
+            setIsOpen(true);
+            setSearch(value ?? '');
+            try { e.currentTarget.select(); } catch (err) {}
+          }}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => {
              if (e.key === 'Enter' && search) {
@@ -215,6 +220,7 @@ function FilterBar({
   clearDateRange,
   setQ,
   updateFilter,
+  updateFilters,
   clearAll,
   onSync,
   isSyncing,
@@ -228,11 +234,31 @@ function FilterBar({
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   const { data: optData } = useOfflineSheetOptions(region);
+ 
+  const displayStartDate = React.useMemo(() => {
+    if (filters.startDate) return filters.startDate.slice(0, 10);
+    if (filters.days) {
+      const d = new Date();
+      d.setDate(d.getDate() - filters.days);
+      return d.toISOString().slice(0, 10);
+    }
+    return getFinancialYearStartDate().toISOString().slice(0, 10);
+  }, [filters.startDate, filters.days]);
+ 
+  const displayEndDate = React.useMemo(() => {
+    if (filters.endDate) return filters.endDate.slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  }, [filters.endDate]);
 
-  // Sync local search query if filters.q changes externally (e.g. on clear)
+  // Sync local search query if filters.q or other main text filters change externally (e.g. on clear)
   React.useEffect(() => {
-    setSearchQuery(filters.q ?? '');
-  }, [filters.q]);
+    if (filters.q !== undefined) {
+      setSearchQuery(filters.q);
+    } else {
+      const activeTextFilter = filters.title || filters.customerName || filters.publisher || filters.author;
+      setSearchQuery(activeTextFilter ?? '');
+    }
+  }, [filters.q, filters.title, filters.customerName, filters.publisher, filters.author]);
 
   // Click outside to close global suggestions dropdown
   React.useEffect(() => {
@@ -342,23 +368,19 @@ function FilterBar({
                       onMouseDown={() => {
                         // Update specific filters based on suggestion type for superior UX
                         if (sug.type === 'Book') {
-                          updateFilter('title', sug.value);
-                          setSearchQuery('');
-                          setQ('');
+                          updateFilters({ title: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
                         } else if (sug.type === 'Customer') {
-                          updateFilter('customerName', sug.value);
-                          setSearchQuery('');
-                          setQ('');
+                          updateFilters({ customerName: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
                         } else if (sug.type === 'Publisher') {
-                          updateFilter('publisher', sug.value);
-                          setSearchQuery('');
-                          setQ('');
+                          updateFilters({ publisher: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
                         } else if (sug.type === 'Author') {
-                          updateFilter('author', sug.value);
-                          setSearchQuery('');
-                          setQ('');
+                          updateFilters({ author: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
                         } else {
-                          setQ(sug.value);
+                          updateFilters({ q: sug.value });
                           setSearchQuery(sug.value);
                         }
                         setIsOpen(false);
@@ -466,6 +488,39 @@ function FilterBar({
           </div>
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-normal text-black uppercase tracking-wider">Date Range</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              title="Start Date"
+              aria-label="Start Date"
+              className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
+              value={displayStartDate}
+              onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setDateRange(new Date(e.target.value).toISOString(), displayEndDate === new Date().toISOString().slice(0, 10) ? new Date().toISOString() : new Date(displayEndDate).toISOString());
+                }
+              }}
+            />
+            <span className="text-gray-400 font-normal">→</span>
+            <input
+              type="date"
+              title="End Date"
+              aria-label="End Date"
+              className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
+              value={displayEndDate}
+              onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setDateRange(displayStartDate === getFinancialYearStartDate().toISOString().slice(0, 10) ? getFinancialYearStartDate().toISOString() : new Date(displayStartDate).toISOString(), new Date(e.target.value).toISOString());
+                }
+              }}
+            />
+          </div>
+        </div>
+
         <div className="flex items-center gap-3 ml-auto">
           {lastSyncResult && (
             <span className="text-xs font-normal text-teal-700 bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200">{lastSyncResult}</span>
@@ -542,38 +597,9 @@ function FilterBar({
             options={useOfflineSheetOptions(region).data?.types}
           />
         </div>
-
-        {/* Third row: Dates, Ranges and Reset */}
+ 
+        {/* Third row: Price Range and Reset */}
         <div className="flex flex-wrap items-end gap-8 pt-2">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-normal text-black uppercase tracking-wider">Date Range</span>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                title="Start Date"
-                aria-label="Start Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
-                value={filters.startDate?.slice(0, 10) ?? ''}
-                onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
-                onChange={(e) => {
-                  if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
-                }}
-              />
-              <span className="text-black font-normal">→</span>
-              <input
-                type="date"
-                title="End Date"
-                aria-label="End Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
-                value={filters.endDate?.slice(0, 10) ?? ''}
-                onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
-                onChange={(e) => {
-                  if (e.target.value) setDateRange(filters.startDate || new Date(0).toISOString(), new Date(e.target.value).toISOString());
-                }}
-              />
-            </div>
-          </div>
-
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-normal text-black uppercase tracking-wider">Price Range (₹)</span>
             <div className="flex items-center gap-2">
@@ -594,7 +620,7 @@ function FilterBar({
               />
             </div>
           </div>
-
+ 
           <button
             onClick={clearAll}
             className="ml-auto text-base font-normal text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
@@ -610,7 +636,7 @@ function FilterBar({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
-  const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, setPage, clearAll } = useOfflineSheetFilters();
+  const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, updateFilters, setPage, clearAll } = useOfflineSheetFilters();
   const [resetVersion, setResetVersion] = useState(0);
 
   const handleGlobalClear = () => {
@@ -660,6 +686,7 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
           clearDateRange={clearDateRange}
           setQ={setQ}
           updateFilter={updateFilter}
+          updateFilters={updateFilters}
           clearAll={handleGlobalClear}
           onSync={() => syncMut.mutate()}
           isSyncing={syncMut.isPending}

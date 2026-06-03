@@ -111,6 +111,20 @@ export function useOfflineSheetFilters() {
     });
   }, [setS]);
 
+  const updateFilters = useCallback((updates: Partial<Record<keyof OfflineSheetFilters, string | number | undefined>>) => {
+    setS((prev) => {
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined || value === '') {
+          prev.delete(key);
+        } else {
+          prev.set(key, String(value));
+        }
+      });
+      prev.set('page', '1');
+      return prev;
+    });
+  }, [setS]);
+
   const clearAll = useCallback(() => {
     setS({ page: '1', limit: '100' });
   }, [setS]);
@@ -119,5 +133,5 @@ export function useOfflineSheetFilters() {
     return !!(filters.q || filters.state || filters.city || filters.publisher || filters.author || filters.isbn || filters.customerName || filters.binding || filters.minAmount || filters.maxAmount || filters.startDate || filters.title || filters.type);
   }, [filters]);
 
-  return { filters, setDays, setDateRange, clearDateRange, setQ, setPage, updateFilter, clearAll, isFiltered };
+  return { filters, setDays, setDateRange, clearDateRange, setQ, setPage, updateFilter, updateFilters, clearAll, isFiltered };
 }
