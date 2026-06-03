@@ -75,6 +75,10 @@ export interface OfflineSheetCountsResponse {
   uniqueCustomers: number;
   refundCount: number;
   topBinding?: string;
+  grossAmount?: number;
+  inAmount?: number;
+  grossQty?: number;
+  inQty?: number;
 }
 
 export interface OfflineSheetSyncResponse {

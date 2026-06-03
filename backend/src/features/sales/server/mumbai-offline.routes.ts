@@ -532,18 +532,27 @@ router.get("/counts", async (req, res) => {
     const [agg] = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         COUNT(*)::bigint AS count,
-        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total_amount,
+        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS gross_amount,
+        COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)::float AS in_amount,
+        COALESCE(SUM("qty"), 0)::bigint AS gross_qty,
+        COALESCE(SUM("inQty"), 0)::bigint AS in_qty,
+        COUNT(CASE WHEN "inQty" > 0 OR "inAmount" > 0 THEN 1 END)::bigint AS refund_count,
         COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers,
         (SELECT TRIM("binding") FROM "mumbai_offline_sales" ${whereClause} AND "binding" IS NOT NULL AND TRIM("binding") != '' GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1) AS top_binding
       FROM "mumbai_offline_sales"
       ${whereClause}
     `);
-
+ 
     return res.json({
       ok: true,
       totalCount: Number(agg?.count ?? 0),
-      totalAmount: round2(Number(agg?.total_amount ?? 0)),
+      totalAmount: round2(Number(agg?.gross_amount ?? 0) - Number(agg?.in_amount ?? 0)),
+      grossAmount: round2(Number(agg?.gross_amount ?? 0)),
+      inAmount: round2(Number(agg?.in_amount ?? 0)),
+      grossQty: Number(agg?.gross_qty ?? 0),
+      inQty: Number(agg?.in_qty ?? 0),
       uniqueCustomers: Number(agg?.unique_customers ?? 0),
+      refundCount: Number(agg?.refund_count ?? 0),
       topBinding: agg?.top_binding ?? 'N/A'
     });
   } catch (e: any) {
