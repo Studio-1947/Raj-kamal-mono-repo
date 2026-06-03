@@ -94,7 +94,7 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-xl font-normal tracking-tight text-gray-900">
-              2026 Revenue Projection
+              {p.year} Revenue Projection
             </h2>
             <span className="rounded-full bg-teal-600 px-2.5 py-0.5 text-[9px] font-normal uppercase text-white">Live</span>
             {!isExpanded && (
@@ -154,7 +154,7 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
         {/* Monthly bar chart */}
         <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-normal uppercase tracking-wider text-gray-400">Month-wise Breakdown — 2026</span>
+            <span className="text-[10px] font-normal uppercase tracking-wider text-gray-400">Month-wise Breakdown — {p.year}</span>
             <div className="flex items-center gap-4 text-[10px] font-normal uppercase tracking-wide">
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-teal-600" />Actual</span>
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-orange-400" />Current (est.)</span>
@@ -221,7 +221,7 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
             <div className="h-full bg-teal-600 transition-all duration-1000 ease-out" style={{ width: `${Math.min(progress, 100)}%` }} />
           </div>
           <div className="mt-1 flex justify-between text-[9px] font-normal text-gray-300 uppercase tracking-widest">
-            <span>Jan 1</span><span>Dec 31</span>
+            <span>Apr 1</span><span>Mar 31</span>
           </div>
         </div>
 

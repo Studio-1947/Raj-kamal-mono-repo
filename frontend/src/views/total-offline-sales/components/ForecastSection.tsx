@@ -164,8 +164,10 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({ projectionData
                     const isCurrent   = d.type === 'current';
                     const isProjected = d.type === 'projected';
 
-                    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
                     const currentMonthIndex = new Date().getMonth();
+                    const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+                    const febDays = isLeapYear(new Date().getFullYear()) ? 29 : 28;
+                    const daysInMonths = [31, febDays, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
                     const currentDayInMonth = projectionData.currentDayInMonth ?? new Date().getDate();
                     const dim = daysInMonths[currentMonthIndex] ?? 30;
                     const daysLeft = Math.max(0, dim - currentDayInMonth);
@@ -278,8 +280,8 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({ projectionData
             />
           </div>
           <div className="flex justify-between text-[11px] font-normal text-gray-400 uppercase tracking-widest px-1">
-            <span>Jan 1</span>
-            <span>Dec 31</span>
+            <span>Apr 1</span>
+            <span>Mar 31</span>
           </div>
         </div>
       </div>

@@ -8,8 +8,11 @@
 // All data fetching is TanStack Query with filter-aware cache keys.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useTransition } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../../../shared/AppLayout';
+import SalesDashboardTabs from '../../../components/SalesDashboardTabs';
+import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
 import OfflineSheetTable  from './OfflineSheetTable';
@@ -21,7 +24,7 @@ import {
   useTriggerSync,
   useOfflineSheetOptions,
 } from './offlineSheetService';
-import { useOfflineSheetFilters } from './useOfflineSheetFilters';
+import { useOfflineSheetFilters, getFinancialYearStartDate } from './useOfflineSheetFilters';
 import type { OfflineSheetFilters } from './offlineSheetTypes';
 
 // ─── Pagination Component ───────────────────────────────────────────────────
@@ -73,6 +76,7 @@ interface FilterBarProps {
   clearDateRange: () => void;
   setQ: (q: string) => void;
   updateFilter: (key: keyof OfflineSheetFilters, value: string | number | undefined) => void;
+  updateFilters: (updates: Partial<Record<keyof OfflineSheetFilters, string | number | undefined>>) => void;
   clearAll: () => void;
   onSync: () => void;
   isSyncing: boolean;
@@ -99,6 +103,8 @@ function FilterField({ id, label, placeholder, value, onChange, type = "text", w
 function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-full", options = [] }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterQuery, setFilterQuery] = useState('');
+  const [isPending, startTransition] = useTransition();
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,9 +117,35 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt: string) => 
-    opt.toLowerCase().includes(search.toLowerCase())
-  );
+  // Debounce setting of filterQuery and wrap in transition to ensure input field remains fluid and responsive
+  useEffect(() => {
+    if (search === '') {
+      setFilterQuery('');
+      return;
+    }
+    const handler = setTimeout(() => {
+      startTransition(() => {
+        setFilterQuery(search);
+      });
+    }, 150);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
+
+  // Client-side fuzzy sorting of dropdown options
+  const filteredOptions = useMemo(() => {
+    if (!filterQuery) return options;
+    return options
+      .map((opt: string) => {
+        const match = fuzzyMatch(opt, filterQuery);
+        return { opt, ...match };
+      })
+      .filter((item: any) => item.matches)
+      .sort((a: any, b: any) => b.score - a.score)
+      .map((item: any) => item.opt);
+  }, [options, filterQuery]);
 
   return (
     <div className={`flex flex-col gap-1.5 relative ${width}`} ref={dropdownRef}>
@@ -124,7 +156,11 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
           type="text"
           placeholder={placeholder}
           value={isOpen ? search : (value ?? '')}
-          onFocus={() => { setIsOpen(true); setSearch(''); }}
+          onFocus={(e) => {
+            setIsOpen(true);
+            setSearch(value ?? '');
+            try { e.currentTarget.select(); } catch (err) {}
+          }}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => {
              if (e.key === 'Enter' && search) {
@@ -135,7 +171,11 @@ function FilterDropdown({ id, label, placeholder, value, onChange, width = "w-fu
           className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all pr-10"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           {isPending ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-t-transparent inline-block" />
+           ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           )}
         </div>
       </div>
 
@@ -180,19 +220,98 @@ function FilterBar({
   clearDateRange,
   setQ,
   updateFilter,
+  updateFilters,
   clearAll,
   onSync,
   isSyncing,
   lastSyncResult,
   region = 'delhi',
 }: FilterBarProps) {
+  const [searchParams] = useSearchParams();
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState(filters.q ?? '');
+  const [isOpen, setIsOpen] = React.useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
 
-  // Sync local search query if filters.q changes externally (e.g. on clear)
+  const { data: optData } = useOfflineSheetOptions(region);
+ 
+  const displayStartDate = React.useMemo(() => {
+    if (filters.startDate) return filters.startDate.slice(0, 10);
+    if (filters.days) {
+      const d = new Date();
+      d.setDate(d.getDate() - filters.days);
+      return d.toISOString().slice(0, 10);
+    }
+    return getFinancialYearStartDate().toISOString().slice(0, 10);
+  }, [filters.startDate, filters.days]);
+ 
+  const displayEndDate = React.useMemo(() => {
+    if (filters.endDate) return filters.endDate.slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  }, [filters.endDate]);
+
+  // Sync local search query if filters.q or other main text filters change externally (e.g. on clear)
   React.useEffect(() => {
-    setSearchQuery(filters.q ?? '');
-  }, [filters.q]);
+    if (filters.q !== undefined) {
+      setSearchQuery(filters.q);
+    } else {
+      const activeTextFilter = filters.title || filters.customerName || filters.publisher || filters.author;
+      setSearchQuery(activeTextFilter ?? '');
+    }
+  }, [filters.q, filters.title, filters.customerName, filters.publisher, filters.author]);
+
+  // Click outside to close global suggestions dropdown
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Debounce the query for auto-searching (500ms delay)
+  const debouncedSearchFilter = useDebounce(searchQuery, 500);
+
+  // Auto-run search when typing stops
+  React.useEffect(() => {
+    if ((filters.q ?? '') !== debouncedSearchFilter) {
+      setQ(debouncedSearchFilter);
+    }
+  }, [debouncedSearchFilter, setQ, filters.q]);
+
+  // Debounce for suggestions matching (150ms delay)
+  const debouncedSuggestQuery = useDebounce(searchQuery, 150);
+
+  // Compute suggestions list based on options
+  const suggestions = useMemo(() => {
+    if (!debouncedSuggestQuery || !optData) return [];
+    
+    const results: { value: string; type: string; score: number }[] = [];
+    const query = debouncedSuggestQuery.trim();
+    if (!query) return [];
+
+    const addMatches = (list: string[] | undefined, type: string) => {
+      if (!list) return;
+      for (const item of list) {
+        const match = fuzzyMatch(item, query);
+        if (match.matches) {
+          results.push({ value: item, type, score: match.score });
+        }
+      }
+    };
+
+    addMatches(optData.bookTitles, 'Book');
+    addMatches(optData.customerNames, 'Customer');
+    addMatches(optData.publishers, 'Publisher');
+    addMatches(optData.authors, 'Author');
+
+    // Sort combined results by relevance score, taking top 15
+    return results
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 15);
+  }, [optData, debouncedSuggestQuery]);
 
   // Helper to count active filters excluding defaults
   const activeFilters = Object.entries(filters).filter(([key, value]) => {
@@ -214,23 +333,69 @@ function FilterBar({
               {isExpanded ? 'Collapse Filters ↑' : `Manage Advanced Filters (${activeFilters.length}) ↓`}
             </button>
           </div>
-          <div className="relative">
+          
+          <div className="relative w-full" ref={dropdownRef}>
             <input
               id="search-input"
               type="text"
               placeholder="Search Title, Binding, Customer, State, Publisher..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsOpen(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsOpen(true);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   setQ(searchQuery);
+                  setIsOpen(false);
                 }
               }}
-              className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-normal text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all"
+              className="w-full rounded-xl border-2 border-teal-600 bg-teal-50/10 px-5 py-3 text-lg font-normal text-black placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/20 transition-all pr-12"
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-teal-600/50">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
+
+            {/* Suggestions Dropdown for Global Search */}
+            {isOpen && searchQuery.trim() !== '' && (
+              <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-[120] max-h-80 overflow-y-auto rounded-2xl border-2 border-gray-150 bg-white shadow-2xl ring-4 ring-black/5 animate-in fade-in slide-in-from-top-2 duration-200 custom-scrollbar">
+                {suggestions.length > 0 ? (
+                  suggestions.map((sug, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onMouseDown={() => {
+                        // Update specific filters based on suggestion type for superior UX
+                        if (sug.type === 'Book') {
+                          updateFilters({ title: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
+                        } else if (sug.type === 'Customer') {
+                          updateFilters({ customerName: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
+                        } else if (sug.type === 'Publisher') {
+                          updateFilters({ publisher: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
+                        } else if (sug.type === 'Author') {
+                          updateFilters({ author: sug.value, q: undefined });
+                          setSearchQuery(sug.value);
+                        } else {
+                          updateFilters({ q: sug.value });
+                          setSearchQuery(sug.value);
+                        }
+                        setIsOpen(false);
+                      }}
+                      className="w-full px-5 py-3.5 text-left text-base font-normal text-black hover:bg-teal-50 hover:text-teal-700 transition-colors border-b border-gray-50 last:border-0 flex justify-between items-center"
+                    >
+                      <span className="truncate pr-4 font-normal text-gray-900">{sug.value}</span>
+                      <span className="text-[10px] shrink-0 font-medium uppercase tracking-wider text-teal-600 bg-teal-50/80 border border-teal-100 px-2.5 py-1 rounded-md">{sug.type}</span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-5 py-4 text-base text-gray-400 italic text-center">No matching suggestions found</div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Quick Binding Selectors */}
@@ -289,19 +454,70 @@ function FilterBar({
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-normal text-black uppercase tracking-wider">Quick Period</span>
           <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-            {[30, 90, 180, 365].map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={`rounded-lg px-4 py-2 text-sm font-normal transition-all ${
-                  filters.days === d && !filters.startDate
-                    ? 'bg-teal-600 text-white shadow-lg'
-                    : 'text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
-              </button>
-            ))}
+            {[
+              { label: 'FYTD', value: 'fytd' },
+              { label: '1M', value: 30 },
+              { label: '3M', value: 90 },
+              { label: '6M', value: 180 },
+              { label: '1Y', value: 365 },
+              { label: 'All', value: 10000 }
+            ].map((p) => {
+              const isSelected = p.value === 'fytd'
+                ? (!filters.days && !searchParams.get('startDate') && !searchParams.get('endDate'))
+                : (filters.days === p.value && !searchParams.get('startDate'));
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => {
+                    if (p.value === 'fytd') {
+                      clearDateRange();
+                    } else {
+                      setDays(p.value as number);
+                    }
+                  }}
+                  className={`rounded-lg px-4 py-2 text-sm font-normal transition-all ${
+                    isSelected
+                      ? 'bg-teal-600 text-white shadow-lg'
+                      : 'text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-normal text-black uppercase tracking-wider">Date Range</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              title="Start Date"
+              aria-label="Start Date"
+              className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
+              value={displayStartDate}
+              onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setDateRange(new Date(e.target.value).toISOString(), displayEndDate === new Date().toISOString().slice(0, 10) ? new Date().toISOString() : new Date(displayEndDate).toISOString());
+                }
+              }}
+            />
+            <span className="text-gray-400 font-normal">→</span>
+            <input
+              type="date"
+              title="End Date"
+              aria-label="End Date"
+              className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
+              value={displayEndDate}
+              onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setDateRange(displayStartDate === getFinancialYearStartDate().toISOString().slice(0, 10) ? getFinancialYearStartDate().toISOString() : new Date(displayStartDate).toISOString(), new Date(e.target.value).toISOString());
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -381,38 +597,9 @@ function FilterBar({
             options={useOfflineSheetOptions(region).data?.types}
           />
         </div>
-
-        {/* Third row: Dates, Ranges and Reset */}
+ 
+        {/* Third row: Price Range and Reset */}
         <div className="flex flex-wrap items-end gap-8 pt-2">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-normal text-black uppercase tracking-wider">Date Range</span>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                title="Start Date"
-                aria-label="Start Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
-                value={filters.startDate?.slice(0, 10) ?? ''}
-                onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
-                onChange={(e) => {
-                  if (e.target.value) setDateRange(new Date(e.target.value).toISOString(), filters.endDate || new Date().toISOString());
-                }}
-              />
-              <span className="text-black font-normal">→</span>
-              <input
-                type="date"
-                title="End Date"
-                aria-label="End Date"
-                className="rounded-xl border-2 border-gray-200 px-3 py-2 text-base font-normal border-black/10 focus:border-teal-600 focus:outline-none cursor-pointer"
-                value={filters.endDate?.slice(0, 10) ?? ''}
-                onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
-                onChange={(e) => {
-                  if (e.target.value) setDateRange(filters.startDate || new Date(0).toISOString(), new Date(e.target.value).toISOString());
-                }}
-              />
-            </div>
-          </div>
-
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-normal text-black uppercase tracking-wider">Price Range (₹)</span>
             <div className="flex items-center gap-2">
@@ -433,7 +620,7 @@ function FilterBar({
               />
             </div>
           </div>
-
+ 
           <button
             onClick={clearAll}
             className="ml-auto text-base font-normal text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-6 py-2.5 rounded-xl border-2 border-red-200 transition-all active:scale-95"
@@ -449,7 +636,7 @@ function FilterBar({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
-  const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, setPage, clearAll } = useOfflineSheetFilters();
+  const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, updateFilters, setPage, clearAll } = useOfflineSheetFilters();
   const [resetVersion, setResetVersion] = useState(0);
 
   const handleGlobalClear = () => {
@@ -473,7 +660,10 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
 
   return (
     <AppLayout>
-      <div className="mb-6 flex items-center justify-between pt-6">
+      <div className="pt-6">
+        <SalesDashboardTabs />
+      </div>
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-normal text-black tracking-tight uppercase">
             {region === 'delhi' ? 'Master' : region.charAt(0).toUpperCase() + region.slice(1)} Sales Dashboard
@@ -496,6 +686,7 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
           clearDateRange={clearDateRange}
           setQ={setQ}
           updateFilter={updateFilter}
+          updateFilters={updateFilters}
           clearAll={handleGlobalClear}
           onSync={() => syncMut.mutate()}
           isSyncing={syncMut.isPending}

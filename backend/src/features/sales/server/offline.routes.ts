@@ -117,7 +117,7 @@ function pick(
 ): any {
   if (!row) return undefined;
   for (const k of Object.keys(row))
-    if (names.some((n) => n.toLowerCase() === k.toLowerCase()))
+    if (names.some((n) => n.trim().toLowerCase() === k.trim().toLowerCase()))
       return (row as any)[k];
   return undefined;
 }
@@ -265,7 +265,8 @@ router.get("/", async (req, res) => {
       ...it,
       id: it.id?.toString?.() ?? String(it.id),
       orderNo: it.docNo,
-      amount: it.amount != null ? round2(decToNumber(it.amount)) : null,
+      qty: it.qty != null ? decToNumber(it.qty) - decToNumber(it.inQty) : null,
+      amount: it.amount != null ? round2(decToNumber(it.amount) - decToNumber(it.inAmount)) : null,
       rate: it.rate != null ? round2(decToNumber(it.rate)) : null,
     }));
 
@@ -378,8 +379,8 @@ router.get("/summary", async (req, res) => {
     const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         to_char("date", 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty
       FROM "google_sheet_offline_sales"
       ${whereClause}
       GROUP BY to_char("date", 'YYYY-MM-DD')
@@ -422,24 +423,24 @@ router.get("/summary", async (req, res) => {
     const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${itemsWhereClause}
-      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY total DESC LIMIT 10
     `);
 
     const topItemsRowsByQty = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${itemsWhereClause}
-      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY qty DESC LIMIT 10
     `);
 
@@ -454,19 +455,19 @@ router.get("/summary", async (req, res) => {
     const bottomItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("rate"), 0)::float AS rate
       FROM "google_sheet_offline_sales"
       ${itemsWhereClause}
-      GROUP BY 1 HAVING (SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END) > 0 OR SUM("qty") > 0)
+      GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY total ASC LIMIT 10
     `);
     result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
 
     // --- REVENUE BY STATE ---
     const revenueByStateRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "google_sheet_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -477,7 +478,7 @@ router.get("/summary", async (req, res) => {
       SELECT 
         COALESCE(NULLIF(TRIM("city"), ''), 'Unknown City') AS city, 
         MAX(COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')) AS state,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "google_sheet_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -485,7 +486,7 @@ router.get("/summary", async (req, res) => {
 
     // --- REVENUE BY PUBLISHER ---
     const revenueByPubRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "google_sheet_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -493,7 +494,7 @@ router.get("/summary", async (req, res) => {
 
     // --- TOP CUSTOMERS ---
     const topCustomerRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "google_sheet_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
     `);
@@ -501,7 +502,7 @@ router.get("/summary", async (req, res) => {
 
     // --- REVENUE BY BINDING ---
     const revenueByBindingRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total, COALESCE(SUM("qty"), 0)::int AS qty
+      SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total, (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty
       FROM "google_sheet_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC
     `);
@@ -509,25 +510,31 @@ router.get("/summary", async (req, res) => {
     
     // --- REVENUE BY TYPE ---
     const revenueByTypeRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM("type"), ''), 'Unknown Type') AS type, COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total
+      SELECT COALESCE(NULLIF(TRIM("type"), ''), 'Unknown Type') AS type, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "google_sheet_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC
     `);
     result.revenueByType = revenueByTypeRows.map(r => ({ type: r.type, total: round2(Number(r.total)) }));
 
-    // --- Projection Logic (Year 2026) — month-wise weighted ---
-    const currentYear = 2026;
-    const yearStart = new Date(`${currentYear}-01-01T00:00:00Z`);
+    // --- Projection Logic (Indian Financial Year) — month-wise weighted ---
     const now = new Date();
-    const currentMonth = now.getUTCMonth() + 1; // 1–12
+    const currentYear = now.getFullYear();
+    const currentMonthCalendar = now.getMonth(); // 0-indexed: April = 3
+    const fyStartYear = currentMonthCalendar >= 3 ? currentYear : currentYear - 1;
 
-    // Monthly totals for all 2026 data recorded so far
+    const yearStart = new Date(`${fyStartYear}-04-01T00:00:00Z`);
+    const yearEnd = new Date(`${fyStartYear + 1}-03-31T23:59:59Z`);
+    const currentMonth = (currentMonthCalendar >= 3) ? (currentMonthCalendar - 2) : (currentMonthCalendar + 10);
+
+    // Monthly totals for all FY data recorded so far
     const monthlyRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         EXTRACT(MONTH FROM "date")::int AS month,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
                           WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty"
-                          ELSE 0 END), 0)::float AS total,
+                          ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount"
+                          WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty"
+                          ELSE 0 END), 0))::float AS total,
         COUNT(*)::int AS txn_count
       FROM "google_sheet_offline_sales"
       WHERE "date" IS NOT NULL
@@ -539,24 +546,28 @@ router.get("/summary", async (req, res) => {
       ORDER BY 1
     `);
 
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const getRelativeMonth = (calMonth: number) => (calMonth >= 4) ? (calMonth - 3) : (calMonth + 9);
 
     // Split into complete months vs current month
-    const completeMonths = monthlyRows.filter((r: any) => Number(r.month) < currentMonth);
-    const currentMonthRow = monthlyRows.find((r: any) => Number(r.month) === currentMonth);
+    const completeMonths = monthlyRows.filter((r: any) => getRelativeMonth(Number(r.month)) < currentMonth);
+    const currentMonthRow = monthlyRows.find((r: any) => getRelativeMonth(Number(r.month)) === currentMonth);
 
     // Days elapsed in current month and total days in current month
-    const daysInCurrentMonth = new Date(Date.UTC(currentYear, now.getUTCMonth() + 1, 0)).getUTCDate();
-    const daysElapsedInCurrentMonth = Math.max(1, now.getUTCDate());
-    const currentMonthActual = currentMonthRow ? Number(currentMonthRow.total) : 0;
+    const daysInCurrentMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0)).getUTCDate();
+    const daysElapsedInCurrentMonth = Math.max(1, now.getDate());
+    const currentMonthActual = currentMonthRow ? decToNumber(currentMonthRow.total) : 0;
     const currentMonthProjected = (currentMonthActual / daysElapsedInCurrentMonth) * daysInCurrentMonth;
 
     // Weighted average of up to last 3 complete months (newest = highest weight)
-    const recentComplete = completeMonths.slice(-3);
+    const recentComplete = completeMonths
+      .map((r: any) => ({ ...r, relMonth: getRelativeMonth(Number(r.month)) }))
+      .sort((a: any, b: any) => a.relMonth - b.relMonth)
+      .slice(-3);
+
     let weightedMonthlyAvg: number;
     if (recentComplete.length > 0) {
-      const weights = recentComplete.map((_: any, i: number) => i + 1); // 1,2,3
-      const totalWeight = weights.reduce((a: number, b: number) => a + b, 0);
+      const weights = recentComplete.map((_, i) => i + 1); // 1,2,3
+      const totalWeight = weights.reduce((a, b) => a + b, 0);
       weightedMonthlyAvg = recentComplete.reduce(
         (acc: number, m: any, i: number) => acc + Number(m.total) * (weights[i] ?? 1), 0
       ) / totalWeight;
@@ -564,12 +575,17 @@ router.get("/summary", async (req, res) => {
       weightedMonthlyAvg = currentMonthProjected;
     }
 
-    // Build full year monthly breakdown (Jan–Dec)
+    const MONTH_NAMES = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
+    // Build full year monthly breakdown (Apr–Mar)
     const monthlyBreakdown = Array.from({ length: 12 }, (_, idx) => {
-      const m = idx + 1;
+      const m = idx + 1; // 1-indexed relative month (1 = April, 12 = March)
       const isComplete = m < currentMonth;
       const isCurrent  = m === currentMonth;
-      const row = monthlyRows.find((r: any) => Number(r.month) === m);
+      
+      const calMonth = (m + 2) % 12 + 1;
+      const row = monthlyRows.find((r: any) => Number(r.month) === calMonth);
+
       if (isComplete) {
         return { month: m, name: MONTH_NAMES[idx], actual: round2(row ? Number(row.total) : 0), projected: null, isComplete: true, isCurrent: false };
       }
@@ -582,12 +598,14 @@ router.get("/summary", async (req, res) => {
     const totalSoFar = completeMonths.reduce((acc: number, m: any) => acc + Number(m.total), 0) + currentMonthActual;
     const daysElapsed = Math.ceil(Math.max(1, now.getTime() - yearStart.getTime()) / 86400000);
     const dailyAvg = totalSoFar / daysElapsed;
-    const remainingDays = Math.ceil((new Date(`${currentYear}-12-31T23:59:59Z`).getTime() - now.getTime()) / 86400000);
+    const remainingDays = Math.ceil((yearEnd.getTime() - now.getTime()) / 86400000);
     const projectedRemaining = round2((currentMonthProjected - currentMonthActual) + (12 - currentMonth) * weightedMonthlyAvg);
     const totalProjected = round2(totalSoFar + projectedRemaining);
 
+    const yearLabel = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
+
     (result as any).projection = {
-      year: currentYear,
+      year: yearLabel,
       totalSoFar: round2(totalSoFar),
       daysElapsed,
       dailyAvg: round2(dailyAvg),
@@ -635,6 +653,7 @@ router.get("/counts", async (req, res) => {
   // Removed end date default filter to allow future records
 
   try {
+    // Build where clause for the main aggregation query
     const conditions: any[] = [Prisma.sql`TRUE`];
     if (start && endDate) {
       const until = new Date(endDate);
@@ -647,29 +666,28 @@ router.get("/counts", async (req, res) => {
       until.setUTCHours(23,59,59,999);
       conditions.push(Prisma.sql`("date" IS NULL OR "date" <= ${until})`);
     }
-    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
-    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
-    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
-    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (state)        conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)         conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher)    conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)       conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
     if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
     if (binding) {
       const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
       if (bts.length > 0) {
-        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
-        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+        const bc = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bc, ' OR ')})`);
       }
     }
     if (title) {
       const match = title.match(/^(.*)\s\(([^)]+)\)$/);
       if (match) {
-        const [_, t, b] = match;
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
-        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((match[1] ?? '').trim())}`);
+        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((match[2] ?? '').trim())}`);
       } else {
         conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
       }
     }
-    if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
+    if (type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
     if (q) {
       const tokens = getSearchTokens(q);
       tokens.forEach(t => {
@@ -677,31 +695,88 @@ router.get("/counts", async (req, res) => {
         conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
       });
     }
-
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
-    const [agg] = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT
-        COUNT(*)::bigint AS count,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total_amount,
-        COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers,
-        (SELECT TRIM("binding") FROM "google_sheet_offline_sales" ${whereClause} AND "binding" IS NOT NULL AND TRIM("binding") != '' GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1) AS top_binding
-      FROM "google_sheet_offline_sales"
-      ${whereClause}
-    `);
+    // Build a second copy of the where clause for the top_binding subquery.
+    // Prisma cannot reuse the same tagged-template fragment in two places inside
+    // one $queryRaw call — it causes Postgres parameter binding errors.
+    const conditionsForBinding: any[] = [Prisma.sql`TRUE`];
+    if (start && endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditionsForBinding.push(Prisma.sql`("date" IS NULL OR ("date" >= ${start} AND "date" <= ${until}))`);
+    } else if (start) {
+      conditionsForBinding.push(Prisma.sql`("date" IS NULL OR "date" >= ${start})`);
+    } else if (endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditionsForBinding.push(Prisma.sql`("date" IS NULL OR "date" <= ${until})`);
+    }
+    if (state)        conditionsForBinding.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)         conditionsForBinding.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher)    conditionsForBinding.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)       conditionsForBinding.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (customerName) conditionsForBinding.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding) {
+      const bts2 = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts2.length > 0) {
+        const bc = bts2.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditionsForBinding.push(Prisma.sql`(${Prisma.join(bc, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match2 = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match2) {
+        conditionsForBinding.push(Prisma.sql`"title" ~* ${toTokenRegex((match2[1] ?? '').trim())}`);
+        conditionsForBinding.push(Prisma.sql`"binding" ~* ${toTokenRegex((match2[2] ?? '').trim())}`);
+      } else {
+        conditionsForBinding.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
+    if (type) conditionsForBinding.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
+    if (q) {
+      const tokens2 = getSearchTokens(q);
+      tokens2.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditionsForBinding.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
+      });
+    }
+    const whereClause2 = Prisma.sql`WHERE ${Prisma.join(conditionsForBinding, ' AND ')}`;
+
+    // Run the two queries in parallel — each uses its own distinct where clause copy
+    const [[agg], [topBindingRow]] = await Promise.all([
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT
+          COUNT(*)::bigint AS count,
+          (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total_amount,
+          COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers
+        FROM "google_sheet_offline_sales"
+        ${whereClause}
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT TRIM("binding") AS top_binding
+        FROM "google_sheet_offline_sales"
+        ${whereClause2}
+        AND "binding" IS NOT NULL AND TRIM("binding") != ''
+        GROUP BY 1
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      `),
+    ]);
 
     return res.json({
       ok: true,
       totalCount: Number(agg?.count ?? 0),
       totalAmount: round2(Number(agg?.total_amount ?? 0)),
       uniqueCustomers: Number(agg?.unique_customers ?? 0),
-      topBinding: agg?.top_binding ?? 'N/A'
+      topBinding: topBindingRow?.top_binding ?? 'N/A'
     });
   } catch (e: any) {
     console.error("offline_counts_failed", e);
     return res.status(500).json({ ok: false, error: "Counts failed" });
   }
 });
+
 
 // GET /api/offline-sales/daily-details
 router.get("/daily-details", async (req, res) => {
@@ -786,8 +861,8 @@ router.get("/daily-details", async (req, res) => {
     const details = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
-        COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)::float AS total,
-        COALESCE(SUM("qty"), 0)::int AS qty,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COALESCE(MAX("publisher"), 'N/A') AS publisher,
         COALESCE(MAX("author"), 'N/A') AS author,
         COALESCE(MAX("rate"), 0)::float AS rate
@@ -858,10 +933,10 @@ router.get("/options", async (req, res) => {
       prisma.googleSheetOfflineSale.groupBy({ by: ['state'], where: { state: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { state: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['publisher'], where: { publisher: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { publisher: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['binding'], where: { binding: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { binding: 'asc' } }),
-      prisma.googleSheetOfflineSale.groupBy({ by: ['customerName'], where: { customerName: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['customerName'], where: { customerName: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 10000 }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['author'], where: { author: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { author: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['city'], where: { city: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { city: 'asc' } }),
-      prisma.googleSheetOfflineSale.groupBy({ by: ['title', 'binding'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 200 }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['title', 'binding'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 10000 }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['type'], where: { type: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { type: 'asc' } })
     ]);
 

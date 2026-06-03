@@ -29,7 +29,7 @@ function pick(
 ): any {
   if (!row) return undefined;
   for (const k of Object.keys(row))
-    if (names.some((n) => n.toLowerCase() === k.toLowerCase()))
+    if (names.some((n) => n.trim().toLowerCase() === k.trim().toLowerCase()))
       return (row as any)[k];
   return undefined;
 }

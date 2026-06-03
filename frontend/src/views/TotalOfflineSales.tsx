@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '../shared/AppLayout';
+import SalesDashboardTabs from '../components/SalesDashboardTabs';
 import { useLang } from '../modules/lang/LangContext';
 import { apiClient } from '../lib/apiClient';
 import { FiTrendingUp, FiShoppingBag, FiDatabase, FiRefreshCw } from 'react-icons/fi';
@@ -53,7 +54,7 @@ export default function TotalOfflineSales() {
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [activeTab,     setActiveTab]     = useState<'revenue' | 'volume'>('revenue');
-  const [dateRange,     setDateRange]     = useState<string>('ytd');
+  const [dateRange,     setDateRange]     = useState<string>('fytd');
   const [activeChannel, setActiveChannel] = useState<ChannelKey>('all');
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -100,9 +101,18 @@ export default function TotalOfflineSales() {
     let days   = 30;
     if (dateRange === '7')        days = 7;
     else if (dateRange === '90')  days = 90;
+    else if (dateRange === '180') days = 180;
+    else if (dateRange === '365') days = 365;
     else if (dateRange === 'ytd') {
       const daysInMonths = [31, 28, 31, 30, 31];
       days = daysInMonths.reduce((a, b) => a + b, 0) + new Date().getDate();
+    } else if (dateRange === 'fytd') {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const startYear = now.getMonth() >= 3 ? currentYear : currentYear - 1;
+      const fyStart = new Date(startYear, 3, 1); // April 1st
+      const diffTime = Math.abs(now.getTime() - fyStart.getTime());
+      days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
     } else if (dateRange === 'all') {
       days = summary.timeSeries.length || 365;
     }
@@ -117,6 +127,9 @@ export default function TotalOfflineSales() {
 
   return (
     <AppLayout>
+      <div className="pt-6">
+        <SalesDashboardTabs />
+      </div>
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6 border-b border-gray-100 pb-6">
         <div>
@@ -131,24 +144,31 @@ export default function TotalOfflineSales() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full xl:w-auto">
-          {/* Date range */}
-          <div className="relative shrink-0">
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="appearance-none rounded-2xl bg-white border border-gray-200 pl-4 pr-10 py-2.5 text-xs font-normal text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all hover:bg-gray-50 cursor-pointer"
-            >
-              <option value="7">Last 7 Days</option>
-              <option value="30">Last 30 Days</option>
-              <option value="90">Last 90 Days</option>
-              <option value="ytd">Year to Date (2026)</option>
-              <option value="all">All Time</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+          {/* Quick Period selector */}
+          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
+            {[
+              { label: 'FYTD', value: 'fytd' },
+              { label: '1M', value: '30' },
+              { label: '3M', value: '90' },
+              { label: '6M', value: '180' },
+              { label: '1Y', value: '365' },
+              { label: 'All', value: 'all' }
+            ].map((p) => {
+              const isSelected = dateRange === p.value;
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => setDateRange(p.value)}
+                  className={`rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-gray-600 hover:bg-gray-200/60'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
           </div>
 
           <button
@@ -209,26 +229,64 @@ export default function TotalOfflineSales() {
 
           {/* 1. KPI Cards */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Net Revenue = OUT minus IN (returns) */}
             <KpiCard
-              title="Total Sales Revenue"
+              title="Net Revenue (OUT − IN)"
               value={formatINR(summary?.counts?.totalRevenue || 0)}
               icon={<FiTrendingUp className="h-20 w-20 text-indigo-600" />}
-              badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-green-600 bg-green-50 px-2.5 py-1 rounded-full w-fit">
-                  <span>Active Channels: {summary?.regionalBreakdown?.length ?? 6} / 6</span>
-                </div>
-              }
+              badge={(() => {
+                const gross   = summary?.counts?.totalGrossRevenue   || 0;
+                const returns = summary?.counts?.totalReturnsRevenue || 0;
+                const retPct  = gross > 0 ? ((returns / gross) * 100).toFixed(1) : '0.0';
+                const netPct  = gross > 0 ? (((gross - returns) / gross) * 100).toFixed(1) : '100.0';
+                return (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 text-xs font-normal text-gray-500 bg-gray-50 px-2.5 py-1 rounded-full w-fit">
+                      OUT&nbsp;<span className="font-semibold text-gray-700">{formatINR(gross)}</span>
+                      &nbsp;−&nbsp;IN&nbsp;<span className="font-semibold text-red-500">{formatINR(returns)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs font-normal text-green-600 bg-green-50 px-2.5 py-1 rounded-full w-fit">
+                        Net&nbsp;<span className="font-semibold">{netPct}%</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-normal text-red-500 bg-red-50 px-2.5 py-1 rounded-full w-fit">
+                        Returns&nbsp;<span className="font-semibold">{retPct}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             />
+
+            {/* Copies Dispatched = gross OUT (not net) */}
             <KpiCard
-              title="Books Sold (Volume)"
-              value={(summary?.counts?.totalQty || 0).toLocaleString('en-IN')}
+              title="Copies Dispatched (OUT)"
+              value={(summary?.counts?.totalGrossQty || 0).toLocaleString('en-IN')}
               icon={<FiShoppingBag className="h-20 w-20 text-teal-600" />}
-              badge={
-                <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full w-fit">
-                  <span>Avg Rate: {formatINR((summary?.counts?.totalRevenue || 0) / Math.max(1, summary?.counts?.totalQty || 0))}</span>
-                </div>
-              }
+              badge={(() => {
+                const gross   = summary?.counts?.totalGrossQty   || 0;
+                const returns = summary?.counts?.totalReturnsQty || 0;
+                const net     = summary?.counts?.totalQty        || 0;
+                const retPct  = gross > 0 ? ((returns / gross) * 100).toFixed(1) : '0.0';
+                const netPct  = gross > 0 ? ((net / gross) * 100).toFixed(1) : '100.0';
+                return (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 text-xs font-normal text-gray-500 bg-gray-50 px-2.5 py-1 rounded-full w-fit">
+                      Returns (IN):&nbsp;<span className="font-semibold text-red-500">{returns.toLocaleString('en-IN')}</span>&nbsp;copies
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs font-normal text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full w-fit">
+                        Net&nbsp;<span className="font-semibold">{netPct}%</span>&nbsp;({net.toLocaleString('en-IN')})
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-normal text-red-500 bg-red-50 px-2.5 py-1 rounded-full w-fit">
+                        Ret&nbsp;<span className="font-semibold">{retPct}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             />
+
             <KpiCard
               title="Annual Projected Sales"
               value={formatINR(projectedAnnualRevenue)}

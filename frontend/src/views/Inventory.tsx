@@ -18,6 +18,7 @@ import AppLayout from "../shared/AppLayout";
 import { useLang } from "../modules/lang/LangContext";
 import { apiClient } from "../lib/apiClient";
 import IndiaMap from "../components/geo/IndiaMap";
+import { fuzzyMatch, useDebounce } from "../shared/searchUtils";
 
 /**
  * Type definition for location-based sales data
@@ -73,6 +74,7 @@ export default function Inventory() {
   });
   const [days, setDays] = useState(10000);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [selectedChannel, setSelectedChannel] = useState<Channel>("all");
   const [perfFilter, setPerfFilter] = useState<"all" | "top" | "low">("all");
   const [topN, setTopN] = useState(10);
@@ -476,13 +478,12 @@ export default function Inventory() {
       selectedChannel === "all" ? locationData : byChannel[selectedChannel] || [];
     let filtered = [...base];
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
       filtered = filtered.filter(
         (loc) =>
-          loc.pincode.toLowerCase().includes(query) ||
-          loc.city.toLowerCase().includes(query) ||
-          loc.state.toLowerCase().includes(query)
+          fuzzyMatch(loc.pincode, debouncedSearchQuery).matches ||
+          fuzzyMatch(loc.city, debouncedSearchQuery).matches ||
+          fuzzyMatch(loc.state, debouncedSearchQuery).matches
       );
     }
 
@@ -530,12 +531,12 @@ export default function Inventory() {
     });
 
     return filtered;
-  }, [locationData, byChannel, selectedChannel, perfFilter, topN, sortConfig, searchQuery, hideUnknown, stateFilter]);
+  }, [locationData, byChannel, selectedChannel, perfFilter, topN, sortConfig, debouncedSearchQuery, hideUnknown, stateFilter]);
 
   // Reset to first page when filters/sorts change
   useEffect(() => {
     setPage(1);
-  }, [selectedChannel, searchQuery, perfFilter, topN, sortConfig]);
+  }, [selectedChannel, debouncedSearchQuery, perfFilter, topN, sortConfig]);
 
   // Pagination derivations
   const totalRows = sortedAndFilteredData.length;

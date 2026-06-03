@@ -22,11 +22,25 @@ const REGION_LABEL: Record<ChannelKey, string> = {
 
 const toNum = (v: any): number => Number(v?.toString() ?? '0');
 
+function getFinancialYearStart(): Date {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0 = Jan, 11 = Dec
+  const startYear = currentMonth >= 3 ? currentYear : currentYear - 1;
+  return new Date(`${startYear}-04-01T00:00:00.000Z`);
+}
+
 function buildDateFilter(range: string): Record<string, Date> | undefined {
   const ago = (d: number) => new Date(Date.now() - d * 86_400_000);
   if (range === '7')   return { gte: ago(7) };
   if (range === '30')  return { gte: ago(30) };
   if (range === '90')  return { gte: ago(90) };
+  if (range === '180') return { gte: ago(180) };
+  if (range === '365') return { gte: ago(365) };
+  if (range === 'fytd') return {
+    gte: getFinancialYearStart(),
+    lte: new Date(),
+  };
   if (range === 'ytd') return {
     gte: new Date('2026-01-01T00:00:00.000Z'),
     lte: new Date('2026-12-31T23:59:59.999Z'),
@@ -61,35 +75,84 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
 
   const [count, agg, topBooks, tsRows, stateRows, publisherRows] = await Promise.all([
     model.count({ where }),
-    model.aggregate({ _sum: { amount: true, qty: true }, where }),
+    model.aggregate({ _sum: { amount: true, inAmount: true, qty: true, inQty: true }, where }),
     model.groupBy({
       by: ['title'],
-      _sum: { amount: true, qty: true },
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
       where: bookWhere,
       orderBy: { _sum: { amount: 'desc' } },
       take: 10,
     }),
-    model.findMany({ where, select: { date: true, amount: true, qty: true } }),
+    model.findMany({ where, select: { date: true, amount: true, qty: true, inAmount: true, inQty: true } }),
     model.groupBy({
       by: ['state'],
-      _sum: { amount: true, qty: true },
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
       where: stateWhere,
       orderBy: { _sum: { amount: 'desc' } },
       take: 5,
     }),
     model.groupBy({
       by: ['publisher'],
-      _sum: { amount: true, qty: true },
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
       where: publisherWhere,
       orderBy: { _sum: { amount: 'desc' } },
       take: 5,
     }),
   ]);
 
-  const revenue = toNum(agg._sum.amount);
-  const qty     = toNum(agg._sum.qty);
+  const grossRevenue  = toNum(agg._sum.amount);
+  const returnsRevenue = toNum(agg._sum.inAmount);
+  const revenue        = grossRevenue - returnsRevenue;
 
-  return { ch, count, revenue, qty, avgTicket: qty > 0 ? revenue / qty : 0, topBooks, tsRows, stateRows, publisherRows };
+  const grossQty   = toNum(agg._sum.qty);
+  const returnsQty = toNum(agg._sum.inQty);
+  const qty        = grossQty - returnsQty;  // net copies dispatched minus returns
+
+  const mappedTopBooks = topBooks.map((b: any) => ({
+    title: b.title,
+    _sum: {
+      amount: toNum(b._sum.amount) - toNum(b._sum.inAmount),
+      qty: toNum(b._sum.qty) - toNum(b._sum.inQty)
+    }
+  }));
+
+  const mappedStateRows = stateRows.map((s: any) => ({
+    state: s.state,
+    _sum: {
+      amount: toNum(s._sum.amount) - toNum(s._sum.inAmount),
+      qty: toNum(s._sum.qty) - toNum(s._sum.inQty)
+    }
+  }));
+
+  const mappedPublisherRows = publisherRows.map((p: any) => ({
+    publisher: p.publisher,
+    _sum: {
+      amount: toNum(p._sum.amount) - toNum(p._sum.inAmount),
+      qty: toNum(p._sum.qty) - toNum(p._sum.inQty)
+    }
+  }));
+
+  const mappedTsRows = tsRows.map((t: any) => ({
+    date: t.date,
+    amount: toNum(t.amount) - toNum(t.inAmount),
+    qty: toNum(t.qty) - toNum(t.inQty)
+  }));
+
+  return {
+    ch,
+    count,
+    grossRevenue,
+    returnsRevenue,
+    revenue,          // net = OUT - IN
+    grossQty,         // raw OUT copies
+    returnsQty,       // IN (returned) copies
+    qty,              // net = OUT - IN copies
+    avgTicket: grossQty > 0 ? grossRevenue / grossQty : 0,
+    topBooks: mappedTopBooks,
+    tsRows: mappedTsRows,
+    stateRows: mappedStateRows,
+    publisherRows: mappedPublisherRows
+  };
 }
 
 // ─── GET /api/total-offline-sales/summary ─────────────────────────────────────
@@ -114,9 +177,13 @@ router.get('/summary', async (req, res) => {
     const results = await Promise.all(channels.map(ch => fetchChannelData(ch, where, bookWhere)));
 
     // ── Grand totals ──────────────────────────────────────────────────────────
-    const totalRevenue = results.reduce((s, r) => s + r.revenue, 0);
-    const totalQty     = results.reduce((s, r) => s + r.qty,     0);
-    const totalCount   = results.reduce((s, r) => s + r.count,   0);
+    const totalRevenue        = results.reduce((s, r) => s + r.revenue,        0);  // net OUT-IN
+    const totalQty            = results.reduce((s, r) => s + r.qty,            0);  // net OUT-IN copies
+    const totalGrossRevenue   = results.reduce((s, r) => s + r.grossRevenue,   0);  // gross OUT only
+    const totalGrossQty       = results.reduce((s, r) => s + r.grossQty,       0);  // gross OUT copies
+    const totalReturnsRevenue = results.reduce((s, r) => s + r.returnsRevenue, 0);  // IN returns ₹
+    const totalReturnsQty     = results.reduce((s, r) => s + r.returnsQty,     0);  // IN returned copies
+    const totalCount          = results.reduce((s, r) => s + r.count,          0);
 
     // ── Regional breakdown (per channel) ─────────────────────────────────────
     const regionalBreakdown = results.map(r => ({
@@ -206,7 +273,15 @@ router.get('/summary', async (req, res) => {
     return res.json({
       ok: true,
       channel,
-      counts: { totalCount, totalRevenue, totalQty },
+      counts: {
+        totalCount,
+        totalRevenue,        // net (OUT − IN)
+        totalQty,            // net (OUT − IN) copies
+        totalGrossRevenue,   // gross OUT revenue
+        totalGrossQty,       // gross OUT copies dispatched
+        totalReturnsRevenue, // IN returns revenue
+        totalReturnsQty,     // IN returned copies
+      },
       regionalBreakdown,
       timeSeries,
       topItems,
@@ -252,10 +327,10 @@ router.get('/transactions', async (req, res) => {
         date:         row.date ? new Date(row.date).toISOString().slice(0, 10) : 'N/A',
         title:        row.title        || 'Untitled Book',
         author:       row.author       || null,
-        qty:          row.qty          || 0,
+        qty:          (row.qty || 0) - (row.inQty || 0),
         rate:         toNum(row.rate),
         discount:     toNum(row.discount),
-        amount:       toNum(row.amount),
+        amount:       toNum(row.amount) - toNum(row.inAmount),
         customerName: row.customerName || 'Walk-in Customer',
         state:        row.state        || null,
         city:         row.city         || null,
@@ -280,47 +355,64 @@ router.get('/transactions', async (req, res) => {
 
 router.get('/projections', async (req, res) => {
   try {
-    const year        = 2026;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0 = Jan, 11 = Dec
+    const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1;
+
+    const fyStart = new Date(`${fyStartYear}-04-01T00:00:00.000Z`);
+    const fyEnd = new Date(`${fyStartYear + 1}-03-31T23:59:59.999Z`);
+
     const whereClause = {
-      date: { gte: new Date(`${year}-01-01T00:00:00.000Z`), lte: new Date(`${year}-12-31T23:59:59.999Z`) },
+      date: { gte: fyStart, lte: fyEnd },
     };
 
     const [delhiD, mumbaiD, patnaD, onlineD, bookFairD, lokbhartiD] = await Promise.all([
-      prisma.googleSheetOfflineSale.groupBy({ by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.mumbaiOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.patnaOfflineSale.groupBy(       { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.onlineOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.bookFairOfflineSale.groupBy(    { by: ['date'], _sum: { amount: true }, where: whereClause }),
-      prisma.lokbhartiOfflineSale.groupBy(   { by: ['date'], _sum: { amount: true }, where: whereClause }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.mumbaiOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.patnaOfflineSale.groupBy(       { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.onlineOfflineSale.groupBy(      { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.bookFairOfflineSale.groupBy(    { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
+      prisma.lokbhartiOfflineSale.groupBy(   { by: ['date'], _sum: { amount: true, inAmount: true }, where: whereClause }),
     ]);
 
     const monthlyActuals = Array(12).fill(0);
     const processDaily   = (rows: any[]) => {
       for (const r of rows) {
         if (!r.date) continue;
-        monthlyActuals[new Date(r.date).getMonth()] += toNum(r._sum.amount);
+        const d = new Date(r.date);
+        const m = d.getMonth();
+        const relativeMonth = (m >= 3) ? (m - 3) : (m + 9);
+        monthlyActuals[relativeMonth] += (toNum(r._sum.amount) - toNum(r._sum.inAmount));
       }
     };
     [delhiD, mumbaiD, patnaD, onlineD, bookFairD, lokbhartiD].forEach(processDaily);
 
-    const daysInMonths: number[]  = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    const currentMonthIndex = new Date().getMonth();
-    const currentDayInMonth = new Date().getDate();
+    const getDaysInMonth = (y: number, mIndex: number) => new Date(y, mIndex + 1, 0).getDate();
+    const daysInMonths: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      const calendarMonth = (i + 3) % 12;
+      const calendarYear = (i + 3 >= 12) ? fyStartYear + 1 : fyStartYear;
+      daysInMonths.push(getDaysInMonth(calendarYear, calendarMonth));
+    }
 
-    let daysElapsed = 0;
-    for (let i = 0; i < currentMonthIndex; i++) daysElapsed += (daysInMonths[i] ?? 30);
-    daysElapsed += currentDayInMonth;
-    const daysLeft = 365 - daysElapsed;
+    const diffTime = Math.max(0, now.getTime() - fyStart.getTime());
+    const daysElapsed = Math.ceil(diffTime / 86_400_000) || 1;
+    const totalDays = daysInMonths.reduce((a, b) => a + b, 0); // 365 or 366
+    const daysLeft = Math.max(0, totalDays - daysElapsed);
+
+    const currentMonthIndex = (now.getMonth() >= 3) ? (now.getMonth() - 3) : (now.getMonth() + 9);
+    const currentDayInMonth = now.getDate();
 
     const actualSoFar        = monthlyActuals.slice(0, currentMonthIndex + 1).reduce((a, b) => a + b, 0);
     const V                  = actualSoFar / Math.max(1, daysElapsed);
     const projectedRemaining = V * daysLeft;
     const yearlyEstimate     = actualSoFar + projectedRemaining;
     const achievementPercent = (actualSoFar / Math.max(1, yearlyEstimate)) * 100;
-    const timeElapsedPercent = (daysElapsed / 365) * 100;
-    const weightedMonthlyAvg = V * (365 / 12);
+    const timeElapsedPercent = (daysElapsed / totalDays) * 100;
+    const weightedMonthlyAvg = V * (totalDays / 12);
 
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const MONTH_NAMES = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
     const chartData = MONTH_NAMES.map((name, i) => {
       const act = monthlyActuals[i] ?? 0;
       const dim = daysInMonths[i]    ?? 30;
@@ -335,6 +427,8 @@ router.get('/projections', async (req, res) => {
 
     // Pass current month actual separately for easy access in tooltips
     const currentMonthActual = monthlyActuals[currentMonthIndex] ?? 0;
+
+    const year = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
 
     return res.json({
       ok: true, year, yearlyEstimate, weightedMonthlyAvg, actualSoFar,

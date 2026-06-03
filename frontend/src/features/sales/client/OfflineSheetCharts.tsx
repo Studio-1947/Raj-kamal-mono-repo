@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition, useMemo } from 'react';
 import {
   ResponsiveContainer,
   AreaChart, Area,
@@ -10,6 +10,8 @@ import {
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
 import { apiClient } from '../../../lib/apiClient';
 import { useOfflineSheetOptions, useOfflineSheetDailyDetails } from './offlineSheetService';
+import { getFinancialYearStartDate } from './useOfflineSheetFilters';
+import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 
 // DnD Kit imports
 import {
@@ -110,6 +112,8 @@ function BlockFilterField({ label, value, onChange, placeholder, type = "text" }
 function BlockFilterDropdown({ label, value, onChange, placeholder, options = [] }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterQuery, setFilterQuery] = useState('');
+  const [isPending, startTransition] = useTransition();
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,9 +126,35 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt: string) => 
-    opt.toLowerCase().includes(search.toLowerCase())
-  );
+  // Debounce the setting of filterQuery and wrap in transition to ensure the input field remains completely fluid
+  useEffect(() => {
+    if (search === '') {
+      setFilterQuery('');
+      return;
+    }
+    const handler = setTimeout(() => {
+      startTransition(() => {
+        setFilterQuery(search);
+      });
+    }, 150);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
+
+  // Client-side fuzzy sorting of dropdown options
+  const filteredOptions = useMemo(() => {
+    if (!filterQuery) return options;
+    return options
+      .map((opt: string) => {
+        const match = fuzzyMatch(opt, filterQuery);
+        return { opt, ...match };
+      })
+      .filter((item: any) => item.matches)
+      .sort((a: any, b: any) => b.score - a.score)
+      .map((item: any) => item.opt);
+  }, [options, filterQuery]);
 
   return (
     <div className="flex flex-col gap-1 relative" ref={dropdownRef}>
@@ -145,7 +175,11 @@ function BlockFilterDropdown({ label, value, onChange, placeholder, options = []
           className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-normal text-black focus:border-teal-500 focus:bg-white focus:outline-none transition-all placeholder:text-gray-300 pr-6"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           {isPending ? (
+              <span className="h-3 w-3 animate-spin rounded-full border border-teal-500 border-t-transparent inline-block" />
+           ) : (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+           )}
         </div>
       </div>
 
@@ -195,7 +229,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
   useEffect(() => {
     if (filters.startDate) setLocalStart(filters.startDate);
     else if (filters.days) setLocalStart(new Date(Date.now() - filters.days * 86400000).toISOString());
-    else setLocalStart(new Date('2026-01-01T00:00:00.000Z').toISOString());
+    else setLocalStart(getFinancialYearStartDate().toISOString());
     
     if (filters.endDate) setLocalEnd(filters.endDate);
     else setLocalEnd(new Date().toISOString());
@@ -203,11 +237,12 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
 
   // Local filters for the details list
   const [q, setQ] = useState('');
+  const debouncedQ = useDebounce(q, 300);
   const [pub, setPub] = useState('');
   const [page, setPage] = useState(1);
   const limit = isFullScreen ? 24 : 12;
 
-  useEffect(() => { setPage(1); }, [date, mode, q, pub]);
+  useEffect(() => { setPage(1); }, [date, mode, debouncedQ, pub]);
 
   const { data: optData } = useOfflineSheetOptions(region);
 
@@ -215,7 +250,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
   
   const panelFilters: OfflineSheetFilters = { 
     ...filters,
-    q: q || undefined,
+    q: debouncedQ || undefined,
     publisher: pub || undefined,
     limit,
     page
@@ -533,7 +568,11 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
-    return { days: globalFilters.days || 90 };
+    // If global filters has date bounds (e.g. default FYTD), default to inheriting them
+    if (globalFilters.startDate || globalFilters.endDate || globalFilters.days) {
+      return {};
+    }
+    return { days: 90 };
   });
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -621,19 +660,43 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
         <div className="flex items-center gap-2">
           {/* Quick Days Selector */}
           <div className="flex items-center gap-1 rounded-xl bg-gray-50 p-1 border border-gray-100">
-            {[30, 90, 180, 365].map((d) => (
-              <button
-                key={d}
-                onClick={() => updateF('days', d)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-normal transition-all ${
-                  localFilters.days === d
-                    ? 'bg-teal-600 text-white shadow-md'
-                    : 'text-gray-500 hover:bg-white hover:text-teal-600'
-                }`}
-              >
-                {d === 30 ? '1M' : d === 90 ? '3M' : d === 180 ? '6M' : '1Y'}
-              </button>
-            ))}
+            {[
+              { label: 'FYTD', value: 'fytd' },
+              { label: '1M', value: 30 },
+              { label: '3M', value: 90 },
+              { label: '6M', value: 180 },
+              { label: '1Y', value: 365 },
+              { label: 'All', value: 10000 }
+            ].map((p) => {
+              const isSelected = p.value === 'fytd'
+                ? (!localFilters.days && !localFilters.startDate && !localFilters.endDate)
+                : (localFilters.days === p.value && !localFilters.startDate);
+              return (
+                <button
+                  key={p.label}
+                  onClick={() => {
+                    if (p.value === 'fytd') {
+                      setLocalFilters(prev => {
+                        const next = { ...prev };
+                        delete next.days;
+                        delete next.startDate;
+                        delete next.endDate;
+                        return next;
+                      });
+                    } else {
+                      updateF('days', p.value as number);
+                    }
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-normal transition-all ${
+                    isSelected
+                      ? 'bg-teal-600 text-white shadow-md'
+                      : 'text-gray-500 hover:bg-white hover:text-teal-600'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
             {(localFilters.startDate || localFilters.endDate) && (
               <span className="px-2 py-1 text-[10px] font-normal text-teal-600 uppercase tracking-tight bg-teal-50 rounded-lg border border-teal-100">Custom</span>
             )}
