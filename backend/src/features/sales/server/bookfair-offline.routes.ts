@@ -347,13 +347,17 @@ router.get("/summary", async (req, res) => {
     `);
     result.revenueByType = revenueByTypeRows.map(r => ({ type: r.type, total: round2(Number(r.total)) }));
 
-    // --- Projection Logic (Year 2026) — month-wise weighted ---
-    const currentYear = 2026;
-    const yearStart = new Date(`${currentYear}-01-01T00:00:00Z`);
+    // --- Projection Logic (Indian Financial Year) — month-wise weighted ---
     const now = new Date();
-    const currentMonth = now.getUTCMonth() + 1; // 1–12
+    const currentYear = now.getFullYear();
+    const currentMonthCalendar = now.getMonth(); // 0-indexed: April = 3
+    const fyStartYear = currentMonthCalendar >= 3 ? currentYear : currentYear - 1;
 
-    // Monthly totals for all 2026 data recorded so far
+    const yearStart = new Date(`${fyStartYear}-04-01T00:00:00Z`);
+    const yearEnd = new Date(`${fyStartYear + 1}-03-31T23:59:59Z`);
+    const currentMonth = (currentMonthCalendar >= 3) ? (currentMonthCalendar - 2) : (currentMonthCalendar + 10);
+
+    // Monthly totals for all FY data recorded so far
     const monthlyRows = await prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         EXTRACT(MONTH FROM "date")::int AS month,
@@ -371,20 +375,24 @@ router.get("/summary", async (req, res) => {
       ORDER BY 1
     `);
 
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const getRelativeMonth = (calMonth: number) => (calMonth >= 4) ? (calMonth - 3) : (calMonth + 9);
 
     // Split into complete months vs current month
-    const completeMonths = monthlyRows.filter((r: any) => Number(r.month) < currentMonth);
-    const currentMonthRow = monthlyRows.find((r: any) => Number(r.month) === currentMonth);
+    const completeMonths = monthlyRows.filter((r: any) => getRelativeMonth(Number(r.month)) < currentMonth);
+    const currentMonthRow = monthlyRows.find((r: any) => getRelativeMonth(Number(r.month)) === currentMonth);
 
     // Days elapsed in current month and total days in current month
-    const daysInCurrentMonth = new Date(Date.UTC(currentYear, now.getUTCMonth() + 1, 0)).getUTCDate();
-    const daysElapsedInCurrentMonth = Math.max(1, now.getUTCDate());
-    const currentMonthActual = currentMonthRow ? Number(currentMonthRow.total) : 0;
+    const daysInCurrentMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0)).getUTCDate();
+    const daysElapsedInCurrentMonth = Math.max(1, now.getDate());
+    const currentMonthActual = currentMonthRow ? decToNumber(currentMonthRow.total) : 0;
     const currentMonthProjected = (currentMonthActual / daysElapsedInCurrentMonth) * daysInCurrentMonth;
 
     // Weighted average of up to last 3 complete months (newest = highest weight)
-    const recentComplete = completeMonths.slice(-3);
+    const recentComplete = completeMonths
+      .map((r: any) => ({ ...r, relMonth: getRelativeMonth(Number(r.month)) }))
+      .sort((a: any, b: any) => a.relMonth - b.relMonth)
+      .slice(-3);
+
     let weightedMonthlyAvg: number;
     if (recentComplete.length > 0) {
       const weights = recentComplete.map((_, i) => i + 1); // 1,2,3
@@ -396,12 +404,17 @@ router.get("/summary", async (req, res) => {
       weightedMonthlyAvg = currentMonthProjected;
     }
 
-    // Build full year monthly breakdown (Jan–Dec)
+    const MONTH_NAMES = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
+    // Build full year monthly breakdown (Apr–Mar)
     const monthlyBreakdown = Array.from({ length: 12 }, (_, idx) => {
-      const m = idx + 1;
+      const m = idx + 1; // 1-indexed relative month (1 = April, 12 = March)
       const isComplete = m < currentMonth;
       const isCurrent  = m === currentMonth;
-      const row = monthlyRows.find((r: any) => Number(r.month) === m);
+      
+      const calMonth = (m + 2) % 12 + 1;
+      const row = monthlyRows.find((r: any) => Number(r.month) === calMonth);
+
       if (isComplete) {
         return { month: m, name: MONTH_NAMES[idx], actual: round2(row ? Number(row.total) : 0), projected: null, isComplete: true, isCurrent: false };
       }
@@ -414,12 +427,14 @@ router.get("/summary", async (req, res) => {
     const totalSoFar = completeMonths.reduce((acc: number, m: any) => acc + Number(m.total), 0) + currentMonthActual;
     const daysElapsed = Math.ceil(Math.max(1, now.getTime() - yearStart.getTime()) / 86400000);
     const dailyAvg = totalSoFar / daysElapsed;
-    const remainingDays = Math.ceil((new Date(`${currentYear}-12-31T23:59:59Z`).getTime() - now.getTime()) / 86400000);
+    const remainingDays = Math.ceil((yearEnd.getTime() - now.getTime()) / 86400000);
     const projectedRemaining = round2((currentMonthProjected - currentMonthActual) + (12 - currentMonth) * weightedMonthlyAvg);
     const totalProjected = round2(totalSoFar + projectedRemaining);
 
+    const yearLabel = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
+
     result.projection = {
-      year: currentYear,
+      year: yearLabel,
       totalSoFar: round2(totalSoFar),
       daysElapsed,
       dailyAvg: round2(dailyAvg),

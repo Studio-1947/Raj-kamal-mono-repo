@@ -46,7 +46,7 @@ export interface OfflineSheetSummaryResponse {
   revenueByType?: { type: string; total: number }[];
   topCustomers?: { customerName: string; total: number }[];
   projection?: {
-    year: number;
+    year: string | number;
     totalSoFar: number;
     daysElapsed: number;
     dailyAvg: number;

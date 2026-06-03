@@ -294,9 +294,16 @@ router.get('/transactions', async (req, res) => {
 
 router.get('/projections', async (req, res) => {
   try {
-    const year        = 2026;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0 = Jan, 11 = Dec
+    const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1;
+
+    const fyStart = new Date(`${fyStartYear}-04-01T00:00:00.000Z`);
+    const fyEnd = new Date(`${fyStartYear + 1}-03-31T23:59:59.999Z`);
+
     const whereClause = {
-      date: { gte: new Date(`${year}-01-01T00:00:00.000Z`), lte: new Date(`${year}-12-31T23:59:59.999Z`) },
+      date: { gte: fyStart, lte: fyEnd },
     };
 
     const [delhiD, mumbaiD, patnaD, onlineD, bookFairD, lokbhartiD] = await Promise.all([
@@ -312,29 +319,39 @@ router.get('/projections', async (req, res) => {
     const processDaily   = (rows: any[]) => {
       for (const r of rows) {
         if (!r.date) continue;
-        monthlyActuals[new Date(r.date).getMonth()] += toNum(r._sum.amount);
+        const d = new Date(r.date);
+        const m = d.getMonth();
+        const relativeMonth = (m >= 3) ? (m - 3) : (m + 9);
+        monthlyActuals[relativeMonth] += toNum(r._sum.amount);
       }
     };
     [delhiD, mumbaiD, patnaD, onlineD, bookFairD, lokbhartiD].forEach(processDaily);
 
-    const daysInMonths: number[]  = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    const currentMonthIndex = new Date().getMonth();
-    const currentDayInMonth = new Date().getDate();
+    const getDaysInMonth = (y: number, mIndex: number) => new Date(y, mIndex + 1, 0).getDate();
+    const daysInMonths: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      const calendarMonth = (i + 3) % 12;
+      const calendarYear = (i + 3 >= 12) ? fyStartYear + 1 : fyStartYear;
+      daysInMonths.push(getDaysInMonth(calendarYear, calendarMonth));
+    }
 
-    let daysElapsed = 0;
-    for (let i = 0; i < currentMonthIndex; i++) daysElapsed += (daysInMonths[i] ?? 30);
-    daysElapsed += currentDayInMonth;
-    const daysLeft = 365 - daysElapsed;
+    const diffTime = Math.max(0, now.getTime() - fyStart.getTime());
+    const daysElapsed = Math.ceil(diffTime / 86_400_000) || 1;
+    const totalDays = daysInMonths.reduce((a, b) => a + b, 0); // 365 or 366
+    const daysLeft = Math.max(0, totalDays - daysElapsed);
+
+    const currentMonthIndex = (now.getMonth() >= 3) ? (now.getMonth() - 3) : (now.getMonth() + 9);
+    const currentDayInMonth = now.getDate();
 
     const actualSoFar        = monthlyActuals.slice(0, currentMonthIndex + 1).reduce((a, b) => a + b, 0);
     const V                  = actualSoFar / Math.max(1, daysElapsed);
     const projectedRemaining = V * daysLeft;
     const yearlyEstimate     = actualSoFar + projectedRemaining;
     const achievementPercent = (actualSoFar / Math.max(1, yearlyEstimate)) * 100;
-    const timeElapsedPercent = (daysElapsed / 365) * 100;
-    const weightedMonthlyAvg = V * (365 / 12);
+    const timeElapsedPercent = (daysElapsed / totalDays) * 100;
+    const weightedMonthlyAvg = V * (totalDays / 12);
 
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const MONTH_NAMES = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
     const chartData = MONTH_NAMES.map((name, i) => {
       const act = monthlyActuals[i] ?? 0;
       const dim = daysInMonths[i]    ?? 30;
@@ -349,6 +366,8 @@ router.get('/projections', async (req, res) => {
 
     // Pass current month actual separately for easy access in tooltips
     const currentMonthActual = monthlyActuals[currentMonthIndex] ?? 0;
+
+    const year = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
 
     return res.json({
       ok: true, year, yearlyEstimate, weightedMonthlyAvg, actualSoFar,

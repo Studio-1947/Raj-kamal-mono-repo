@@ -2,7 +2,7 @@ import { useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { OfflineSheetFilters } from './offlineSheetTypes';
 
-function getFinancialYearStartDate(date: Date = new Date()): Date {
+export function getFinancialYearStartDate(date: Date = new Date()): Date {
   const currentYear = date.getFullYear();
   const currentMonth = date.getMonth(); // 0-indexed: April is 3
   

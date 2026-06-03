@@ -10,6 +10,7 @@ import {
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
 import { apiClient } from '../../../lib/apiClient';
 import { useOfflineSheetOptions, useOfflineSheetDailyDetails } from './offlineSheetService';
+import { getFinancialYearStartDate } from './useOfflineSheetFilters';
 import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 
 // DnD Kit imports
@@ -228,7 +229,7 @@ function DailyDetailsPanel({ date, filters, onApplyGlobal, onClose, onDateChange
   useEffect(() => {
     if (filters.startDate) setLocalStart(filters.startDate);
     else if (filters.days) setLocalStart(new Date(Date.now() - filters.days * 86400000).toISOString());
-    else setLocalStart(new Date('2026-01-01T00:00:00.000Z').toISOString());
+    else setLocalStart(getFinancialYearStartDate().toISOString());
     
     if (filters.endDate) setLocalEnd(filters.endDate);
     else setLocalEnd(new Date().toISOString());
