@@ -556,12 +556,12 @@ router.get("/counts", async (req, res) => {
 router.get("/options", async (req, res) => {
   try {
     const [titles, customers, publishers, authors, states, cities, bindings, types] = await Promise.all([
-      prisma.onlineOfflineSale.findMany({ select: { title: true }, distinct: ['title'], take: 100 }),
-      prisma.onlineOfflineSale.findMany({ select: { customerName: true }, distinct: ['customerName'], take: 100 }),
-      prisma.onlineOfflineSale.findMany({ select: { publisher: true }, distinct: ['publisher'], take: 100 }),
-      prisma.onlineOfflineSale.findMany({ select: { author: true }, distinct: ['author'], take: 100 }),
+      prisma.onlineOfflineSale.findMany({ select: { title: true }, distinct: ['title'], take: 10000 }),
+      prisma.onlineOfflineSale.findMany({ select: { customerName: true }, distinct: ['customerName'], take: 10000 }),
+      prisma.onlineOfflineSale.findMany({ select: { publisher: true }, distinct: ['publisher'], take: 5000 }),
+      prisma.onlineOfflineSale.findMany({ select: { author: true }, distinct: ['author'], take: 5000 }),
       prisma.onlineOfflineSale.findMany({ select: { state: true }, distinct: ['state'], take: 100 }),
-      prisma.onlineOfflineSale.findMany({ select: { city: true }, distinct: ['city'], take: 100 }),
+      prisma.onlineOfflineSale.findMany({ select: { city: true }, distinct: ['city'], take: 1000 }),
       prisma.onlineOfflineSale.findMany({ select: { binding: true }, distinct: ['binding'], take: 100 }),
       prisma.onlineOfflineSale.findMany({ select: { type: true }, distinct: ['type'], take: 100 }),
     ]);

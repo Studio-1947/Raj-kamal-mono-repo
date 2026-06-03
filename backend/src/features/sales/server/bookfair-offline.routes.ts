@@ -556,12 +556,12 @@ router.get("/counts", async (req, res) => {
 router.get("/options", async (req, res) => {
   try {
     const [titles, customers, publishers, authors, states, cities, bindings, types] = await Promise.all([
-      prisma.bookFairOfflineSale.findMany({ select: { title: true }, distinct: ['title'], take: 100 }),
-      prisma.bookFairOfflineSale.findMany({ select: { customerName: true }, distinct: ['customerName'], take: 100 }),
-      prisma.bookFairOfflineSale.findMany({ select: { publisher: true }, distinct: ['publisher'], take: 100 }),
-      prisma.bookFairOfflineSale.findMany({ select: { author: true }, distinct: ['author'], take: 100 }),
+      prisma.bookFairOfflineSale.findMany({ select: { title: true }, distinct: ['title'], take: 10000 }),
+      prisma.bookFairOfflineSale.findMany({ select: { customerName: true }, distinct: ['customerName'], take: 10000 }),
+      prisma.bookFairOfflineSale.findMany({ select: { publisher: true }, distinct: ['publisher'], take: 5000 }),
+      prisma.bookFairOfflineSale.findMany({ select: { author: true }, distinct: ['author'], take: 5000 }),
       prisma.bookFairOfflineSale.findMany({ select: { state: true }, distinct: ['state'], take: 100 }),
-      prisma.bookFairOfflineSale.findMany({ select: { city: true }, distinct: ['city'], take: 100 }),
+      prisma.bookFairOfflineSale.findMany({ select: { city: true }, distinct: ['city'], take: 1000 }),
       prisma.bookFairOfflineSale.findMany({ select: { binding: true }, distinct: ['binding'], take: 100 }),
       prisma.bookFairOfflineSale.findMany({ select: { type: true }, distinct: ['type'], take: 100 }),
     ]);

@@ -114,7 +114,7 @@ function canonicalKey(input: Record<string, any>) {
 // Generic value picker using candidate column names
 function pick(row: Record<string, any>, names: string[]): any {
   for (const k of Object.keys(row)) {
-    if (names.some(n => n.toLowerCase() === k.toLowerCase())) return row[k];
+    if (names.some(n => n.trim().toLowerCase() === k.trim().toLowerCase())) return row[k];
   }
   return undefined;
 }

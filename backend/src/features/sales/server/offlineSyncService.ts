@@ -121,9 +121,9 @@ export class OfflineSyncService {
         } else {
           const dmyMatch = val.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
           if (dmyMatch) {
-            const day = parseInt(dmyMatch[1], 10);
-            const month = parseInt(dmyMatch[2], 10) - 1; // 0-indexed month
-            const year = parseInt(dmyMatch[3], 10);
+            const day = parseInt(dmyMatch[1]!, 10);
+            const month = parseInt(dmyMatch[2]!, 10) - 1; // 0-indexed month
+            const year = parseInt(dmyMatch[3]!, 10);
             const hours = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
             const minutes = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
             const seconds = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;

@@ -20,7 +20,9 @@ function toDate(v: any): Date | null {
 }
 
 function pick(row: Record<string, any>, names: string[]): any {
-  for (const k of Object.keys(row)) if (names.some(n => n.toLowerCase() === k.toLowerCase())) return row[k];
+  for (const k of Object.keys(row)) {
+    if (names.some(n => n.trim().toLowerCase() === k.trim().toLowerCase())) return row[k];
+  }
   return undefined;
 }
 
@@ -29,7 +31,7 @@ async function main() {
   let processed = 0, updated = 0;
   while (true) {
     const batch = await prisma.onlineSale.findMany({
-      where: { OR: [ { amount: null }, { date: null } ] },
+      where: { OR: [ { amount: null }, { date: null }, { title: null } ] },
       take: limit,
       orderBy: { id: 'asc' },
     });
@@ -40,18 +42,20 @@ async function main() {
       const amount = toDecimal(toNumber(pick(rj, ['Selling Price', 'Amount', 'Total', 'amount'])));
       const rate = toDecimal(toNumber(pick(rj, ['Rate', 'Price', 'MRP', 'rate'])));
       const qty = toNumber(pick(rj, ['Qty', 'Quantity'])) ?? undefined;
+      const title = pick(rj, ['Title', 'Book Title', 'BookName', 'Book', 'Product', 'Item', 'Description']);
       let date = toDate(pick(rj, ['Date', 'Txn Date', 'Transaction Date']));
       if (!date) {
         for (const v of Object.values(rj)) {
           if (typeof v === 'string' && /\d{4}-\d{2}-\d{2}T/.test(v)) { const d = new Date(v); if (!isNaN(+d)) { date = d; break; } }
         }
       }
-      if (amount || date || rate || typeof qty === 'number') {
+      if (amount || date || rate || typeof qty === 'number' || title) {
         const data: any = {};
         if (amount) data.amount = amount;
         if (date) data.date = date;
         if (rate) data.rate = rate;
         if (typeof qty === 'number') data.qty = qty;
+        if (title) data.title = title;
         await prisma.onlineSale.update({ where: { id: row.id }, data });
         updated++;
       }

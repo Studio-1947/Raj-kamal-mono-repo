@@ -117,7 +117,7 @@ function pick(
 ): any {
   if (!row) return undefined;
   for (const k of Object.keys(row))
-    if (names.some((n) => n.toLowerCase() === k.toLowerCase()))
+    if (names.some((n) => n.trim().toLowerCase() === k.trim().toLowerCase()))
       return (row as any)[k];
   return undefined;
 }
@@ -653,6 +653,7 @@ router.get("/counts", async (req, res) => {
   // Removed end date default filter to allow future records
 
   try {
+    // Build where clause for the main aggregation query
     const conditions: any[] = [Prisma.sql`TRUE`];
     if (start && endDate) {
       const until = new Date(endDate);
@@ -665,29 +666,28 @@ router.get("/counts", async (req, res) => {
       until.setUTCHours(23,59,59,999);
       conditions.push(Prisma.sql`("date" IS NULL OR "date" <= ${until})`);
     }
-    if (state)     conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
-    if (city)      conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
-    if (publisher) conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
-    if (author)    conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (state)        conditions.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)         conditions.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher)    conditions.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)       conditions.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
     if (customerName) conditions.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
     if (binding) {
       const bts = binding.split(',').map(b => b.trim()).filter(Boolean);
       if (bts.length > 0) {
-        const bConditions = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
-        conditions.push(Prisma.sql`(${Prisma.join(bConditions, ' OR ')})`);
+        const bc = bts.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditions.push(Prisma.sql`(${Prisma.join(bc, ' OR ')})`);
       }
     }
     if (title) {
       const match = title.match(/^(.*)\s\(([^)]+)\)$/);
       if (match) {
-        const [_, t, b] = match;
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
-        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((match[1] ?? '').trim())}`);
+        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((match[2] ?? '').trim())}`);
       } else {
         conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
       }
     }
-    if (type)      conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
+    if (type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
     if (q) {
       const tokens = getSearchTokens(q);
       tokens.forEach(t => {
@@ -695,31 +695,88 @@ router.get("/counts", async (req, res) => {
         conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
       });
     }
-
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
-    const [agg] = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT
-        COUNT(*)::bigint AS count,
-        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total_amount,
-        COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers,
-        (SELECT TRIM("binding") FROM "google_sheet_offline_sales" ${whereClause} AND "binding" IS NOT NULL AND TRIM("binding") != '' GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1) AS top_binding
-      FROM "google_sheet_offline_sales"
-      ${whereClause}
-    `);
+    // Build a second copy of the where clause for the top_binding subquery.
+    // Prisma cannot reuse the same tagged-template fragment in two places inside
+    // one $queryRaw call — it causes Postgres parameter binding errors.
+    const conditionsForBinding: any[] = [Prisma.sql`TRUE`];
+    if (start && endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditionsForBinding.push(Prisma.sql`("date" IS NULL OR ("date" >= ${start} AND "date" <= ${until}))`);
+    } else if (start) {
+      conditionsForBinding.push(Prisma.sql`("date" IS NULL OR "date" >= ${start})`);
+    } else if (endDate) {
+      const until = new Date(endDate);
+      until.setUTCHours(23,59,59,999);
+      conditionsForBinding.push(Prisma.sql`("date" IS NULL OR "date" <= ${until})`);
+    }
+    if (state)        conditionsForBinding.push(Prisma.sql`"state" ~* ${toTokenRegex(state)}`);
+    if (city)         conditionsForBinding.push(Prisma.sql`"city" ~* ${toTokenRegex(city)}`);
+    if (publisher)    conditionsForBinding.push(Prisma.sql`"publisher" ~* ${toTokenRegex(publisher)}`);
+    if (author)       conditionsForBinding.push(Prisma.sql`"author" ~* ${toTokenRegex(author)}`);
+    if (customerName) conditionsForBinding.push(Prisma.sql`"customerName" ~* ${toTokenRegex(customerName)}`);
+    if (binding) {
+      const bts2 = binding.split(',').map(b => b.trim()).filter(Boolean);
+      if (bts2.length > 0) {
+        const bc = bts2.map(b => Prisma.sql`"binding" ~* ${toTokenRegex(b)}`);
+        conditionsForBinding.push(Prisma.sql`(${Prisma.join(bc, ' OR ')})`);
+      }
+    }
+    if (title) {
+      const match2 = title.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match2) {
+        conditionsForBinding.push(Prisma.sql`"title" ~* ${toTokenRegex((match2[1] ?? '').trim())}`);
+        conditionsForBinding.push(Prisma.sql`"binding" ~* ${toTokenRegex((match2[2] ?? '').trim())}`);
+      } else {
+        conditionsForBinding.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+      }
+    }
+    if (type) conditionsForBinding.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
+    if (q) {
+      const tokens2 = getSearchTokens(q);
+      tokens2.forEach(t => {
+        const tr = toTokenRegex(t);
+        conditionsForBinding.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
+      });
+    }
+    const whereClause2 = Prisma.sql`WHERE ${Prisma.join(conditionsForBinding, ' AND ')}`;
+
+    // Run the two queries in parallel — each uses its own distinct where clause copy
+    const [[agg], [topBindingRow]] = await Promise.all([
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT
+          COUNT(*)::bigint AS count,
+          (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total_amount,
+          COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::bigint AS unique_customers
+        FROM "google_sheet_offline_sales"
+        ${whereClause}
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT TRIM("binding") AS top_binding
+        FROM "google_sheet_offline_sales"
+        ${whereClause2}
+        AND "binding" IS NOT NULL AND TRIM("binding") != ''
+        GROUP BY 1
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      `),
+    ]);
 
     return res.json({
       ok: true,
       totalCount: Number(agg?.count ?? 0),
       totalAmount: round2(Number(agg?.total_amount ?? 0)),
       uniqueCustomers: Number(agg?.unique_customers ?? 0),
-      topBinding: agg?.top_binding ?? 'N/A'
+      topBinding: topBindingRow?.top_binding ?? 'N/A'
     });
   } catch (e: any) {
     console.error("offline_counts_failed", e);
     return res.status(500).json({ ok: false, error: "Counts failed" });
   }
 });
+
 
 // GET /api/offline-sales/daily-details
 router.get("/daily-details", async (req, res) => {
@@ -876,10 +933,10 @@ router.get("/options", async (req, res) => {
       prisma.googleSheetOfflineSale.groupBy({ by: ['state'], where: { state: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { state: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['publisher'], where: { publisher: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { publisher: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['binding'], where: { binding: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { binding: 'asc' } }),
-      prisma.googleSheetOfflineSale.groupBy({ by: ['customerName'], where: { customerName: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 100 }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['customerName'], where: { customerName: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 10000 }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['author'], where: { author: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { author: 'asc' } }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['city'], where: { city: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { city: 'asc' } }),
-      prisma.googleSheetOfflineSale.groupBy({ by: ['title', 'binding'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 200 }),
+      prisma.googleSheetOfflineSale.groupBy({ by: ['title', 'binding'], where: { title: { not: null, notIn: [''] } }, _sum: { amount: true }, orderBy: { _sum: { amount: 'desc' } }, take: 10000 }),
       prisma.googleSheetOfflineSale.groupBy({ by: ['type'], where: { type: { not: null, notIn: [''] } }, _count: { _all: true }, orderBy: { type: 'asc' } })
     ]);
 

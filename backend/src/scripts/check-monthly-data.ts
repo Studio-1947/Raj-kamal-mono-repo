@@ -53,13 +53,16 @@ async function run() {
         const gAmt = Number(item.amount ?? 0);
         const iAmt = Number(item.inAmount ?? 0);
 
-        monthlyData[month].grossQty += gQty;
-        monthlyData[month].inQty += iQty;
-        monthlyData[month].netQty += (gQty - iQty);
-        monthlyData[month].grossAmount += gAmt;
-        monthlyData[month].inAmount += iAmt;
-        monthlyData[month].netAmount += (gAmt - iAmt);
-        monthlyData[month].count++;
+        const data = monthlyData[month];
+        if (data) {
+          data.grossQty += gQty;
+          data.inQty += iQty;
+          data.netQty += (gQty - iQty);
+          data.grossAmount += gAmt;
+          data.inAmount += iAmt;
+          data.netAmount += (gAmt - iAmt);
+          data.count++;
+        }
       }
 
       console.log('| Month | Count | Gross Qty | Net Qty | Gross Rev | Net Rev |');
@@ -73,8 +76,8 @@ async function run() {
 
       for (let m = 1; m <= 12; m++) {
         const d = monthlyData[m];
-        if (d.count === 0) continue;
-        console.log(`| ${MONTH_NAMES[m].padEnd(5)} | ${d.count.toString().padEnd(5)} | ${d.grossQty.toString().padEnd(9)} | ${d.netQty.toString().padEnd(7)} | ₹${d.grossAmount.toFixed(2).padEnd(9)} | ₹${d.netAmount.toFixed(2).padEnd(9)} |`);
+        if (!d || d.count === 0) continue;
+        console.log(`| ${(MONTH_NAMES[m] ?? '').padEnd(5)} | ${d.count.toString().padEnd(5)} | ${d.grossQty.toString().padEnd(9)} | ${d.netQty.toString().padEnd(7)} | ₹${d.grossAmount.toFixed(2).padEnd(9)} | ₹${d.netAmount.toFixed(2).padEnd(9)} |`);
         
         // Sum only for April, May, June (which matches the user's dates)
         if (m === 4 || m === 5 || m === 6) {
