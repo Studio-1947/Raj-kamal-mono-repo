@@ -305,6 +305,7 @@ export class OfflineSyncService {
         // Process and insert inside transaction
         syncResult = await this.processData(rows, targetModel, txModel);
       }, {
+        maxWait: 15000, // 15 seconds to acquire a connection from the pool
         timeout: 90000, // 90 seconds timeout for large sheets
       });
 

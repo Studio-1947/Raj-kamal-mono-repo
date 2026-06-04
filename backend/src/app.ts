@@ -218,15 +218,24 @@ app.use(errorHandler);
 // Basic background sync on startup (scalable fallback)
 if (process.env.NODE_ENV !== 'test') {
   setTimeout(async () => {
-    console.log("Auto-syncing regional offline sales data...");
-    await Promise.all([
-      offlineSyncService.syncOfflineSales(),
-      offlineSyncService.syncMumbaiSales(),
-      offlineSyncService.syncPatnaSales(),
-      offlineSyncService.syncOnlineOfflineSales(),
-      offlineSyncService.syncBookFairSales(),
-      offlineSyncService.syncLokbhartiSales()
-    ]).catch(err => console.error("Sync failed:", err));
+    console.log("Auto-syncing regional offline sales data sequentially...");
+    const syncTasks = [
+      { name: "Delhi/General Offline Sales", fn: () => offlineSyncService.syncOfflineSales() },
+      { name: "Mumbai Offline Sales", fn: () => offlineSyncService.syncMumbaiSales() },
+      { name: "Patna Offline Sales", fn: () => offlineSyncService.syncPatnaSales() },
+      { name: "Online Offline Sales", fn: () => offlineSyncService.syncOnlineOfflineSales() },
+      { name: "BookFair Offline Sales", fn: () => offlineSyncService.syncBookFairSales() },
+      { name: "Lokbharti Offline Sales", fn: () => offlineSyncService.syncLokbhartiSales() }
+    ];
+
+    for (const task of syncTasks) {
+      try {
+        await task.fn();
+      } catch (err: any) {
+        console.error(`Sync failed for ${task.name}:`, err.message || err);
+      }
+    }
+    console.log("Auto-syncing regional offline sales completed.");
   }, 5000); // 5s delay to let server settle
 }
 
