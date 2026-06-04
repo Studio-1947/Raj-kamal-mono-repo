@@ -238,20 +238,15 @@ export default function TotalOfflineSales() {
                 const gross   = summary?.counts?.totalGrossRevenue   || 0;
                 const returns = summary?.counts?.totalReturnsRevenue || 0;
                 const retPct  = gross > 0 ? ((returns / gross) * 100).toFixed(1) : '0.0';
-                const netPct  = gross > 0 ? (((gross - returns) / gross) * 100).toFixed(1) : '100.0';
                 return (
-                  <div className="mt-2 flex flex-col gap-1">
-                    <div className="flex items-center gap-1.5 text-xs font-normal text-gray-500 bg-gray-50 px-2.5 py-1 rounded-full w-fit">
-                      OUT&nbsp;<span className="font-semibold text-gray-700">{formatINR(gross)}</span>
-                      &nbsp;−&nbsp;IN&nbsp;<span className="font-semibold text-red-500">{formatINR(returns)}</span>
+                  <div className="mt-3 flex flex-col gap-1 border-t border-gray-100 pt-2.5">
+                    <div className="flex items-center justify-between text-[11px] text-gray-500">
+                      <span>Gross Out:</span>
+                      <span className="font-semibold text-gray-700">{formatINR(gross)}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 text-xs font-normal text-green-600 bg-green-50 px-2.5 py-1 rounded-full w-fit">
-                        Net&nbsp;<span className="font-semibold">{netPct}%</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs font-normal text-red-500 bg-red-50 px-2.5 py-1 rounded-full w-fit">
-                        Returns&nbsp;<span className="font-semibold">{retPct}%</span>
-                      </div>
+                    <div className="flex items-center justify-between text-[11px] text-gray-500">
+                      <span>Returns In:</span>
+                      <span className="font-semibold text-red-500">{formatINR(returns)} ({retPct}%)</span>
                     </div>
                   </div>
                 );
@@ -270,17 +265,14 @@ export default function TotalOfflineSales() {
                 const retPct  = gross > 0 ? ((returns / gross) * 100).toFixed(1) : '0.0';
                 const netPct  = gross > 0 ? ((net / gross) * 100).toFixed(1) : '100.0';
                 return (
-                  <div className="mt-2 flex flex-col gap-1">
-                    <div className="flex items-center gap-1.5 text-xs font-normal text-gray-500 bg-gray-50 px-2.5 py-1 rounded-full w-fit">
-                      Returns (IN):&nbsp;<span className="font-semibold text-red-500">{returns.toLocaleString('en-IN')}</span>&nbsp;copies
+                  <div className="mt-3 flex flex-col gap-1 border-t border-gray-100 pt-2.5">
+                    <div className="flex items-center justify-between text-[11px] text-gray-500">
+                      <span>Net Copies:</span>
+                      <span className="font-semibold text-teal-700">{net.toLocaleString('en-IN')} ({netPct}%)</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 text-xs font-normal text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full w-fit">
-                        Net&nbsp;<span className="font-semibold">{netPct}%</span>&nbsp;({net.toLocaleString('en-IN')})
-                      </div>
-                      <div className="flex items-center gap-1 text-xs font-normal text-red-500 bg-red-50 px-2.5 py-1 rounded-full w-fit">
-                        Ret&nbsp;<span className="font-semibold">{retPct}%</span>
-                      </div>
+                    <div className="flex items-center justify-between text-[11px] text-gray-500">
+                      <span>Returns (IN):</span>
+                      <span className="font-semibold text-red-500">{returns.toLocaleString('en-IN')} ({retPct}%)</span>
                     </div>
                   </div>
                 );

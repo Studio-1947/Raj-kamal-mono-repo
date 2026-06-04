@@ -82,17 +82,14 @@ export default function OfflineSheetKPI({ data, isLoading }: Props) {
         sub={`${(data.totalCount ?? 0).toLocaleString('en-IN')} transactions`}
         accent="text-teal-700"
         badge={
-          <div className="mt-3 flex flex-col gap-1 border-t border-teal-50/50 pt-2.5">
-            <div className="flex items-center gap-1 text-[11px] font-normal text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full w-fit">
-              OUT <span className="font-semibold text-gray-700">{fmtINR(grossAmt)}</span> − IN <span className="font-semibold text-red-500">{fmtINR(inAmt)}</span>
+          <div className="mt-3 flex flex-col gap-1 border-t border-gray-100 pt-2.5">
+            <div className="flex items-center justify-between text-[11px] text-gray-500">
+              <span>Gross Out:</span>
+              <span className="font-semibold text-gray-700">{fmtINR(grossAmt)}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="flex items-center gap-1 text-[10px] font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full w-fit">
-                Net {amtNetPct}%
-              </span>
-              <span className="flex items-center gap-1 text-[10px] font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full w-fit">
-                Ret {amtRetPct}%
-              </span>
+            <div className="flex items-center justify-between text-[11px] text-gray-500">
+              <span>Returns In:</span>
+              <span className="font-semibold text-red-500">{fmtINR(inAmt)} ({amtRetPct}%)</span>
             </div>
           </div>
         }
@@ -102,17 +99,14 @@ export default function OfflineSheetKPI({ data, isLoading }: Props) {
         value={grossQty.toLocaleString('en-IN')}
         accent="text-teal-700"
         badge={
-          <div className="mt-3 flex flex-col gap-1 border-t border-teal-50/50 pt-2.5">
-            <div className="flex items-center gap-1 text-[11px] font-normal text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full w-fit">
-              Returns (IN): <span className="font-semibold text-red-500">{inQty.toLocaleString('en-IN')}</span> copies
+          <div className="mt-3 flex flex-col gap-1 border-t border-gray-100 pt-2.5">
+            <div className="flex items-center justify-between text-[11px] text-gray-500">
+              <span>Net Copies:</span>
+              <span className="font-semibold text-teal-700">{netQty.toLocaleString('en-IN')} ({qtyNetPct}%)</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="flex items-center gap-1 text-[10px] font-medium text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full w-fit">
-                Net {qtyNetPct}% ({netQty.toLocaleString('en-IN')})
-              </span>
-              <span className="flex items-center gap-1 text-[10px] font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full w-fit">
-                Ret {qtyRetPct}%
-              </span>
+            <div className="flex items-center justify-between text-[11px] text-gray-500">
+              <span>Returns (IN):</span>
+              <span className="font-semibold text-red-500">{inQty.toLocaleString('en-IN')} ({qtyRetPct}%)</span>
             </div>
           </div>
         }
