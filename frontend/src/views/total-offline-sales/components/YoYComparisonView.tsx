@@ -136,10 +136,19 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
     <div className="space-y-6">
       {/* Simulation Banner */}
       {stats?.isSimulated && (
-        <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-3xl flex items-start gap-3 text-xs text-blue-800 leading-normal">
-          <FiInfo className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+        <div className="bg-amber-50/50 border border-amber-200/60 p-5 rounded-3xl flex items-start gap-3.5 text-xs text-amber-900 leading-relaxed shadow-sm">
+          <FiInfo className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
           <div>
-            <strong>Historical Data Simulation Mode</strong>: The transaction database currently contains actual records starting January 1, 2026. The 2025 comparison curves are simulated based on standard seasonality and a -12% revenue factor baseline. Once older ERP worksheets are synched, actuals will load automatically.
+            <h4 className="font-semibold text-amber-950 mb-1">No Historical 2025 Transaction Data Found</h4>
+            <p className="mb-2">
+              The database currently only contains transactions starting **January 1, 2026**. Since there is no actual 2025 transaction data in the system yet, a true historical comparison cannot be calculated.
+            </p>
+            <p className="text-amber-800 font-medium">
+              <strong>Future Integration:</strong> Once previous years' ERP worksheets are uploaded, this section will automatically load and plot the actual historical trends.
+            </p>
+            <p className="text-amber-800/80 mt-1">
+              <strong>Previewing YoY Comparison:</strong> To demonstrate how the comparison UI will behave in the future, we have generated a simulated 2025 baseline curve (shown in dotted lines) representing standard seasonality with a standard baseline offset. This preview allows you to test the interactive curves, toggle metrics, and review the YTD trend analysis.
+            </p>
           </div>
         </div>
       )}
