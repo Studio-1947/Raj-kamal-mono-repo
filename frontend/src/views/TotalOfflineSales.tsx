@@ -20,6 +20,11 @@ import {
   MonthlyBreakdownTable,
   TopStatesPanel,
   TopPublishersPanel,
+  NewOldContributionView,
+  FocusTabGrowthView,
+  YoYComparisonView,
+  AuthorPerformanceView,
+  PriceReprintAnalysisView,
 } from './total-offline-sales/components';
 
 type ChannelKey = 'all' | 'Delhi' | 'Mumbai' | 'Patna' | 'Online' | 'BookFair' | 'Lokbharti';
@@ -56,6 +61,7 @@ export default function TotalOfflineSales() {
   const [activeTab,     setActiveTab]     = useState<'revenue' | 'volume'>('revenue');
   const [dateRange,     setDateRange]     = useState<string>('fytd');
   const [activeChannel, setActiveChannel] = useState<ChannelKey>('all');
+  const [dashboardTab,  setDashboardTab]  = useState<'overview' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price'>('overview');
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   async function fetchData(rangeStr = dateRange, channelStr: ChannelKey = activeChannel) {
@@ -212,6 +218,33 @@ export default function TotalOfflineSales() {
         })}
       </div>
 
+      {/* ── Dashboard Sub-Tabs ────────────────────────────────────────── */}
+      <div className="flex border-b border-gray-100 mb-8 overflow-x-auto custom-scrollbar flex-nowrap whitespace-nowrap">
+        {[
+          { id: 'overview', label: 'General Overview' },
+          { id: 'new-old',  label: 'New vs. Old Titles' },
+          { id: 'focus',    label: 'Focus Tab (Growth)' },
+          { id: 'yoy',      label: 'YoY Comparison' },
+          { id: 'author',   label: 'Author Performance' },
+          { id: 'price',    label: 'Price & Reprints' }
+        ].map((tab) => {
+          const isActive = dashboardTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setDashboardTab(tab.id as any)}
+              className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all -mb-[2px] ${
+                isActive
+                  ? 'border-indigo-600 text-indigo-600 font-bold'
+                  : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── Error Banner ────────────────────────────────────────────────── */}
       {error && (
         <div className="mb-6 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-800 flex items-center gap-2">
@@ -226,8 +259,9 @@ export default function TotalOfflineSales() {
         <LoadingSkeleton />
       ) : (
         <div className="space-y-10 animate-fadeIn">
-
-          {/* 1. KPI Cards */}
+          {dashboardTab === 'overview' && (
+            <>
+              {/* 1. KPI Cards */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {/* Net Revenue = OUT minus IN (returns) */}
             <KpiCard
@@ -373,19 +407,41 @@ export default function TotalOfflineSales() {
           )}
 
 
-          {/* 8. Bestsellers + Transactions */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 border-t border-gray-100 pt-8">
-            <BestsellersTable
-              topItems={summary?.topItems || []}
-              channelLabel={activeChannelLabel}
-            />
-            <RecentTransactionsTable transactions={transactions || []} />
-          </div>
+              {/* 8. Bestsellers + Transactions */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 border-t border-gray-100 pt-8">
+                <BestsellersTable
+                  topItems={summary?.topItems || []}
+                  channelLabel={activeChannelLabel}
+                />
+                <RecentTransactionsTable transactions={transactions || []} />
+              </div>
 
-          <p className="text-xs text-gray-400 italic">
-            * Projection uses a straight-line daily velocity derived from YTD actuals. Current month
-            is extrapolated from {new Date().getDate()} of {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()} days recorded.
-          </p>
+              <p className="text-xs text-gray-400 italic">
+                * Projection uses a straight-line daily velocity derived from YTD actuals. Current month
+                is extrapolated from {new Date().getDate()} of {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()} days recorded.
+              </p>
+            </>
+          )}
+
+          {dashboardTab === 'new-old' && (
+            <NewOldContributionView data={summary?.newVsOldContribution} loading={loading} />
+          )}
+
+          {dashboardTab === 'focus' && (
+            <FocusTabGrowthView channel={activeChannel} />
+          )}
+
+          {dashboardTab === 'yoy' && (
+            <YoYComparisonView channel={activeChannel} />
+          )}
+
+          {dashboardTab === 'author' && (
+            <AuthorPerformanceView channel={activeChannel} />
+          )}
+
+          {dashboardTab === 'price' && (
+            <PriceReprintAnalysisView channel={activeChannel} />
+          )}
         </div>
       )}
     </AppLayout>

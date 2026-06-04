@@ -11,3 +11,8 @@ export * from './ChannelComparisonChart';
 export * from './MonthlyBreakdownTable';
 export * from './TopStatesPanel';
 export * from './TopPublishersPanel';
+export * from './NewOldContributionView';
+export * from './FocusTabGrowthView';
+export * from './YoYComparisonView';
+export * from './AuthorPerformanceView';
+export * from './PriceReprintAnalysisView';
