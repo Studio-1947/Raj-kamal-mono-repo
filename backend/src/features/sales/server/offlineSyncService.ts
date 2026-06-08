@@ -2,6 +2,7 @@ import { prisma } from "../../../lib/prisma.js";
 import crypto from "crypto";
 import * as XLSX from "xlsx";
 import fetch from "node-fetch";
+import { clearTotalOfflineCache } from "./total-offline.routes.js";
 
 const REPORT_URL = "https://rajkamal.cloudpub.in/Reports/rpttitlecustomerwisegriddataExport?FromDate=2026-01-01&ToDate=2026-12-31&iCompanyID=1&iBranchID=1,&cmbISBN=&CustomerName=&Documenttype=ALLS&TrnsDocID=&ManageEdition=false&CountryName=&StateName=&CityName=&SalesmanName=&SalesmanMgnrName=&chkshowclbal=N&BookCategoryID=&languageID=&PublisherID=&SelectDiscount=&TxtDiscount=0&AccountID=BookSeller&IncludeExcludeBranchSale=Exclude";
 
@@ -308,6 +309,14 @@ export class OfflineSyncService {
         maxWait: 15000, // 15 seconds to acquire a connection from the pool
         timeout: 90000, // 90 seconds timeout for large sheets
       });
+
+      if (syncResult.success) {
+        try {
+          clearTotalOfflineCache();
+        } catch (e) {
+          console.warn("Failed to clear total offline cache:", e);
+        }
+      }
 
       return syncResult;
     } catch (error) {

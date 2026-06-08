@@ -18,9 +18,37 @@ const REGION_LABEL: Record<ChannelKey, string> = {
   Lokbharti: 'Lokbharti - Allahabad',
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const toNum = (v: any): number => Number(v?.toString() ?? '0');
+
+interface CacheEntry {
+  data: any;
+  expiry: number;
+}
+const localCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 60 * 1000; // 1 minute Cache
+
+function getCached(key: string): any | null {
+  const entry = localCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiry) {
+    localCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCached(key: string, data: any) {
+  localCache.set(key, {
+    data,
+    expiry: Date.now() + CACHE_TTL_MS
+  });
+}
+
+export function clearTotalOfflineCache() {
+  localCache.clear();
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getFinancialYearStart(): Date {
   const now = new Date();
@@ -197,6 +225,10 @@ router.get('/summary', async (req, res) => {
     const range   = (req.query.range   as string) || '30';
     const channel = (req.query.channel as string) || 'all';
 
+    const cacheKey = `summary-${range}-${channel}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const dateFilter = buildDateFilter(range);
     const where      = dateFilter ? { date: dateFilter } : {};
     const bookWhere  = dateFilter
@@ -334,7 +366,7 @@ router.get('/summary', async (req, res) => {
         }));
     }
 
-    return res.json({
+    const responseData = {
       ok: true,
       channel,
       counts: {
@@ -353,7 +385,10 @@ router.get('/summary', async (req, res) => {
       monthlyByChannel,
       topStatesByChannel,
       topPublishersByChannel,
-    });
+    };
+
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
   } catch (err: any) {
     console.error('Total Sales Summary Failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute total sales summary' });
@@ -576,6 +611,10 @@ router.get('/growth-indicators', async (req, res) => {
     const channel = (req.query.channel as string) || 'all';
     const threshold = toNum(req.query.threshold || '50'); // 50% default
 
+    const cacheKey = `growth-${channel}-${threshold}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const channels = resolveChannels(channel);
     if (channels.length === 0) {
       return res.status(400).json({ ok: false, error: 'Invalid channel' });
@@ -670,7 +709,9 @@ router.get('/growth-indicators', async (req, res) => {
       .filter(b => b.currentQty > 0) // only active books
       .sort((a, b) => b.growth - a.growth);
 
-    return res.json({ ok: true, items });
+    const responseData = { ok: true, items };
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
   } catch (err: any) {
     console.error('Focus Tab Growth Indicators failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute growth indicators' });
@@ -681,6 +722,11 @@ router.get('/growth-indicators', async (req, res) => {
 router.get('/yoy-comparison', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
+
+    const cacheKey = `yoy-${channel}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const channels = resolveChannels(channel);
     if (channels.length === 0) {
       return res.status(400).json({ ok: false, error: 'Invalid channel' });
@@ -777,7 +823,9 @@ router.get('/yoy-comparison', async (req, res) => {
       formattedYears.unshift(simulatedYearData);
     }
 
-    return res.json({ ok: true, datasets: formattedYears });
+    const responseData = { ok: true, datasets: formattedYears };
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
   } catch (err: any) {
     console.error('YoY comparison failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute YoY comparison' });
@@ -788,6 +836,10 @@ router.get('/yoy-comparison', async (req, res) => {
 router.get('/author-performance', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
+
+    const cacheKey = `author-${channel}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
     const channels = resolveChannels(channel);
     if (channels.length === 0) {
       return res.status(400).json({ ok: false, error: 'Invalid channel' });
@@ -836,7 +888,7 @@ router.get('/author-performance', async (req, res) => {
     const medium = sortedAuthors.slice(topLimit, topLimit + medLimit);
     const low = sortedAuthors.slice(topLimit + medLimit);
 
-    return res.json({
+    const responseData = {
       ok: true,
       counts: {
         total: totalCount,
@@ -847,7 +899,10 @@ router.get('/author-performance', async (req, res) => {
       top,
       medium,
       low
-    });
+    };
+
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
   } catch (err: any) {
     console.error('Author performance evaluation failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute author performance' });
@@ -859,6 +914,10 @@ router.get('/category-sales', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
     const range = (req.query.range as string) || '30';
+
+    const cacheKey = `category-${channel}-${range}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
 
     const dateFilter = buildDateFilter(range);
     const where = dateFilter ? { date: dateFilter } : {};
@@ -997,7 +1056,7 @@ router.get('/category-sales', async (req, res) => {
       nonFiction: nonFictionMonthly[i]
     }));
 
-    return res.json({
+    const responseData = {
       ok: true,
       fiction: {
         revenue: fictionRevenue,
@@ -1010,7 +1069,10 @@ router.get('/category-sales', async (req, res) => {
         topBooks: sortAndSlice(nonFictionBookMap)
       },
       monthlySeries
-    });
+    };
+
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
   } catch (err: any) {
     console.error('Category sales tracking failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute category-wise sales' });
@@ -1022,6 +1084,10 @@ router.get('/price-analysis', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
     const titleParam = req.query.title as string;
+
+    const cacheKey = `price-${channel}-${titleParam || 'summary'}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
 
     const channels = resolveChannels(channel);
     if (channels.length === 0) {
@@ -1062,7 +1128,9 @@ router.get('/price-analysis', async (req, res) => {
       const points = Array.from(rateMap.values())
         .sort((a, b) => a.rate - b.rate);
 
-      return res.json({ ok: true, type: 'book-detail', title: titleParam, pricePoints: points });
+      const responseData = { ok: true, type: 'book-detail', title: titleParam, pricePoints: points };
+      setCached(cacheKey, responseData);
+      return res.json(responseData);
     }
 
     const promises = channels.map(async (ch) => {
@@ -1122,13 +1190,16 @@ router.get('/price-analysis', async (req, res) => {
       }
     }
 
-    return res.json({
+    const responseData = {
       ok: true,
       type: 'summary',
       brackets,
       multiPriceCount: multiPriceBooks.length,
       multiPriceBooks: multiPriceBooks.slice(0, 50)
-    });
+    };
+
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
   } catch (err: any) {
     console.error('Price and reprint analysis failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute price analysis' });
