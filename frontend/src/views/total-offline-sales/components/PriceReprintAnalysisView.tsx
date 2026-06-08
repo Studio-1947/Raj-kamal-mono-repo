@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LineChart, Line } from 'recharts';
 import { formatINR, formatChartValue } from './utils';
 import { FiTrendingUp, FiActivity, FiArrowRight, FiInfo, FiLayers, FiCalendar, FiSearch } from 'react-icons/fi';
+import { apiClient } from '../../../lib/apiClient';
 
 interface BracketDetail {
   revenue: number;
@@ -45,9 +46,9 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
     setLoading(true);
     setError(null);
     try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5100/api'}/total-offline-sales/price-analysis?channel=${channel}`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const data = await apiClient.get<any>(
+        `total-offline-sales/price-analysis?channel=${channel}`
+      );
       if (data.ok) {
         setSummaryData(data);
       } else {
@@ -65,9 +66,9 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
   const fetchBookDetails = async (title: string) => {
     setDetailsLoading(true);
     try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5100/api'}/total-offline-sales/price-analysis?channel=${channel}&title=${encodeURIComponent(title)}`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const data = await apiClient.get<any>(
+        `total-offline-sales/price-analysis?channel=${channel}&title=${encodeURIComponent(title)}`
+      );
       if (data.ok) {
         setBookDetails(data.pricePoints || []);
       }
@@ -336,6 +337,7 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
                       <th className="px-4 py-2">Price Level</th>
                       <th className="px-4 py-2 text-right">Copies Sold</th>
                       <th className="px-4 py-2 text-right">Total Revenue</th>
+                      <th className="px-4 py-2 text-right">Elasticity (PED)</th>
                       <th className="px-4 py-2 text-right">Effective Date Span</th>
                     </tr>
                   </thead>
@@ -343,6 +345,30 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
                     {bookDetails.map((pt, idx) => {
                       const minD = pt.minDate ? new Date(pt.minDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
                       const maxD = pt.maxDate ? new Date(pt.maxDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
+
+                      const pedValue = (() => {
+                        if (idx === 0) return null;
+                        const prevPt = bookDetails[idx - 1]!;
+                        const priceChange = (pt.rate - prevPt.rate) / prevPt.rate;
+                        if (priceChange === 0) return null;
+                        const qtyChange = (pt.qty - prevPt.qty) / (prevPt.qty || 1);
+                        return qtyChange / priceChange;
+                      })();
+
+                      const pedLabel = (() => {
+                        if (pedValue === null) return 'Baseline';
+                        const absPed = Math.abs(pedValue);
+                        if (absPed > 1.05) return `Elastic (${pedValue.toFixed(2)})`;
+                        if (absPed < 0.95) return `Inelastic (${pedValue.toFixed(2)})`;
+                        return `Unitary (${pedValue.toFixed(2)})`;
+                      })();
+
+                      const pedBadgeColor = (() => {
+                        if (pedValue === null) return 'bg-gray-50 text-gray-500 border border-gray-200/60';
+                        const absPed = Math.abs(pedValue);
+                        if (absPed > 1.05) return 'bg-amber-50 text-amber-700 border border-amber-200/50';
+                        return 'bg-emerald-50 text-emerald-700 border border-emerald-200/50';
+                      })();
 
                       return (
                         <tr key={idx} className="hover:bg-gray-50/50">
@@ -354,6 +380,11 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
                           </td>
                           <td className="px-4 py-2.5 text-right">
                             {formatINR(pt.revenue)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold ${pedBadgeColor}`}>
+                              {pedLabel}
+                            </span>
                           </td>
                           <td className="px-4 py-2.5 text-right text-[10px] text-gray-400 font-medium flex items-center justify-end gap-1.5 mt-0.5">
                             <FiCalendar className="shrink-0 text-gray-300" />

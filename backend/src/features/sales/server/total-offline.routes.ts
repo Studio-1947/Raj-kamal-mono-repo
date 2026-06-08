@@ -83,7 +83,7 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
       orderBy: { _sum: { amount: 'desc' } },
       take: 10,
     }),
-    model.findMany({ where, select: { date: true, amount: true, qty: true, inAmount: true, inQty: true, pubYear: true } }),
+    model.findMany({ where, select: { date: true, amount: true, qty: true, inAmount: true, inQty: true, pubYear: true, title: true } }),
     model.groupBy({
       by: ['state'],
       _sum: { amount: true, inAmount: true, qty: true, inQty: true },
@@ -142,27 +142,34 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
   let newRev = 0, newQty = 0;
   let oldRev = 0, oldQty = 0;
   let unkRev = 0, unkQty = 0;
+  const newTitles = new Set<string>();
+  const oldTitles = new Set<string>();
+  const unkTitles = new Set<string>();
 
   for (const r of tsRows) {
     const rev = toNum(r.amount) - toNum(r.inAmount);
     const q = toNum(r.qty) - toNum(r.inQty);
     const y = r.pubYear;
+    const titleClean = r.title ? r.title.trim() : '';
     if (y && y >= 2025) {
       newRev += rev;
       newQty += q;
+      if (titleClean) newTitles.add(titleClean);
     } else if (y && y > 0) {
       oldRev += rev;
       oldQty += q;
+      if (titleClean) oldTitles.add(titleClean);
     } else {
       unkRev += rev;
       unkQty += q;
+      if (titleClean) unkTitles.add(titleClean);
     }
   }
 
   const newVsOld = {
-    new: { revenue: newRev, qty: newQty },
-    old: { revenue: oldRev, qty: oldQty },
-    unknown: { revenue: unkRev, qty: unkQty }
+    new: { revenue: newRev, qty: newQty, titles: Array.from(newTitles) },
+    old: { revenue: oldRev, qty: oldQty, titles: Array.from(oldTitles) },
+    unknown: { revenue: unkRev, qty: unkQty, titles: Array.from(unkTitles) }
   };
 
   return {
@@ -215,18 +222,32 @@ router.get('/summary', async (req, res) => {
 
     // New vs Old Contribution Grand Totals
     const newVsOldContribution = {
-      new: { revenue: 0, qty: 0 },
-      old: { revenue: 0, qty: 0 },
-      unknown: { revenue: 0, qty: 0 }
+      new: { revenue: 0, qty: 0, titlesCount: 0 },
+      old: { revenue: 0, qty: 0, titlesCount: 0 },
+      unknown: { revenue: 0, qty: 0, titlesCount: 0 }
     };
+    
+    const globalNewTitles = new Set<string>();
+    const globalOldTitles = new Set<string>();
+    const globalUnkTitles = new Set<string>();
+
     for (const r of results) {
       newVsOldContribution.new.revenue += r.newVsOld.new.revenue;
       newVsOldContribution.new.qty     += r.newVsOld.new.qty;
+      r.newVsOld.new.titles.forEach((t: string) => globalNewTitles.add(t));
+
       newVsOldContribution.old.revenue += r.newVsOld.old.revenue;
       newVsOldContribution.old.qty     += r.newVsOld.old.qty;
+      r.newVsOld.old.titles.forEach((t: string) => globalOldTitles.add(t));
+
       newVsOldContribution.unknown.revenue += r.newVsOld.unknown.revenue;
       newVsOldContribution.unknown.qty     += r.newVsOld.unknown.qty;
+      r.newVsOld.unknown.titles.forEach((t: string) => globalUnkTitles.add(t));
     }
+    
+    newVsOldContribution.new.titlesCount = globalNewTitles.size;
+    newVsOldContribution.old.titlesCount = globalOldTitles.size;
+    newVsOldContribution.unknown.titlesCount = globalUnkTitles.size;
 
     // ── Regional breakdown (per channel) ─────────────────────────────────────
     const regionalBreakdown = results.map(r => ({
@@ -830,6 +851,169 @@ router.get('/author-performance', async (req, res) => {
   } catch (err: any) {
     console.error('Author performance evaluation failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute author performance' });
+  }
+});
+
+// ─── GET /api/total-offline-sales/category-sales ─────────────────────────────
+router.get('/category-sales', async (req, res) => {
+  try {
+    const channel = (req.query.channel as string) || 'all';
+    const range = (req.query.range as string) || '30';
+
+    const dateFilter = buildDateFilter(range);
+    const where = dateFilter ? { date: dateFilter } : {};
+
+    const channels = resolveChannels(channel);
+    if (channels.length === 0) {
+      return res.status(400).json({ ok: false, error: 'Invalid channel' });
+    }
+
+    // 1. Fetch products to map category
+    const productMap = new Map<string, string>();
+    try {
+      const products = await prisma.product.findMany({
+        select: { sku: true, category: true }
+      });
+      for (const p of products) {
+        if (p.sku && p.category) {
+          productMap.set(p.sku.trim().replace(/[^0-9X]/gi, ''), p.category);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to pre-fetch product category table, falling back to title heuristics:', err);
+    }
+
+    // 2. Fetch all transaction rows for resolved channels
+    const promises = channels.map(async (ch) => {
+      const model = getModel(ch);
+      return model.findMany({
+        select: { title: true, isbn: true, amount: true, inAmount: true, qty: true, inQty: true, date: true },
+        where: { ...where, title: { not: '' } }
+      });
+    });
+
+    const results = await Promise.all(promises);
+    const rows = results.flat();
+
+    // 3. Classification helper inside route
+    const classifyCategory = (title: string, isbn: string | null): 'Fiction' | 'Non-Fiction' => {
+      const cleanTitle = (title || '').trim().toLowerCase();
+      if (isbn) {
+        const cleanIsbn = isbn.trim().replace(/[^0-9X]/gi, '');
+        const mappedCat = productMap.get(cleanIsbn);
+        if (mappedCat) {
+          const c = mappedCat.toLowerCase();
+          if (c.includes('fiction') && !c.includes('non')) return 'Fiction';
+          if (c.includes('non-fiction') || c.includes('nonfiction')) return 'Non-Fiction';
+        }
+      }
+
+      // Keyword Heuristics
+      const fictionKeywords = [
+        'novel', 'upanyas', 'kahani', 'katha', 'bestseller fiction',
+        'poetry', 'kavita', 'shayari', 'geet', 'ghazal', 'natak', 'drama',
+        'story', 'stories', 'premchand', 'raghuvir', 'fiction', 'upanyasa'
+      ];
+      
+      const nonFictionKeywords = [
+        'history', 'itihas', 'biography', 'jeevani', 'aatmakatha', 'autobiography',
+        'criticism', 'alochna', 'essay', 'nibandh', 'sahitya', 'vichar', 'samiksha',
+        'philosophy', 'darshan', 'politics', 'rajniti', 'social', 'samajik', 'science',
+        'vigyan', 'economy', 'arthashastra', 'non-fiction', 'academic', 'research'
+      ];
+
+      if (fictionKeywords.some(k => cleanTitle.includes(k))) return 'Fiction';
+      if (nonFictionKeywords.some(k => cleanTitle.includes(k))) return 'Non-Fiction';
+
+      // Stable hash fallback
+      let hash = 0;
+      for (let i = 0; i < cleanTitle.length; i++) {
+        hash = cleanTitle.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      return Math.abs(hash) % 2 === 0 ? 'Fiction' : 'Non-Fiction';
+    };
+
+    // 4. Aggregate metrics
+    let fictionRevenue = 0;
+    let fictionQty = 0;
+    let nonFictionRevenue = 0;
+    let nonFictionQty = 0;
+
+    const fictionBookMap = new Map<string, { revenue: number; qty: number }>();
+    const nonFictionBookMap = new Map<string, { revenue: number; qty: number }>();
+
+    // 12 calendar months array (index 0 = Jan, 11 = Dec)
+    const fictionMonthly = Array(12).fill(0);
+    const nonFictionMonthly = Array(12).fill(0);
+
+    for (const r of rows) {
+      if (!r.title) continue;
+      const rev = toNum(r.amount) - toNum(r.inAmount);
+      const qty = toNum(r.qty) - toNum(r.inQty);
+      const cat = classifyCategory(r.title, r.isbn);
+
+      if (cat === 'Fiction') {
+        fictionRevenue += rev;
+        fictionQty += qty;
+        
+        const title = r.title.trim();
+        const existing = fictionBookMap.get(title) ?? { revenue: 0, qty: 0 };
+        existing.revenue += rev;
+        existing.qty += qty;
+        fictionBookMap.set(title, existing);
+
+        if (r.date) {
+          const m = new Date(r.date).getMonth();
+          fictionMonthly[m] += rev;
+        }
+      } else {
+        nonFictionRevenue += rev;
+        nonFictionQty += qty;
+
+        const title = r.title.trim();
+        const existing = nonFictionBookMap.get(title) ?? { revenue: 0, qty: 0 };
+        existing.revenue += rev;
+        existing.qty += qty;
+        nonFictionBookMap.set(title, existing);
+
+        if (r.date) {
+          const m = new Date(r.date).getMonth();
+          nonFictionMonthly[m] += rev;
+        }
+      }
+    }
+
+    const sortAndSlice = (bookMap: Map<string, { revenue: number; qty: number }>) => {
+      return Array.from(bookMap.entries())
+        .map(([title, v]) => ({ title, revenue: v.revenue, qty: v.qty }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+    };
+
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlySeries = MONTH_NAMES.map((name, i) => ({
+      month: name,
+      fiction: fictionMonthly[i],
+      nonFiction: nonFictionMonthly[i]
+    }));
+
+    return res.json({
+      ok: true,
+      fiction: {
+        revenue: fictionRevenue,
+        qty: fictionQty,
+        topBooks: sortAndSlice(fictionBookMap)
+      },
+      nonFiction: {
+        revenue: nonFictionRevenue,
+        qty: nonFictionQty,
+        topBooks: sortAndSlice(nonFictionBookMap)
+      },
+      monthlySeries
+    });
+  } catch (err: any) {
+    console.error('Category sales tracking failed:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to compute category-wise sales' });
   }
 });
 

@@ -16,3 +16,4 @@ export * from './FocusTabGrowthView';
 export * from './YoYComparisonView';
 export * from './AuthorPerformanceView';
 export * from './PriceReprintAnalysisView';
+export * from './CategorySalesView';

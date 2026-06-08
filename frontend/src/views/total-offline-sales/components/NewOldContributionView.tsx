@@ -6,6 +6,7 @@ import { FiTrendingUp, FiShoppingBag, FiInfo } from 'react-icons/fi';
 interface ContributionDetail {
   revenue: number;
   qty: number;
+  titlesCount?: number;
 }
 
 interface NewOldContribution {
@@ -61,9 +62,15 @@ export const NewOldContributionView: React.FC<NewOldContributionViewProps> = ({ 
           <p className="text-xs text-indigo-500 font-semibold mt-1">
             {newRevShare.toFixed(1)}% of Revenue share
           </p>
-          <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500">
-            <span>Copies Sold:</span>
-            <span className="font-semibold text-gray-800">{newBooks.qty.toLocaleString('en-IN')} ({newQtyShare.toFixed(1)}%)</span>
+          <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col gap-1.5 text-xs text-gray-500">
+            <div className="flex justify-between items-center">
+              <span>Copies Sold:</span>
+              <span className="font-semibold text-gray-800">{newBooks.qty.toLocaleString('en-IN')} ({newQtyShare.toFixed(1)}%)</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Unique Titles Sold:</span>
+              <span className="font-semibold text-gray-800">{(newBooks.titlesCount ?? 0).toLocaleString('en-IN')}</span>
+            </div>
           </div>
         </div>
 
@@ -77,9 +84,15 @@ export const NewOldContributionView: React.FC<NewOldContributionViewProps> = ({ 
           <p className="text-xs text-blue-500 font-semibold mt-1">
             {oldRevShare.toFixed(1)}% of Revenue share
           </p>
-          <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500">
-            <span>Copies Sold:</span>
-            <span className="font-semibold text-gray-800">{oldBooks.qty.toLocaleString('en-IN')} ({oldQtyShare.toFixed(1)}%)</span>
+          <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col gap-1.5 text-xs text-gray-500">
+            <div className="flex justify-between items-center">
+              <span>Copies Sold:</span>
+              <span className="font-semibold text-gray-800">{oldBooks.qty.toLocaleString('en-IN')} ({oldQtyShare.toFixed(1)}%)</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Unique Titles Sold:</span>
+              <span className="font-semibold text-gray-800">{(oldBooks.titlesCount ?? 0).toLocaleString('en-IN')}</span>
+            </div>
           </div>
         </div>
 
@@ -93,9 +106,15 @@ export const NewOldContributionView: React.FC<NewOldContributionViewProps> = ({ 
           <p className="text-xs text-gray-500 font-semibold mt-1">
             {unkRevShare.toFixed(1)}% of Revenue share
           </p>
-          <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500">
-            <span>Copies Sold:</span>
-            <span className="font-semibold text-gray-800">{unkBooks.qty.toLocaleString('en-IN')} ({unkQtyShare.toFixed(1)}%)</span>
+          <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col gap-1.5 text-xs text-gray-500">
+            <div className="flex justify-between items-center">
+              <span>Copies Sold:</span>
+              <span className="font-semibold text-gray-800">{unkBooks.qty.toLocaleString('en-IN')} ({unkQtyShare.toFixed(1)}%)</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Unique Titles Sold:</span>
+              <span className="font-semibold text-gray-800">{(unkBooks.titlesCount ?? 0).toLocaleString('en-IN')}</span>
+            </div>
           </div>
         </div>
       </div>

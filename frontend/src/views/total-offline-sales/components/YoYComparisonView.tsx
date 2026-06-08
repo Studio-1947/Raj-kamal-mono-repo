@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { formatINR, formatChartValue, formatLakhsAndCrores } from './utils';
 import { FiTrendingUp, FiTrendingDown, FiInfo, FiActivity } from 'react-icons/fi';
+import { apiClient } from '../../../lib/apiClient';
 
 interface MonthlyDataPoint {
   month: number;
@@ -31,9 +32,9 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
     setLoading(true);
     setError(null);
     try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5100/api'}/total-offline-sales/yoy-comparison?channel=${channel}`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const data = await apiClient.get<any>(
+        `total-offline-sales/yoy-comparison?channel=${channel}`
+      );
       if (data.ok) {
         setDatasets(data.datasets || []);
       } else {

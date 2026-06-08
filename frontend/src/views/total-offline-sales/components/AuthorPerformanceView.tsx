@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { formatINR } from './utils';
 import { FiUsers, FiSearch, FiAward, FiGrid, FiTrendingUp } from 'react-icons/fi';
+import { apiClient } from '../../../lib/apiClient';
 
 interface AuthorStat {
   author: string;
@@ -27,9 +28,9 @@ export const AuthorPerformanceView: React.FC<AuthorPerformanceViewProps> = ({ ch
     setLoading(true);
     setError(null);
     try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5100/api'}/total-offline-sales/author-performance?channel=${channel}`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const data = await apiClient.get<any>(
+        `total-offline-sales/author-performance?channel=${channel}`
+      );
       if (data.ok) {
         setAuthorData(data);
       } else {

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { formatINR } from './utils';
 import { FiTrendingUp, FiAlertCircle, FiSearch, FiSliders, FiCheckCircle } from 'react-icons/fi';
+import { apiClient } from '../../../lib/apiClient';
 
 interface GrowthBookItem {
   title: string;
@@ -34,9 +35,9 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     setLoading(true);
     setError(null);
     try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5100/api'}/total-offline-sales/growth-indicators?channel=${channel}&threshold=${threshold}`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const data = await apiClient.get<any>(
+        `total-offline-sales/growth-indicators?channel=${channel}&threshold=${threshold}`
+      );
       if (data.ok) {
         setBooks(data.items || []);
       } else {
@@ -207,8 +208,8 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
                     const isHigh = growthVal >= threshold;
 
                     return (
-                      <tr key={idx} className={`hover:bg-gray-50/30 transition-colors ${isHigh ? 'bg-amber-50/10' : ''}`}>
-                        <td className="px-6 py-4">
+                      <tr key={idx} className={`hover:bg-gray-50/40 transition-colors ${isHigh ? 'bg-amber-50/30' : ''}`}>
+                        <td className={`py-4 pr-6 transition-all ${isHigh ? 'border-l-4 border-l-amber-500 pl-5' : 'pl-6'}`}>
                           <p className="font-semibold text-gray-800 line-clamp-1">{b.title}</p>
                           <p className="text-[10px] text-gray-400 mt-0.5">{b.publisher}</p>
                         </td>

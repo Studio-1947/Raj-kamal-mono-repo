@@ -25,6 +25,7 @@ import {
   YoYComparisonView,
   AuthorPerformanceView,
   PriceReprintAnalysisView,
+  CategorySalesView,
 } from './total-offline-sales/components';
 
 type ChannelKey = 'all' | 'Delhi' | 'Mumbai' | 'Patna' | 'Online' | 'BookFair' | 'Lokbharti';
@@ -61,7 +62,7 @@ export default function TotalOfflineSales() {
   const [activeTab,     setActiveTab]     = useState<'revenue' | 'volume'>('revenue');
   const [dateRange,     setDateRange]     = useState<string>('fytd');
   const [activeChannel, setActiveChannel] = useState<ChannelKey>('all');
-  const [dashboardTab,  setDashboardTab]  = useState<'overview' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price'>('overview');
+  const [dashboardTab,  setDashboardTab]  = useState<'overview' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price' | 'category'>('overview');
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   async function fetchData(rangeStr = dateRange, channelStr: ChannelKey = activeChannel) {
@@ -226,7 +227,8 @@ export default function TotalOfflineSales() {
           { id: 'focus',    label: 'Focus Tab (Growth)' },
           { id: 'yoy',      label: 'YoY Comparison' },
           { id: 'author',   label: 'Author Performance' },
-          { id: 'price',    label: 'Price & Reprints' }
+          { id: 'price',    label: 'Price & Reprints' },
+          { id: 'category', label: 'Fiction vs. Non-Fiction' }
         ].map((tab) => {
           const isActive = dashboardTab === tab.id;
           return (
@@ -441,6 +443,10 @@ export default function TotalOfflineSales() {
 
           {dashboardTab === 'price' && (
             <PriceReprintAnalysisView channel={activeChannel} />
+          )}
+
+          {dashboardTab === 'category' && (
+            <CategorySalesView channel={activeChannel} />
           )}
         </div>
       )}
