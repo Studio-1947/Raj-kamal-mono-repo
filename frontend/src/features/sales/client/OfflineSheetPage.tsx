@@ -26,6 +26,23 @@ import {
 } from './offlineSheetService';
 import { useOfflineSheetFilters, getFinancialYearStartDate } from './useOfflineSheetFilters';
 import type { OfflineSheetFilters } from './offlineSheetTypes';
+import {
+  NewOldContributionView,
+  FocusTabGrowthView,
+  YoYComparisonView,
+  AuthorPerformanceView,
+  PriceReprintAnalysisView,
+} from '../../../views/total-offline-sales/components';
+import { apiClient } from '../../../lib/apiClient';
+
+const REGION_TO_CHANNEL: Record<string, string> = {
+  delhi: 'Delhi',
+  mumbai: 'Mumbai',
+  patna: 'Patna',
+  online: 'Online',
+  bookfair: 'BookFair',
+  lokbharti: 'Lokbharti',
+};
 
 // ─── Pagination Component ───────────────────────────────────────────────────
 
@@ -638,6 +655,30 @@ function FilterBar({
 export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
   const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, updateFilters, setPage, clearAll } = useOfflineSheetFilters();
   const [resetVersion, setResetVersion] = useState(0);
+  const [dashboardTab, setDashboardTab] = useState<'sheet' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price'>('sheet');
+
+  const [summary, setSummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const channelKey = REGION_TO_CHANNEL[region] || 'Delhi';
+
+  const fetchChannelSummary = async () => {
+    setSummaryLoading(true);
+    try {
+      const data = await apiClient.get<any>(`total-offline-sales/summary?range=fytd&channel=${channelKey}`);
+      if (data.ok) {
+        setSummary(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch channel summary:', err);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchChannelSummary();
+  }, [region]);
 
   const handleGlobalClear = () => {
     clearAll();
@@ -678,66 +719,128 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
         </div>
       </div>
 
-      <div className="mb-8">
-        <FilterBar
-          filters={filters}
-          setDays={setDays}
-          setDateRange={setDateRange}
-          clearDateRange={clearDateRange}
-          setQ={setQ}
-          updateFilter={updateFilter}
-          updateFilters={updateFilters}
-          clearAll={handleGlobalClear}
-          onSync={() => syncMut.mutate()}
-          isSyncing={syncMut.isPending}
-          lastSyncResult={syncMsg}
-          region={region}
-        />
+      {/* ── Dashboard Sub-Tabs ────────────────────────────────────────── */}
+      <div className="flex border-b border-gray-100 mb-8 overflow-x-auto custom-scrollbar flex-nowrap whitespace-nowrap">
+        {[
+          { id: 'sheet',    label: 'Transaction Sheet' },
+          { id: 'new-old',  label: 'New vs. Old Titles' },
+          { id: 'focus',    label: 'Focus Tab (Growth)' },
+          { id: 'yoy',      label: 'YoY Comparison' },
+          { id: 'author',   label: 'Author Performance' },
+          { id: 'price',    label: 'Price & Reprints' }
+        ].map((tab) => {
+          const isActive = dashboardTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setDashboardTab(tab.id as any)}
+              className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all -mb-[2px] ${
+                isActive
+                  ? 'border-indigo-600 text-indigo-600 font-bold'
+                  : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="mb-8">
-        <OfflineSheetKPI 
-          data={countsQ.data} 
-          isLoading={countsQ.isLoading} 
-        />
-      </div>
+      {dashboardTab === 'sheet' ? (
+        <>
+          <div className="mb-8">
+            <FilterBar
+              filters={filters}
+              setDays={setDays}
+              setDateRange={setDateRange}
+              clearDateRange={clearDateRange}
+              setQ={setQ}
+              updateFilter={updateFilter}
+              updateFilters={updateFilters}
+              clearAll={handleGlobalClear}
+              onSync={() => syncMut.mutate()}
+              isSyncing={syncMut.isPending}
+              lastSyncResult={syncMsg}
+              region={region}
+            />
+          </div>
 
-      <div className="mb-12">
-        <OfflineSheetProjection
-          data={summaryQ.data}
-          isLoading={summaryQ.isLoading}
-        />
-      </div>
+          <div className="mb-8">
+            <OfflineSheetKPI 
+              data={countsQ.data} 
+              isLoading={countsQ.isLoading} 
+            />
+          </div>
 
-      <div className="mb-12">
-        <OfflineSheetCharts 
-          filters={filters} 
-          resetVersion={resetVersion}
-          onApplyDateRange={setDateRange}
-          region={region}
-        />
-      </div>
+          <div className="mb-12">
+            <OfflineSheetProjection
+              data={summaryQ.data}
+              isLoading={summaryQ.isLoading}
+            />
+          </div>
 
-      <div className="mb-8">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-2xl font-normal text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
-          <span className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-lg">
-            {totalCount.toLocaleString()} TOTAL ROWS
-          </span>
+          <div className="mb-12">
+            <OfflineSheetCharts 
+              filters={filters} 
+              resetVersion={resetVersion}
+              onApplyDateRange={setDateRange}
+              region={region}
+            />
+          </div>
+
+          <div className="mb-8">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-2xl font-normal text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
+              <span className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-lg">
+                {totalCount.toLocaleString()} TOTAL ROWS
+              </span>
+            </div>
+            <OfflineSheetTable 
+              rows={allRows} 
+              filters={filters} 
+              onFilterChange={updateFilter} 
+            />
+            <Pagination
+              currentPage={filters.page || 1}
+              totalCount={totalCount}
+              pageSize={filters.limit || 100}
+              setPage={setPage}
+              isLoading={listQ.isFetching}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="space-y-10 animate-fadeIn">
+          {summaryLoading && !summary ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+              <p className="text-xs text-gray-500">Loading channel summary...</p>
+            </div>
+          ) : (
+            <>
+              {dashboardTab === 'new-old' && (
+                <NewOldContributionView data={summary?.newVsOldContribution} loading={summaryLoading} />
+              )}
+
+              {dashboardTab === 'focus' && (
+                <FocusTabGrowthView channel={channelKey} />
+              )}
+
+              {dashboardTab === 'yoy' && (
+                <YoYComparisonView channel={channelKey} />
+              )}
+
+              {dashboardTab === 'author' && (
+                <AuthorPerformanceView channel={channelKey} />
+              )}
+
+              {dashboardTab === 'price' && (
+                <PriceReprintAnalysisView channel={channelKey} />
+              )}
+            </>
+          )}
         </div>
-        <OfflineSheetTable 
-          rows={allRows} 
-          filters={filters} 
-          onFilterChange={updateFilter} 
-        />
-        <Pagination
-          currentPage={filters.page || 1}
-          totalCount={totalCount}
-          pageSize={filters.limit || 100}
-          setPage={setPage}
-          isLoading={listQ.isFetching}
-        />
-      </div>
+      )}
     </AppLayout>
   );
 }
