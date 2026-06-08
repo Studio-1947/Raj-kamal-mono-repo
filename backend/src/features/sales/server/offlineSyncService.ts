@@ -59,6 +59,8 @@ export class OfflineSyncService {
     const toInsert: any[] = [];
     const rowsToProcess = dataRows;
 
+    const isPatna = targetModel === prisma.patnaOfflineSale;
+
     for (const row of rowsToProcess) {
       if (!Array.isArray(row) || row.length === 0 || row.every(cell => cell === "" || cell === null)) {
         skippedEmpty++;
@@ -118,7 +120,18 @@ export class OfflineSyncService {
         const val = String(effectiveDateSource).trim();
         if (/^\d{5}(\.\d+)?$/.test(val)) {
           const serial = parseFloat(val);
-          date = new Date((serial - 25569) * 86400 * 1000);
+          let parsedDate = new Date((serial - 25569) * 86400 * 1000);
+          if (isPatna && !isNaN(parsedDate.getTime()) && parsedDate.getUTCDate() <= 12) {
+            // Swap month and day: e.g. 2026-07-01 (July 1st) -> 2026-01-07 (Jan 7th)
+            const year = parsedDate.getUTCFullYear();
+            const month = parsedDate.getUTCDate() - 1; // Month becomes original Day (0-indexed)
+            const day = parsedDate.getUTCMonth() + 1;  // Day becomes original Month
+            const hours = parsedDate.getUTCHours();
+            const minutes = parsedDate.getUTCMinutes();
+            const seconds = parsedDate.getUTCSeconds();
+            parsedDate = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+          }
+          date = parsedDate;
         } else {
           const dmyMatch = val.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
           if (dmyMatch) {
