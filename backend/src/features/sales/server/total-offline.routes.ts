@@ -1089,6 +1089,7 @@ router.get('/price-analysis', async (req, res) => {
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
+    const queryStart = Date.now();
     const channels = resolveChannels(channel);
     if (channels.length === 0) {
       return res.status(400).json({ ok: false, error: 'Invalid channel' });
@@ -1098,7 +1099,7 @@ router.get('/price-analysis', async (req, res) => {
       const promises = channels.map(async (ch) => {
         const model = getModel(ch);
         return model.findMany({
-          select: { rate: true, qty: true, inQty: true, amount: true, inAmount: true, date: true },
+          select: { rate: true, qty: true, inQty: true, amount: true, inAmount: true, date: true, binding: true },
           where: { title: { equals: titleParam }, rate: { gt: 0 } }
         });
       });
@@ -1106,15 +1107,16 @@ router.get('/price-analysis', async (req, res) => {
       const results = await Promise.all(promises);
       const rows = results.flat();
 
-      const rateMap = new Map<number, { rate: number; qty: number; revenue: number; minDate: Date | null; maxDate: Date | null }>();
+      const rateMap = new Map<number, { rate: number; qty: number; revenue: number; minDate: Date | null; maxDate: Date | null; bindings: string[] }>();
       for (const r of rows) {
         if (!r.rate) continue;
         const rateVal = toNum(r.rate);
         const qty = toNum(r.qty) - toNum(r.inQty);
         const rev = toNum(r.amount) - toNum(r.inAmount);
         const date = r.date ? new Date(r.date) : null;
+        const bindingVal = r.binding ? r.binding.trim() : '';
 
-        const existing = rateMap.get(rateVal) ?? { rate: rateVal, qty: 0, revenue: 0, minDate: date, maxDate: date };
+        const existing = rateMap.get(rateVal) ?? { rate: rateVal, qty: 0, revenue: 0, minDate: date, maxDate: date, bindings: [] };
         existing.qty += qty;
         existing.revenue += rev;
         
@@ -1122,6 +1124,11 @@ router.get('/price-analysis', async (req, res) => {
           if (!existing.minDate || date < existing.minDate) existing.minDate = date;
           if (!existing.maxDate || date > existing.maxDate) existing.maxDate = date;
         }
+
+        if (bindingVal && !existing.bindings.includes(bindingVal)) {
+          existing.bindings.push(bindingVal);
+        }
+
         rateMap.set(rateVal, existing);
       }
 
@@ -1130,13 +1137,17 @@ router.get('/price-analysis', async (req, res) => {
 
       const responseData = { ok: true, type: 'book-detail', title: titleParam, pricePoints: points };
       setCached(cacheKey, responseData);
+      
+      const queryEnd = Date.now();
+      console.log(`[API PERFORMANCE] /price-analysis took ${queryEnd - queryStart}ms (channel: ${channel}, title: "${titleParam}")`);
+      
       return res.json(responseData);
     }
 
     const promises = channels.map(async (ch) => {
       const model = getModel(ch);
       return model.findMany({
-        select: { title: true, rate: true, qty: true, inQty: true, amount: true, inAmount: true },
+        select: { title: true, rate: true, qty: true, inQty: true, amount: true, inAmount: true, binding: true },
         where: { title: { not: '' }, rate: { gt: 0 } }
       });
     });
@@ -1152,6 +1163,7 @@ router.get('/price-analysis', async (req, res) => {
     };
 
     const bookRates = new Map<string, Set<number>>();
+    const bookBindings = new Map<string, Set<string>>();
 
     for (const r of rows) {
       if (!r.title || !r.rate) continue;
@@ -1159,11 +1171,19 @@ router.get('/price-analysis', async (req, res) => {
       const qty = toNum(r.qty) - toNum(r.inQty);
       const rev = toNum(r.amount) - toNum(r.inAmount);
       const title = r.title.trim();
+      const bindingVal = r.binding ? r.binding.trim() : '';
 
       if (!bookRates.has(title)) {
         bookRates.set(title, new Set());
       }
       bookRates.get(title)!.add(rateVal);
+
+      if (bindingVal) {
+        if (!bookBindings.has(title)) {
+          bookBindings.set(title, new Set());
+        }
+        bookBindings.get(title)!.add(bindingVal);
+      }
 
       if (rateVal < 250) {
         brackets.under250.revenue += rev;
@@ -1180,12 +1200,14 @@ router.get('/price-analysis', async (req, res) => {
       }
     }
 
-    const multiPriceBooks: { title: string; rates: number[] }[] = [];
+    const multiPriceBooks: { title: string; rates: number[]; bindings: string[] }[] = [];
     for (const [title, rates] of bookRates.entries()) {
       if (rates.size > 1) {
+        const bindingsSet = bookBindings.get(title) || new Set();
         multiPriceBooks.push({
           title,
-          rates: Array.from(rates).sort((a, b) => a - b)
+          rates: Array.from(rates).sort((a, b) => a - b),
+          bindings: Array.from(bindingsSet).filter(Boolean)
         });
       }
     }
@@ -1199,6 +1221,10 @@ router.get('/price-analysis', async (req, res) => {
     };
 
     setCached(cacheKey, responseData);
+    
+    const queryEnd = Date.now();
+    console.log(`[API PERFORMANCE] /price-analysis took ${queryEnd - queryStart}ms (channel: ${channel}, title: "summary")`);
+    
     return res.json(responseData);
   } catch (err: any) {
     console.error('Price and reprint analysis failed:', err);

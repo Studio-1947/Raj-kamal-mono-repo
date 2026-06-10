@@ -202,7 +202,7 @@ export class OfflineSyncService {
     if (toInsert.length > 0) {
       try {
         // Chunk toInsert to avoid potential database limit issues with massive arrays
-        const chunkSize = 1000;
+        const chunkSize = 2000;
         const dbModel = txClient || targetModel;
         for (let i = 0; i < toInsert.length; i += chunkSize) {
           const chunk = toInsert.slice(i, i + chunkSize);
@@ -275,10 +275,12 @@ export class OfflineSyncService {
   }
 
   private async syncFromGoogleSheet(url: string, targetModel: any, sheetNamePreference?: string) {
+    const startTime = Date.now();
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Failed to fetch Google Sheet: ${response.statusText}`);
       
+      const fetchTime = Date.now();
       const buffer = await response.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "buffer" });
       
@@ -293,6 +295,8 @@ export class OfflineSyncService {
       if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook.`);
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       
+      const parseTime = Date.now();
+
       // Find the key of targetModel on prisma (e.g. 'googleSheetOfflineSale')
       const modelKey = Object.keys(prisma).find(key => {
         if (key.startsWith('$') || key.startsWith('_')) return false;
@@ -306,7 +310,10 @@ export class OfflineSyncService {
       if (!modelKey) {
         console.log(`[SYNC] Model key not found for atomic transaction. Falling back to non-atomic sync.`);
         await targetModel.deleteMany({});
-        return await this.processData(rows, targetModel);
+        const result = await this.processData(rows, targetModel);
+        const nonAtomicTime = Date.now();
+        console.log(`[SYNC PERFORMANCE] Non-atomic total time: ${((nonAtomicTime - startTime)/1000).toFixed(2)}s`);
+        return result;
       }
 
       console.log(`[SYNC] Wiping and inserting data for ${modelKey} atomically inside transaction...`);
@@ -319,9 +326,16 @@ export class OfflineSyncService {
         // Process and insert inside transaction
         syncResult = await this.processData(rows, targetModel, txModel);
       }, {
-        maxWait: 15000, // 15 seconds to acquire a connection from the pool
-        timeout: 90000, // 90 seconds timeout for large sheets
+        maxWait: 30000, // 30 seconds to acquire a connection from the pool
+        timeout: 240000, // 4 minutes timeout for large sheets
       });
+
+      const endTime = Date.now();
+      console.log(`[SYNC PERFORMANCE] ${modelKey} Sync Details:`);
+      console.log(`  - Download Google Sheet: ${((fetchTime - startTime)/1000).toFixed(2)}s`);
+      console.log(`  - Parse XLSX / JSON: ${((parseTime - fetchTime)/1000).toFixed(2)}s`);
+      console.log(`  - Database Transaction (Delete + Batch inserts): ${((endTime - parseTime)/1000).toFixed(2)}s`);
+      console.log(`  - Total Sync Time: ${((endTime - startTime)/1000).toFixed(2)}s`);
 
       if (syncResult.success) {
         try {
