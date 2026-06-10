@@ -2,6 +2,7 @@ import { prisma } from "../../../lib/prisma.js";
 import crypto from "crypto";
 import * as XLSX from "xlsx";
 import fetch from "node-fetch";
+import { clearTotalOfflineCache } from "./total-offline.routes.js";
 
 const REPORT_URL = "https://rajkamal.cloudpub.in/Reports/rpttitlecustomerwisegriddataExport?FromDate=2026-01-01&ToDate=2026-12-31&iCompanyID=1&iBranchID=1,&cmbISBN=&CustomerName=&Documenttype=ALLS&TrnsDocID=&ManageEdition=false&CountryName=&StateName=&CityName=&SalesmanName=&SalesmanMgnrName=&chkshowclbal=N&BookCategoryID=&languageID=&PublisherID=&SelectDiscount=&TxtDiscount=0&AccountID=BookSeller&IncludeExcludeBranchSale=Exclude";
 
@@ -57,6 +58,8 @@ export class OfflineSyncService {
 
     const toInsert: any[] = [];
     const rowsToProcess = dataRows;
+
+    const isPatna = targetModel === prisma.patnaOfflineSale;
 
     for (const row of rowsToProcess) {
       if (!Array.isArray(row) || row.length === 0 || row.every(cell => cell === "" || cell === null)) {
@@ -117,7 +120,18 @@ export class OfflineSyncService {
         const val = String(effectiveDateSource).trim();
         if (/^\d{5}(\.\d+)?$/.test(val)) {
           const serial = parseFloat(val);
-          date = new Date((serial - 25569) * 86400 * 1000);
+          let parsedDate = new Date((serial - 25569) * 86400 * 1000);
+          if (isPatna && !isNaN(parsedDate.getTime()) && parsedDate.getUTCDate() <= 12) {
+            // Swap month and day: e.g. 2026-07-01 (July 1st) -> 2026-01-07 (Jan 7th)
+            const year = parsedDate.getUTCFullYear();
+            const month = parsedDate.getUTCDate() - 1; // Month becomes original Day (0-indexed)
+            const day = parsedDate.getUTCMonth() + 1;  // Day becomes original Month
+            const hours = parsedDate.getUTCHours();
+            const minutes = parsedDate.getUTCMinutes();
+            const seconds = parsedDate.getUTCSeconds();
+            parsedDate = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+          }
+          date = parsedDate;
         } else {
           const dmyMatch = val.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
           if (dmyMatch) {
@@ -188,7 +202,7 @@ export class OfflineSyncService {
     if (toInsert.length > 0) {
       try {
         // Chunk toInsert to avoid potential database limit issues with massive arrays
-        const chunkSize = 1000;
+        const chunkSize = 2000;
         const dbModel = txClient || targetModel;
         for (let i = 0; i < toInsert.length; i += chunkSize) {
           const chunk = toInsert.slice(i, i + chunkSize);
@@ -261,10 +275,12 @@ export class OfflineSyncService {
   }
 
   private async syncFromGoogleSheet(url: string, targetModel: any, sheetNamePreference?: string) {
+    const startTime = Date.now();
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Failed to fetch Google Sheet: ${response.statusText}`);
       
+      const fetchTime = Date.now();
       const buffer = await response.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "buffer" });
       
@@ -279,6 +295,8 @@ export class OfflineSyncService {
       if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook.`);
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       
+      const parseTime = Date.now();
+
       // Find the key of targetModel on prisma (e.g. 'googleSheetOfflineSale')
       const modelKey = Object.keys(prisma).find(key => {
         if (key.startsWith('$') || key.startsWith('_')) return false;
@@ -292,7 +310,10 @@ export class OfflineSyncService {
       if (!modelKey) {
         console.log(`[SYNC] Model key not found for atomic transaction. Falling back to non-atomic sync.`);
         await targetModel.deleteMany({});
-        return await this.processData(rows, targetModel);
+        const result = await this.processData(rows, targetModel);
+        const nonAtomicTime = Date.now();
+        console.log(`[SYNC PERFORMANCE] Non-atomic total time: ${((nonAtomicTime - startTime)/1000).toFixed(2)}s`);
+        return result;
       }
 
       console.log(`[SYNC] Wiping and inserting data for ${modelKey} atomically inside transaction...`);
@@ -305,9 +326,24 @@ export class OfflineSyncService {
         // Process and insert inside transaction
         syncResult = await this.processData(rows, targetModel, txModel);
       }, {
-        maxWait: 15000, // 15 seconds to acquire a connection from the pool
-        timeout: 90000, // 90 seconds timeout for large sheets
+        maxWait: 30000, // 30 seconds to acquire a connection from the pool
+        timeout: 240000, // 4 minutes timeout for large sheets
       });
+
+      const endTime = Date.now();
+      console.log(`[SYNC PERFORMANCE] ${modelKey} Sync Details:`);
+      console.log(`  - Download Google Sheet: ${((fetchTime - startTime)/1000).toFixed(2)}s`);
+      console.log(`  - Parse XLSX / JSON: ${((parseTime - fetchTime)/1000).toFixed(2)}s`);
+      console.log(`  - Database Transaction (Delete + Batch inserts): ${((endTime - parseTime)/1000).toFixed(2)}s`);
+      console.log(`  - Total Sync Time: ${((endTime - startTime)/1000).toFixed(2)}s`);
+
+      if (syncResult.success) {
+        try {
+          clearTotalOfflineCache();
+        } catch (e) {
+          console.warn("Failed to clear total offline cache:", e);
+        }
+      }
 
       return syncResult;
     } catch (error) {
