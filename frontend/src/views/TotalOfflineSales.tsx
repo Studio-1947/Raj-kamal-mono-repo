@@ -289,22 +289,20 @@ export default function TotalOfflineSales() {
               })()}
             />
 
-            {/* Copies Dispatched = gross OUT (not net) */}
+            {/* Net Copies = OUT minus IN (returns) */}
             <KpiCard
-              title="Copies Dispatched (OUT)"
-              value={(summary?.counts?.totalGrossQty || 0).toLocaleString('en-IN')}
+              title="Net Copies (OUT − IN)"
+              value={(summary?.counts?.totalQty || 0).toLocaleString('en-IN')}
               icon={<FiShoppingBag className="h-20 w-20 text-teal-600" />}
               badge={(() => {
                 const gross   = summary?.counts?.totalGrossQty   || 0;
                 const returns = summary?.counts?.totalReturnsQty || 0;
-                const net     = summary?.counts?.totalQty        || 0;
                 const retPct  = gross > 0 ? ((returns / gross) * 100).toFixed(1) : '0.0';
-                const netPct  = gross > 0 ? ((net / gross) * 100).toFixed(1) : '100.0';
                 return (
                   <div className="mt-3 flex flex-col gap-1 border-t border-gray-100 pt-2.5">
                     <div className="flex items-center justify-between text-[11px] text-gray-500">
-                      <span>Net Copies:</span>
-                      <span className="font-semibold text-teal-700">{net.toLocaleString('en-IN')} ({netPct}%)</span>
+                      <span>Gross Out:</span>
+                      <span className="font-semibold text-gray-700">{gross.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-gray-500">
                       <span>Returns (IN):</span>
