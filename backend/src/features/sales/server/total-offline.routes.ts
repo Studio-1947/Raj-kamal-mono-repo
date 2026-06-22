@@ -24,8 +24,13 @@ interface CacheEntry {
   data: any;
   expiry: number;
 }
+// Bounded LRU + TTL cache. Map preserves insertion order, so the first key is
+// the least-recently-used. We re-insert on read/write to keep recency, and evict
+// the oldest entries once we exceed CACHE_MAX_ENTRIES — preventing unbounded
+// memory growth from high-cardinality keys (e.g. per-title drill-downs).
 const localCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 60 * 1000; // 1 minute Cache
+const CACHE_TTL_MS = 60 * 1000;     // 1 minute
+const CACHE_MAX_ENTRIES = 500;       // hard cap on retained responses
 
 function getCached(key: string): any | null {
   const entry = localCache.get(key);
@@ -34,14 +39,30 @@ function getCached(key: string): any | null {
     localCache.delete(key);
     return null;
   }
+  // Mark as most-recently-used by re-inserting at the end.
+  localCache.delete(key);
+  localCache.set(key, entry);
   return entry.data;
 }
 
 function setCached(key: string, data: any) {
-  localCache.set(key, {
-    data,
-    expiry: Date.now() + CACHE_TTL_MS
-  });
+  // Refresh recency for existing keys.
+  if (localCache.has(key)) localCache.delete(key);
+  localCache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
+
+  // Evict oldest entries (prefer already-expired) until within the cap.
+  if (localCache.size > CACHE_MAX_ENTRIES) {
+    const now = Date.now();
+    for (const [k, v] of localCache) {
+      if (localCache.size <= CACHE_MAX_ENTRIES) break;
+      if (now > v.expiry) localCache.delete(k); // drop expired first
+    }
+    while (localCache.size > CACHE_MAX_ENTRIES) {
+      const oldest = localCache.keys().next().value;
+      if (oldest === undefined) break;
+      localCache.delete(oldest);
+    }
+  }
 }
 
 export function clearTotalOfflineCache() {
