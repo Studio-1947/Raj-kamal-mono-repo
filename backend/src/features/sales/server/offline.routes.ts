@@ -5,6 +5,7 @@ import { prisma } from "../../../lib/prisma.js";
 import { offlineSyncService } from "./offlineSyncService.js";
 import { TtlCache } from "../../../lib/cache.js";
 import { authenticateToken } from "../../../middleware/authPrisma.js";
+import { parseFictionParam, fictionWhere, fictionSql } from "./fictionFilter.js";
 
 // 5-minute server-side cache for expensive aggregate endpoints
 const summaryCache = new TtlCache<any>(5 * 60 * 1000);
@@ -175,6 +176,7 @@ router.get("/", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
@@ -239,6 +241,9 @@ router.get("/", async (req, res) => {
       if (maxAmount != null) amountCond.lte = maxAmount;
       andConditions.push({ amount: amountCond });
     }
+
+    const fictionCond = fictionWhere(parseFictionParam(parsed.data.fictionType));
+    if (fictionCond) andConditions.push(fictionCond);
 
     where.AND = andConditions;
 
@@ -313,6 +318,7 @@ router.get("/summary", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
@@ -321,8 +327,10 @@ router.get("/summary", async (req, res) => {
   const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : undefined;
   const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
   const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
+  const fictionCats = parseFictionParam(parsed.data.fictionType);
+  const fictionRawCond = fictionSql(fictionCats);
 
-  const cacheKey = `summary:${days ?? "all"}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${q ?? ""}`;
+  const cacheKey = `summary:${days ?? "all"}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${fictionCats.join("|")}:${q ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) return res.json(cached);
 
@@ -373,6 +381,7 @@ router.get("/summary", async (req, res) => {
     if (parsed.data.type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(parsed.data.type)}`);
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+    if (fictionRawCond) conditions.push(fictionRawCond);
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
@@ -418,6 +427,7 @@ router.get("/summary", async (req, res) => {
     }
     if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+    if (fictionRawCond) itemConditions.push(fictionRawCond);
     const itemsWhereClause = itemConditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}` : Prisma.sql``;
 
     const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
@@ -642,11 +652,13 @@ router.get("/counts", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
   const { days, startDate, endDate, state, city, publisher, author, isbn, customerName, binding, title, type, q } = parsed.data;
+  const fictionCats = parseFictionParam(parsed.data.fictionType);
 
   const start = startDate ? new Date(startDate) : (days ? new Date(Date.now() - days * 86400000) : null);
   if (start) start.setUTCHours(0,0,0,0);
@@ -695,6 +707,7 @@ router.get("/counts", async (req, res) => {
         conditions.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
       });
     }
+    { const fc = fictionSql(fictionCats); if (fc) conditions.push(fc); }
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
     // Build a second copy of the where clause for the top_binding subquery.
@@ -741,6 +754,7 @@ router.get("/counts", async (req, res) => {
         conditionsForBinding.push(Prisma.sql`("title" ~* ${tr} OR "customerName" ~* ${tr} OR "state" ~* ${tr} OR "city" ~* ${tr} OR "publisher" ~* ${tr} OR "author" ~* ${tr} OR "binding" ~* ${tr})`);
       });
     }
+    { const fc2 = fictionSql(fictionCats); if (fc2) conditionsForBinding.push(fc2); }
     const whereClause2 = Prisma.sql`WHERE ${Prisma.join(conditionsForBinding, ' AND ')}`;
 
     // Run the two queries in parallel — each uses its own distinct where clause copy
@@ -807,11 +821,12 @@ router.get("/daily-details", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query parameters" });
-  
+
   const { date, days, limit, offset, startDate, endDate, state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
 
   try {
@@ -863,6 +878,7 @@ router.get("/daily-details", async (req, res) => {
     }
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+    { const fc = fictionSql(parseFictionParam(parsed.data.fictionType)); if (fc) conditions.push(fc); }
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
     console.log("DAILY-DETAILS-RANGE:", { startDate, endDate, days, date, parsed: parsed.data });
