@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { formatINR } from './utils';
-import { FiAlertCircle, FiSearch, FiSliders, FiArrowUp, FiArrowDown, FiChevronUp, FiChevronDown, FiRotateCcw } from 'react-icons/fi';
+import { FiAlertCircle, FiSearch, FiSliders, FiArrowUp, FiArrowDown, FiChevronUp, FiChevronDown, FiRotateCcw, FiDownload, FiFileText, FiFile } from 'react-icons/fi';
 import { apiClient } from '../../../lib/apiClient';
 
 interface GrowthBookItem {
@@ -36,6 +36,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
   const [minCopies, setMinCopies] = useState<number>(0);
   const [sortField, setSortField] = useState<SortField>('growth');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [downloadOpen, setDownloadOpen] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -175,6 +176,103 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     high: 'Sales rose by your growth threshold or more vs the benchmark — prioritise reprints, marketing and distribution.',
     steady: 'Positive growth, but below the threshold — selling consistently without a breakout.',
     dormant: 'Flat or declining vs the benchmark — little to no recent momentum.',
+  };
+
+  const STATUS_LABEL: Record<Exclude<StatusKey, 'all'>, string> = {
+    high: 'High Growth',
+    steady: 'Steady',
+    dormant: 'Dormant',
+  };
+
+  // ─── Export helpers (operate on the current filtered + sorted view) ──────────
+  const baselineHeader = benchmarkType === 'prev' ? 'Preceding 30 Days' : 'YTD Monthly Avg';
+
+  const buildExportRows = () => {
+    const header = ['#', 'Title', 'Publisher', 'Last 30 Days (Copies)', 'Revenue (INR)', `${baselineHeader} (Copies)`, 'Growth %', 'Status'];
+    const rows = sortedBooks.map((b, i) => [
+      String(i + 1),
+      b.title,
+      b.publisher || 'Unknown',
+      String(b.currentQty),
+      String(Math.round(b.currentRevenue)),
+      String(baselineOf(b)),
+      `${growthOf(b) > 0 ? '+' : ''}${growthOf(b)}%`,
+      STATUS_LABEL[statusOf(b)],
+    ]);
+    return { header, rows };
+  };
+
+  const exportFileBase = () => `focus-growth-${channel}-${new Date().toISOString().slice(0, 10)}`;
+
+  const filterSummary = () => {
+    const parts: string[] = [];
+    parts.push(`Benchmark: ${benchmarkType === 'prev' ? 'Previous 30 Days' : 'YTD Monthly Average'}`);
+    parts.push(`Growth threshold: >${threshold}%`);
+    parts.push(`Status: ${statusFilter === 'all' ? 'All' : STATUS_LABEL[statusFilter]}`);
+    if (publisherFilter !== 'all') parts.push(`Publisher: ${publisherFilter}`);
+    if (minCopies > 0) parts.push(`Min copies: ${minCopies}`);
+    if (searchTerm.trim()) parts.push(`Search: "${searchTerm.trim()}"`);
+    return parts;
+  };
+
+  const downloadCSV = () => {
+    const { header, rows } = buildExportRows();
+    const esc = (v: string) => '"' + String(v).replace(/"/g, '""') + '"';
+    const csv = [header, ...rows].map(line => line.map(esc).join(',')).join('\r\n');
+    // Prepend BOM so Excel reads UTF-8 (Hindi titles) correctly
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${exportFileBase()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setDownloadOpen(false);
+  };
+
+  const downloadPDF = () => {
+    const { header, rows } = buildExportRows();
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Please allow pop-ups for this site to download the PDF.');
+      setDownloadOpen(false);
+      return;
+    }
+    const esc = (v: string) =>
+      String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const numericCols = new Set([0, 3, 4, 5, 6]);
+    const thead = header.map((h, i) => `<th class="${numericCols.has(i) ? 'num' : ''}">${esc(h)}</th>`).join('');
+    const tbody = rows
+      .map(r => `<tr>${r.map((c, i) => `<td class="${numericCols.has(i) ? 'num' : ''}">${esc(c)}</td>`).join('')}</tr>`)
+      .join('');
+    const generated = new Date().toLocaleString('en-IN');
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${exportFileBase()}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #1f2937; margin: 24px; }
+        h1 { font-size: 18px; margin: 0 0 2px; }
+        .sub { font-size: 11px; color: #6b7280; margin-bottom: 12px; }
+        .meta { font-size: 11px; color: #374151; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+        .meta span { display: inline-block; margin-right: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        th, td { border-bottom: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
+        th { background: #f3f4f6; text-transform: uppercase; letter-spacing: .04em; font-size: 9px; color: #6b7280; }
+        td.num, th.num { text-align: right; }
+        tr:nth-child(even) td { background: #fafafa; }
+        @media print { body { margin: 12mm; } }
+      </style></head><body>
+      <h1>Focus Tab — Growth Indicators</h1>
+      <div class="sub">Channel: ${esc(channel)} &nbsp;•&nbsp; ${rows.length} titles &nbsp;•&nbsp; Generated ${esc(generated)}</div>
+      <div class="meta">${filterSummary().map(p => `<span>${esc(p)}</span>`).join('')}</div>
+      <table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>
+      </body></html>`);
+    win.document.close();
+    win.focus();
+    // Wait for layout before invoking the print dialog
+    setTimeout(() => win.print(), 300);
+    setDownloadOpen(false);
   };
 
   // Calculate pagination
@@ -358,6 +456,44 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
             >
               {sortDir === 'asc' ? <FiArrowUp className="h-4 w-4" /> : <FiArrowDown className="h-4 w-4" />}
             </button>
+          </div>
+
+          {/* Download dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setDownloadOpen(o => !o)}
+              disabled={sortedBooks.length === 0}
+              title="Download the current view"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none"
+            >
+              <FiDownload className="h-3.5 w-3.5" /> Download
+              <FiChevronDown className={`h-3.5 w-3.5 transition-transform ${downloadOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {downloadOpen && (
+              <>
+                {/* click-away backdrop */}
+                <div className="fixed inset-0 z-20" onClick={() => setDownloadOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 z-30 w-52 bg-white border border-gray-100 rounded-2xl shadow-lg overflow-hidden">
+                  <div className="px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                    Export {sortedBooks.length} rows
+                  </div>
+                  <button
+                    onClick={downloadCSV}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <FiFileText className="h-4 w-4 text-emerald-600" />
+                    <span className="flex-1 text-left">CSV spreadsheet</span>
+                  </button>
+                  <button
+                    onClick={downloadPDF}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-50"
+                  >
+                    <FiFile className="h-4 w-4 text-red-500" />
+                    <span className="flex-1 text-left">PDF document</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           <button
