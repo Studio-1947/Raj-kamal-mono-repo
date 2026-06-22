@@ -1015,13 +1015,15 @@ router.get('/author-performance', async (req, res) => {
       .filter(a => a.revenue > 0)
       .sort((a, b) => b.revenue - a.revenue);
 
+    // Authors are ranked by net revenue (sales − returns), then split into cohorts:
+    // Top 15%, Next 50%, Bottom 35% — by author count.
     const totalCount = sortedAuthors.length;
-    const topLimit = Math.ceil(totalCount * 0.15); // Top 15%
-    const medLimit = Math.ceil(totalCount * 0.65); // Next 50%
+    const topLimit = Math.ceil(totalCount * 0.15);  // Top 15%
+    const medCount = Math.ceil(totalCount * 0.50);  // Next 50%
 
     const top = sortedAuthors.slice(0, topLimit);
-    const medium = sortedAuthors.slice(topLimit, topLimit + medLimit);
-    const low = sortedAuthors.slice(topLimit + medLimit);
+    const medium = sortedAuthors.slice(topLimit, topLimit + medCount);
+    const low = sortedAuthors.slice(topLimit + medCount);
 
     const responseData = {
       ok: true,
