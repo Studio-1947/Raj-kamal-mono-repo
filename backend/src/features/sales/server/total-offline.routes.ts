@@ -627,7 +627,7 @@ router.get('/growth-indicators', async (req, res) => {
     // Fetch for each resolved channel
     const promises = channels.map(async (ch) => {
       const model = getModel(ch);
-      const [current, prev, ytd] = await Promise.all([
+      const [current, prev, ytd, invoices] = await Promise.all([
         model.groupBy({
           by: ['title', 'publisher'],
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
@@ -643,14 +643,29 @@ router.get('/growth-indicators', async (req, res) => {
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
           where: { title: { not: '' } },
         }),
+        // Distinct invoices (docNo / TrnsdocNo) per title in the current window,
+        // counting ONLY invoices that contain an actual outward order line (qty > 0).
+        // This excludes return-only / inward (IN) rows so the count reflects orders OUT.
+        // One row per (title, docNo) → row-count per title = distinct OUT invoice count.
+        model.groupBy({
+          by: ['title', 'docNo'],
+          where: {
+            date: { gte: currentLimit },
+            title: { not: '' },
+            docNo: { not: null },
+            qty: { gt: 0 },
+          },
+        }),
       ]);
-      return { current, prev, ytd };
+      return { current, prev, ytd, invoices };
     });
 
     const results = await Promise.all(promises);
 
     // Merge in memory
     const bookData = new Map<string, { title: string; publisher: string; currentQty: number; currentRevenue: number; prevQty: number; ytdQty: number }>();
+    // Distinct invoice numbers per title (current window) → used for bulk-order detection
+    const invoiceSets = new Map<string, Set<string>>();
 
     for (const r of results) {
       // Process current
@@ -680,6 +695,14 @@ router.get('/growth-indicators', async (req, res) => {
         existing.ytdQty += netQty;
         bookData.set(title, existing);
       }
+      // Process invoices: collect distinct docNo per title across channels
+      for (const row of r.invoices) {
+        if (!row.docNo) continue;
+        const title = row.title.trim();
+        let set = invoiceSets.get(title);
+        if (!set) { set = new Set<string>(); invoiceSets.set(title, set); }
+        set.add(row.docNo);
+      }
     }
 
     const items = Array.from(bookData.values())
@@ -699,10 +722,17 @@ router.get('/growth-indicators', async (req, res) => {
           growthVsAvg = Math.round(((b.currentQty - avgMonthly) / avgMonthly) * 100);
         }
 
+        // Bulk-order detection: a title spread across few invoices (≤2) in the
+        // current window is a bulk/institutional buy; >2 invoices = organic demand.
+        const invoiceCount = invoiceSets.get(b.title)?.size ?? 0;
+        const isBulk = invoiceCount > 0 && invoiceCount <= 2;
+
         return {
           ...b,
           growth,
           growthVsAvg,
+          invoiceCount,
+          isBulk,
           isHighGrowth: growth >= threshold || growthVsAvg >= threshold,
         };
       })
@@ -715,6 +745,90 @@ router.get('/growth-indicators', async (req, res) => {
   } catch (err: any) {
     console.error('Focus Tab Growth Indicators failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute growth indicators' });
+  }
+});
+
+// ─── GET /api/total-offline-sales/title-invoices ─────────────────────────────
+// Per-invoice breakdown for a single title in the last 30 days (drill-down modal).
+router.get('/title-invoices', async (req, res) => {
+  try {
+    const channel = (req.query.channel as string) || 'all';
+    const title = ((req.query.title as string) || '').trim();
+    if (!title) return res.status(400).json({ ok: false, error: 'Missing title' });
+
+    const channels = resolveChannels(channel);
+    if (channels.length === 0) return res.status(400).json({ ok: false, error: 'Invalid channel' });
+
+    const cacheKey = `title-invoices-${channel}-${title}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const since = new Date(Date.now() - 30 * 86_400_000);
+
+    // Collect rows for the title across resolved channels, matched on TRIMMED title
+    const perChannel = await Promise.all(
+      channels.map(async (ch) => {
+        const model = getModel(ch);
+        const rows = await model.findMany({
+          where: { date: { gte: since }, title: { contains: title } },
+          select: {
+            docNo: true, date: true, qty: true, inQty: true,
+            amount: true, inAmount: true, customerName: true, title: true,
+          },
+        });
+        return rows
+          .filter((r: any) => (r.title || '').trim() === title)
+          .map((r: any) => ({ ...r, channel: REGION_LABEL[ch] }));
+      })
+    );
+
+    // Aggregate per invoice (docNo)
+    const map = new Map<string, any>();
+    for (const r of perChannel.flat()) {
+      const key = r.docNo || '(no invoice no.)';
+      const e = map.get(key) ?? {
+        docNo: r.docNo || null, date: r.date, channel: r.channel,
+        customerName: r.customerName || null,
+        outQty: 0, inQty: 0, outAmount: 0, inAmount: 0,
+      };
+      e.outQty += toNum(r.qty);
+      e.inQty += toNum(r.inQty);
+      e.outAmount += toNum(r.amount);
+      e.inAmount += toNum(r.inAmount);
+      if (r.date && (!e.date || r.date > e.date)) e.date = r.date;
+      if (!e.customerName && r.customerName) e.customerName = r.customerName;
+      map.set(key, e);
+    }
+
+    const invoices = Array.from(map.values()).sort(
+      (a, b) => (b.date ? new Date(b.date).getTime() : 0) - (a.date ? new Date(a.date).getTime() : 0)
+    );
+
+    // Distinct invoices that actually carry an outward order (matches bulk logic)
+    const outInvoiceCount = invoices.filter(i => i.outQty > 0 && i.docNo).length;
+    const totals = invoices.reduce(
+      (acc, i) => ({
+        outQty: acc.outQty + i.outQty,
+        inQty: acc.inQty + i.inQty,
+        outAmount: acc.outAmount + i.outAmount,
+        inAmount: acc.inAmount + i.inAmount,
+      }),
+      { outQty: 0, inQty: 0, outAmount: 0, inAmount: 0 }
+    );
+
+    const responseData = {
+      ok: true,
+      title,
+      invoices,
+      totals,
+      outInvoiceCount,
+      isBulk: outInvoiceCount > 0 && outInvoiceCount <= 2,
+    };
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
+  } catch (err: any) {
+    console.error('Title invoices drill-down failed:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to load invoice breakdown' });
   }
 });
 

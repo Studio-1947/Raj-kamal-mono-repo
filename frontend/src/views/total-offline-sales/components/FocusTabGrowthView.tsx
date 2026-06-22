@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { formatINR } from './utils';
-import { FiAlertCircle, FiSearch, FiSliders, FiArrowUp, FiArrowDown, FiChevronUp, FiChevronDown, FiRotateCcw, FiDownload, FiFileText, FiFile } from 'react-icons/fi';
+import { FiAlertCircle, FiSearch, FiSliders, FiArrowUp, FiArrowDown, FiChevronUp, FiChevronDown, FiRotateCcw, FiDownload, FiFileText, FiFile, FiExternalLink, FiX } from 'react-icons/fi';
 import { apiClient } from '../../../lib/apiClient';
 
 interface GrowthBookItem {
@@ -12,15 +12,18 @@ interface GrowthBookItem {
   ytdQty: number;
   growth: number;
   growthVsAvg: number;
+  invoiceCount: number;
+  isBulk: boolean;
 }
 
 interface FocusTabGrowthViewProps {
   channel: string;
 }
 
-type SortField = 'title' | 'publisher' | 'copies' | 'baseline' | 'revenue' | 'growth';
+type SortField = 'title' | 'publisher' | 'copies' | 'baseline' | 'revenue' | 'growth' | 'invoices';
 type SortDir = 'asc' | 'desc';
 type StatusKey = 'all' | 'high' | 'steady' | 'dormant';
+type OrderTypeKey = 'all' | 'bulk' | 'nonbulk';
 
 export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel }) => {
   const [loading, setLoading] = useState(false);
@@ -32,11 +35,18 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
 
   // Refine controls
   const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
+  const [orderTypeFilter, setOrderTypeFilter] = useState<OrderTypeKey>('all');
   const [publisherFilter, setPublisherFilter] = useState<string>('all');
   const [minCopies, setMinCopies] = useState<number>(0);
   const [sortField, setSortField] = useState<SortField>('growth');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [downloadOpen, setDownloadOpen] = useState(false);
+
+  // Invoice drill-down modal
+  const [invoiceModalTitle, setInvoiceModalTitle] = useState<string | null>(null);
+  const [invoiceData, setInvoiceData] = useState<any | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -68,10 +78,39 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     setCurrentPage(1);
   }, [channel, threshold]);
 
+  // Open the per-invoice drill-down modal for a title
+  const openInvoiceModal = async (title: string) => {
+    setInvoiceModalTitle(title);
+    setInvoiceData(null);
+    setInvoiceError(null);
+    setInvoiceLoading(true);
+    try {
+      const data = await apiClient.get<any>(
+        `total-offline-sales/title-invoices?channel=${channel}&title=${encodeURIComponent(title)}`
+      );
+      if (data.ok) {
+        setInvoiceData(data);
+      } else {
+        throw new Error(data.error || 'Failed to load invoice breakdown');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setInvoiceError(err.message || 'Error loading invoice breakdown');
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  const closeInvoiceModal = () => {
+    setInvoiceModalTitle(null);
+    setInvoiceData(null);
+    setInvoiceError(null);
+  };
+
   // Reset to first page whenever any filter/sort/benchmark changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, benchmarkType, statusFilter, publisherFilter, minCopies, sortField, sortDir]);
+  }, [searchTerm, benchmarkType, statusFilter, orderTypeFilter, publisherFilter, minCopies, sortField, sortDir]);
 
   // Active growth value + status classification for a book (benchmark-aware)
   const growthOf = (b: GrowthBookItem) => (benchmarkType === 'prev' ? b.growth : b.growthVsAvg);
@@ -97,9 +136,12 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
       if (term && !b.title.toLowerCase().includes(term) && !b.publisher.toLowerCase().includes(term)) return false;
       if (publisherFilter !== 'all' && (b.publisher || 'Unknown') !== publisherFilter) return false;
       if (minCopies > 0 && b.currentQty < minCopies) return false;
+      // Bulk = 1–2 OUT invoices; Non-Bulk = >2 OUT invoices; 0-invoice rows match neither
+      if (orderTypeFilter === 'bulk' && !b.isBulk) return false;
+      if (orderTypeFilter === 'nonbulk' && !(b.invoiceCount > 2)) return false;
       return true;
     });
-  }, [books, searchTerm, publisherFilter, minCopies]);
+  }, [books, searchTerm, publisherFilter, minCopies, orderTypeFilter]);
 
   // Status counts over the base set (so pills show live, benchmark-aware totals)
   const statusCounts = useMemo(() => {
@@ -126,6 +168,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
         case 'copies': cmp = a.currentQty - b.currentQty; break;
         case 'baseline': cmp = baselineOf(a) - baselineOf(b); break;
         case 'revenue': cmp = a.currentRevenue - b.currentRevenue; break;
+        case 'invoices': cmp = a.invoiceCount - b.invoiceCount; break;
         case 'growth': default: cmp = growthOf(a) - growthOf(b); break;
       }
       if (cmp === 0) cmp = a.title.localeCompare(b.title); // stable tiebreak
@@ -148,6 +191,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
   const isDefaultState =
     searchTerm.trim() === '' &&
     statusFilter === 'all' &&
+    orderTypeFilter === 'all' &&
     publisherFilter === 'all' &&
     minCopies === 0 &&
     sortField === 'growth' &&
@@ -156,12 +200,13 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     threshold === 50;
 
   const filtersActive =
-    searchTerm.trim() !== '' || statusFilter !== 'all' || publisherFilter !== 'all' || minCopies > 0;
+    searchTerm.trim() !== '' || statusFilter !== 'all' || orderTypeFilter !== 'all' || publisherFilter !== 'all' || minCopies > 0;
 
   // Reset every control back to its default version
   const resetAll = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setOrderTypeFilter('all');
     setPublisherFilter('all');
     setMinCopies(0);
     setSortField('growth');
@@ -188,7 +233,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
   const baselineHeader = benchmarkType === 'prev' ? 'Preceding 30 Days' : 'YTD Monthly Avg';
 
   const buildExportRows = () => {
-    const header = ['#', 'Title', 'Publisher', 'Last 30 Days (Copies)', 'Revenue (INR)', `${baselineHeader} (Copies)`, 'Growth %', 'Status'];
+    const header = ['#', 'Title', 'Publisher', 'Last 30 Days (Copies)', 'Revenue (INR)', `${baselineHeader} (Copies)`, 'Growth %', 'Invoices', 'Order Type', 'Status'];
     const rows = sortedBooks.map((b, i) => [
       String(i + 1),
       b.title,
@@ -197,6 +242,8 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
       String(Math.round(b.currentRevenue)),
       String(baselineOf(b)),
       `${growthOf(b) > 0 ? '+' : ''}${growthOf(b)}%`,
+      String(b.invoiceCount),
+      b.invoiceCount === 0 ? 'No invoice data' : b.isBulk ? 'Bulk' : 'Non-Bulk',
       STATUS_LABEL[statusOf(b)],
     ]);
     return { header, rows };
@@ -209,6 +256,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     parts.push(`Benchmark: ${benchmarkType === 'prev' ? 'Previous 30 Days' : 'YTD Monthly Average'}`);
     parts.push(`Growth threshold: >${threshold}%`);
     parts.push(`Status: ${statusFilter === 'all' ? 'All' : STATUS_LABEL[statusFilter]}`);
+    if (orderTypeFilter !== 'all') parts.push(`Order type: ${orderTypeFilter === 'bulk' ? 'Bulk' : 'Non-Bulk'}`);
     if (publisherFilter !== 'all') parts.push(`Publisher: ${publisherFilter}`);
     if (minCopies > 0) parts.push(`Min copies: ${minCopies}`);
     if (searchTerm.trim()) parts.push(`Search: "${searchTerm.trim()}"`);
@@ -242,7 +290,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     }
     const esc = (v: string) =>
       String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const numericCols = new Set([0, 3, 4, 5, 6]);
+    const numericCols = new Set([0, 3, 4, 5, 6, 7]);
     const thead = header.map((h, i) => `<th class="${numericCols.has(i) ? 'num' : ''}">${esc(h)}</th>`).join('');
     const tbody = rows
       .map(r => `<tr>${r.map((c, i) => `<td class="${numericCols.has(i) ? 'num' : ''}">${esc(c)}</td>`).join('')}</tr>`)
@@ -423,6 +471,17 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
             ))}
           </select>
 
+          <select
+            value={orderTypeFilter}
+            onChange={(e) => setOrderTypeFilter(e.target.value as OrderTypeKey)}
+            title="Bulk = sold across ≤2 invoices in last 30 days; Non-Bulk = >2 invoices"
+            className="px-3 py-2 border border-gray-200 rounded-xl bg-white text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="all">All Order Types</option>
+            <option value="bulk">Bulk only</option>
+            <option value="nonbulk">Non-Bulk only</option>
+          </select>
+
           <div className="flex items-center gap-1.5">
             <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Min Copies</label>
             <input
@@ -446,8 +505,8 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
               <option value="title">Title (A–Z)</option>
               <option value="publisher">Publisher (A–Z)</option>
               <option value="copies">Copies Sold</option>
-              <option value="baseline">Baseline</option>
               <option value="revenue">Revenue</option>
+              <option value="invoices">Invoices</option>
             </select>
             <button
               onClick={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))}
@@ -548,12 +607,8 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
                     {([
                       { field: 'title' as SortField, label: 'Title & Publisher', align: 'left' },
                       { field: 'copies' as SortField, label: 'Last 30 Days Sold (OUT)', align: 'right' },
-                      {
-                        field: 'baseline' as SortField,
-                        label: benchmarkType === 'prev' ? 'Preceding 30 Days (OUT)' : 'YTD Monthly Average',
-                        align: 'right',
-                      },
                       { field: 'growth' as SortField, label: 'Growth Rate', align: 'right' },
+                      { field: 'invoices' as SortField, label: 'Invoices', align: 'right' },
                     ]).map(col => {
                       const active = sortField === col.field;
                       return (
@@ -592,7 +647,6 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
                 <tbody className="divide-y divide-gray-100 text-xs text-gray-600">
                   {paginatedBooks.map((b, idx) => {
                     const growthVal = benchmarkType === 'prev' ? b.growth : b.growthVsAvg;
-                    const baselineVal = benchmarkType === 'prev' ? b.prevQty : Math.max(1, Math.round(b.ytdQty / 5));
                     const isHigh = growthVal >= threshold;
 
                     return (
@@ -607,13 +661,23 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
                             {formatINR(b.currentRevenue)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right text-gray-500">
-                          {baselineVal} copies
-                        </td>
                         <td className="px-6 py-4 text-right font-semibold">
                           <span className={growthVal > 0 ? 'text-emerald-600' : growthVal < 0 ? 'text-red-500' : 'text-gray-500'}>
                             {growthVal > 0 ? `+${growthVal}%` : `${growthVal}%`}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openInvoiceModal(b.title)}
+                            title="View invoice-wise breakdown (date, OUT, IN, price)"
+                            className="flex flex-col items-end gap-1 ml-auto group/inv hover:bg-indigo-50/60 rounded-lg px-2 py-1 -my-1 transition-colors cursor-pointer"
+                          >
+                            <span className="font-medium text-gray-700 group-hover/inv:text-indigo-700 inline-flex items-center gap-1">
+                              {b.invoiceCount} {b.invoiceCount === 1 ? 'invoice' : 'invoices'}
+                              <FiExternalLink className="h-3 w-3 opacity-0 group-hover/inv:opacity-100 transition-opacity" />
+                            </span>
+                          </button>
                         </td>
                         <td className="px-6 py-4 text-center">
                           {isHigh ? (
@@ -705,6 +769,110 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
           </div>
         )}
       </div>
+
+      {/* Invoice Drill-down Modal */}
+      {invoiceModalTitle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* backdrop */}
+          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={closeInvoiceModal} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-gray-100">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-gray-900 line-clamp-1">{invoiceModalTitle}</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Invoice-wise breakdown · last 30 days</p>
+              </div>
+              <button
+                onClick={closeInvoiceModal}
+                className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto px-6 py-4">
+              {invoiceLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-indigo-600" />
+                  <p className="text-xs text-gray-500">Loading invoices...</p>
+                </div>
+              ) : invoiceError ? (
+                <div className="py-12 text-center text-sm text-red-600">
+                  ⚠️ {invoiceError}
+                  <button onClick={() => openInvoiceModal(invoiceModalTitle)} className="ml-2 underline">Retry</button>
+                </div>
+              ) : invoiceData && invoiceData.invoices.length > 0 ? (
+                <>
+                  {/* Summary chips */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700">
+                      {invoiceData.outInvoiceCount} OUT invoice{invoiceData.outInvoiceCount === 1 ? '' : 's'}
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ${
+                      invoiceData.isBulk ? 'bg-violet-50 text-violet-700' : 'bg-sky-50 text-sky-700'
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${invoiceData.isBulk ? 'bg-violet-500' : 'bg-sky-500'}`} />
+                      {invoiceData.isBulk ? 'Bulk' : 'Non-Bulk'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700">
+                      {invoiceData.totals.outQty} OUT
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-50 text-red-600">
+                      {invoiceData.totals.inQty} IN
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700">
+                      {formatINR(invoiceData.totals.outAmount)}
+                    </span>
+                  </div>
+
+                  {/* Invoice table */}
+                  <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-100 text-xs">
+                      <thead className="bg-gray-50/70 text-gray-400 text-[10px] font-semibold uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left">Date</th>
+                          <th className="px-4 py-2.5 text-left">Invoice No.</th>
+                          <th className="px-4 py-2.5 text-left">Customer</th>
+                          <th className="px-4 py-2.5 text-right">OUT</th>
+                          <th className="px-4 py-2.5 text-right">IN</th>
+                          <th className="px-4 py-2.5 text-right">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-gray-700">
+                        {invoiceData.invoices.map((inv: any, i: number) => (
+                          <tr key={i} className="hover:bg-gray-50/50">
+                            <td className="px-4 py-2.5 whitespace-nowrap text-gray-500">
+                              {inv.date ? new Date(inv.date).toLocaleDateString('en-IN') : '—'}
+                            </td>
+                            <td className="px-4 py-2.5 font-medium text-gray-800">{inv.docNo || '—'}</td>
+                            <td className="px-4 py-2.5 text-gray-500 max-w-[160px] truncate" title={inv.customerName || ''}>
+                              {inv.customerName || '—'}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-medium text-emerald-700">{inv.outQty}</td>
+                            <td className="px-4 py-2.5 text-right text-red-500">{inv.inQty || 0}</td>
+                            <td className="px-4 py-2.5 text-right text-gray-800">{formatINR(inv.outAmount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50/70 text-gray-700 font-semibold">
+                        <tr>
+                          <td className="px-4 py-2.5" colSpan={3}>Total · {invoiceData.invoices.length} invoice(s)</td>
+                          <td className="px-4 py-2.5 text-right text-emerald-700">{invoiceData.totals.outQty}</td>
+                          <td className="px-4 py-2.5 text-right text-red-500">{invoiceData.totals.inQty}</td>
+                          <td className="px-4 py-2.5 text-right">{formatINR(invoiceData.totals.outAmount)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div className="py-12 text-center text-sm text-gray-400">No invoices found in the last 30 days.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
