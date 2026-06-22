@@ -14,16 +14,33 @@ interface GrowthBookItem {
   growthVsAvg: number;
   invoiceCount: number;
   isBulk: boolean;
+  bindings: string[];
 }
 
 interface FocusTabGrowthViewProps {
   channel: string;
 }
 
+// Canonicalise messy binding values so spelling/case variants unify into one label
+// (e.g. "paperback"/"Paperback", "Textbook"/"Text Book"). Applied at ingestion so
+// every downstream consumer (pills, counts, filter, tags, exports) stays consistent.
+const BINDING_CANON: Record<string, string> = {
+  paperback: 'Paperback',
+  hardcover: 'Hardcover',
+  hardback: 'Hardcover',
+  hardbound: 'Hardcover',
+  textbook: 'Text Book',
+};
+const canonBinding = (raw: string): string => {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return '';
+  const key = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return BINDING_CANON[key] ?? trimmed;
+};
+
 type SortField = 'title' | 'publisher' | 'copies' | 'baseline' | 'revenue' | 'growth' | 'invoices';
 type SortDir = 'asc' | 'desc';
 type StatusKey = 'all' | 'high' | 'steady' | 'dormant';
-type OrderTypeKey = 'all' | 'bulk' | 'nonbulk';
 
 export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel }) => {
   const [loading, setLoading] = useState(false);
@@ -35,7 +52,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
 
   // Refine controls
   const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
-  const [orderTypeFilter, setOrderTypeFilter] = useState<OrderTypeKey>('all');
+  const [bindingFilter, setBindingFilter] = useState<string>('all');
   const [publisherFilter, setPublisherFilter] = useState<string>('all');
   const [minCopies, setMinCopies] = useState<number>(0);
   const [sortField, setSortField] = useState<SortField>('growth');
@@ -61,7 +78,12 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
         `total-offline-sales/growth-indicators?channel=${channel}&threshold=${threshold}`
       );
       if (data.ok) {
-        setBooks(data.items || []);
+        // Normalise binding variants at ingestion so the pills/filter stay unified
+        const items: GrowthBookItem[] = (data.items || []).map((it: GrowthBookItem) => ({
+          ...it,
+          bindings: Array.from(new Set((it.bindings || []).map(canonBinding).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+        }));
+        setBooks(items);
       } else {
         throw new Error(data.error || 'Failed to fetch growth indicators');
       }
@@ -110,7 +132,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
   // Reset to first page whenever any filter/sort/benchmark changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, benchmarkType, statusFilter, orderTypeFilter, publisherFilter, minCopies, sortField, sortDir]);
+  }, [searchTerm, benchmarkType, statusFilter, bindingFilter, publisherFilter, minCopies, sortField, sortDir]);
 
   // Active growth value + status classification for a book (benchmark-aware)
   const growthOf = (b: GrowthBookItem) => (benchmarkType === 'prev' ? b.growth : b.growthVsAvg);
@@ -129,32 +151,54 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [books]);
 
-  // Base set: everything except the status pill (search + publisher + min copies)
-  const baseBooks = useMemo(() => {
+  // Unique binding types (sorted A→Z) for the pill row
+  const bindings = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of books) for (const bd of b.bindings || []) set.add(bd);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [books]);
+
+  // Shared filters that both pill groups respect: search + publisher + min copies
+  const sharedBooks = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return books.filter(b => {
       if (term && !b.title.toLowerCase().includes(term) && !b.publisher.toLowerCase().includes(term)) return false;
       if (publisherFilter !== 'all' && (b.publisher || 'Unknown') !== publisherFilter) return false;
       if (minCopies > 0 && b.currentQty < minCopies) return false;
-      // Bulk = 1–2 OUT invoices; Non-Bulk = >2 OUT invoices; 0-invoice rows match neither
-      if (orderTypeFilter === 'bulk' && !b.isBulk) return false;
-      if (orderTypeFilter === 'nonbulk' && !(b.invoiceCount > 2)) return false;
       return true;
     });
-  }, [books, searchTerm, publisherFilter, minCopies, orderTypeFilter]);
+  }, [books, searchTerm, publisherFilter, minCopies]);
 
-  // Status counts over the base set (so pills show live, benchmark-aware totals)
+  const passesBinding = (b: GrowthBookItem) => bindingFilter === 'all' || (b.bindings || []).includes(bindingFilter);
+  const passesStatus = (b: GrowthBookItem) => statusFilter === 'all' || statusOf(b) === statusFilter;
+
+  // Status counts: faceted over shared + binding (independent of the status selection)
   const statusCounts = useMemo(() => {
-    const c = { all: baseBooks.length, high: 0, steady: 0, dormant: 0 };
-    for (const b of baseBooks) c[statusOf(b)]++;
+    const c = { all: 0, high: 0, steady: 0, dormant: 0 };
+    for (const b of sharedBooks) {
+      if (!passesBinding(b)) continue;
+      c.all++;
+      c[statusOf(b)]++;
+    }
     return c;
-  }, [baseBooks, benchmarkType, threshold]);
+  }, [sharedBooks, bindingFilter, benchmarkType, threshold]);
 
-  // Apply status pill
+  // Binding counts: faceted over shared + status (independent of the binding selection)
+  const bindingCounts = useMemo(() => {
+    const c: Record<string, number> = { all: 0 };
+    for (const bd of bindings) c[bd] = 0;
+    for (const b of sharedBooks) {
+      if (!passesStatus(b)) continue;
+      c.all++;
+      for (const bd of b.bindings || []) if (bd in c) c[bd]++;
+    }
+    return c;
+  }, [sharedBooks, bindings, statusFilter, benchmarkType, threshold]);
+
+  // Apply both pill selections
   const filteredBooks = useMemo(() => {
-    if (statusFilter === 'all') return baseBooks;
-    return baseBooks.filter(b => statusOf(b) === statusFilter);
-  }, [baseBooks, statusFilter, benchmarkType, threshold]);
+    return sharedBooks.filter(b => passesBinding(b) && passesStatus(b));
+  }, [sharedBooks, statusFilter, bindingFilter, benchmarkType, threshold]);
 
   // Sort
   const sortedBooks = useMemo(() => {
@@ -191,7 +235,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
   const isDefaultState =
     searchTerm.trim() === '' &&
     statusFilter === 'all' &&
-    orderTypeFilter === 'all' &&
+    bindingFilter === 'all' &&
     publisherFilter === 'all' &&
     minCopies === 0 &&
     sortField === 'growth' &&
@@ -200,13 +244,13 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     threshold === 50;
 
   const filtersActive =
-    searchTerm.trim() !== '' || statusFilter !== 'all' || orderTypeFilter !== 'all' || publisherFilter !== 'all' || minCopies > 0;
+    searchTerm.trim() !== '' || statusFilter !== 'all' || bindingFilter !== 'all' || publisherFilter !== 'all' || minCopies > 0;
 
   // Reset every control back to its default version
   const resetAll = () => {
     setSearchTerm('');
     setStatusFilter('all');
-    setOrderTypeFilter('all');
+    setBindingFilter('all');
     setPublisherFilter('all');
     setMinCopies(0);
     setSortField('growth');
@@ -233,17 +277,17 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
   const baselineHeader = benchmarkType === 'prev' ? 'Preceding 30 Days' : 'YTD Monthly Avg';
 
   const buildExportRows = () => {
-    const header = ['#', 'Title', 'Publisher', 'Last 30 Days (Copies)', 'Revenue (INR)', `${baselineHeader} (Copies)`, 'Growth %', 'Invoices', 'Order Type', 'Status'];
+    const header = ['#', 'Title', 'Publisher', 'Binding', 'Last 30 Days (Copies)', 'Revenue (INR)', `${baselineHeader} (Copies)`, 'Growth %', 'Invoices', 'Status'];
     const rows = sortedBooks.map((b, i) => [
       String(i + 1),
       b.title,
       b.publisher || 'Unknown',
+      (b.bindings || []).join('; ') || '—',
       String(b.currentQty),
       String(Math.round(b.currentRevenue)),
       String(baselineOf(b)),
       `${growthOf(b) > 0 ? '+' : ''}${growthOf(b)}%`,
       String(b.invoiceCount),
-      b.invoiceCount === 0 ? 'No invoice data' : b.isBulk ? 'Bulk' : 'Non-Bulk',
       STATUS_LABEL[statusOf(b)],
     ]);
     return { header, rows };
@@ -256,7 +300,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     parts.push(`Benchmark: ${benchmarkType === 'prev' ? 'Previous 30 Days' : 'YTD Monthly Average'}`);
     parts.push(`Growth threshold: >${threshold}%`);
     parts.push(`Status: ${statusFilter === 'all' ? 'All' : STATUS_LABEL[statusFilter]}`);
-    if (orderTypeFilter !== 'all') parts.push(`Order type: ${orderTypeFilter === 'bulk' ? 'Bulk' : 'Non-Bulk'}`);
+    if (bindingFilter !== 'all') parts.push(`Binding: ${bindingFilter}`);
     if (publisherFilter !== 'all') parts.push(`Publisher: ${publisherFilter}`);
     if (minCopies > 0) parts.push(`Min copies: ${minCopies}`);
     if (searchTerm.trim()) parts.push(`Search: "${searchTerm.trim()}"`);
@@ -290,7 +334,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     }
     const esc = (v: string) =>
       String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const numericCols = new Set([0, 3, 4, 5, 6, 7]);
+    const numericCols = new Set([0, 4, 5, 6, 7, 8]);
     const thead = header.map((h, i) => `<th class="${numericCols.has(i) ? 'num' : ''}">${esc(h)}</th>`).join('');
     const tbody = rows
       .map(r => `<tr>${r.map((c, i) => `<td class="${numericCols.has(i) ? 'num' : ''}">${esc(c)}</td>`).join('')}</tr>`)
@@ -423,7 +467,8 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
       </div>
 
       {/* Refine Bar */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-4 flex flex-col xl:flex-row gap-4 xl:items-center xl:justify-between">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-4 flex flex-col gap-4">
+       <div className="flex flex-col xl:flex-row gap-4 xl:items-center xl:justify-between">
         {/* Status pills */}
         <div className="flex flex-wrap items-center gap-2">
           {([
@@ -469,17 +514,6 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
             {publishers.map(p => (
               <option key={p} value={p}>{p}</option>
             ))}
-          </select>
-
-          <select
-            value={orderTypeFilter}
-            onChange={(e) => setOrderTypeFilter(e.target.value as OrderTypeKey)}
-            title="Bulk = sold across ≤2 invoices in last 30 days; Non-Bulk = >2 invoices"
-            className="px-3 py-2 border border-gray-200 rounded-xl bg-white text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-          >
-            <option value="all">All Order Types</option>
-            <option value="bulk">Bulk only</option>
-            <option value="nonbulk">Non-Bulk only</option>
           </select>
 
           <div className="flex items-center gap-1.5">
@@ -564,6 +598,30 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
             <FiRotateCcw className="h-3.5 w-3.5" /> Reset All
           </button>
         </div>
+       </div>
+
+       {/* Binding pills row */}
+       {bindings.length > 0 && (
+         <div className="flex flex-wrap items-center gap-2 border-t border-gray-50 pt-3">
+           <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Binding</span>
+           {([{ key: 'all', label: 'All Bindings' }, ...bindings.map(b => ({ key: b, label: b }))]).map(p => (
+             <button
+               key={p.key}
+               onClick={() => setBindingFilter(p.key)}
+               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+                 bindingFilter === p.key ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+               }`}
+             >
+               {p.label}
+               <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] ${
+                 bindingFilter === p.key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'
+               }`}>
+                 {bindingCounts[p.key] ?? 0}
+               </span>
+             </button>
+           ))}
+         </div>
+       )}
       </div>
 
       {/* Growth Table */}
@@ -653,7 +711,12 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
                       <tr key={idx} className={`hover:bg-gray-50/40 transition-colors ${isHigh ? 'bg-amber-50/30' : ''}`}>
                         <td className={`py-4 pr-6 transition-all ${isHigh ? 'border-l-4 border-l-amber-500 pl-5' : 'pl-6'}`}>
                           <p className="font-semibold text-gray-800 line-clamp-1">{b.title}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{b.publisher}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-gray-400">{b.publisher}</span>
+                            {(b.bindings || []).map(bd => (
+                              <span key={bd} className="text-[9px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{bd}</span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right font-medium text-gray-800">
                           {b.currentQty} copies

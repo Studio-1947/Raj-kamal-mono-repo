@@ -20,6 +20,23 @@ const REGION_LABEL: Record<ChannelKey, string> = {
 
 const toNum = (v: any): number => Number(v?.toString() ?? '0');
 
+// Canonicalises messy binding values from the source data so spelling/case
+// variants fold into one label (e.g. "paperback"/"Paperback", "Textbook"/"Text Book").
+// Unknown values are kept as their trimmed original.
+const BINDING_CANON: Record<string, string> = {
+  paperback: 'Paperback',
+  hardcover: 'Hardcover',
+  hardback: 'Hardcover',
+  hardbound: 'Hardcover',
+  textbook: 'Text Book',
+};
+function canonicalBinding(raw: string | null | undefined): string {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return '';
+  const key = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return BINDING_CANON[key] ?? trimmed;
+}
+
 interface CacheEntry {
   data: any;
   expiry: number;
@@ -650,7 +667,7 @@ router.get('/growth-indicators', async (req, res) => {
       const model = getModel(ch);
       const [current, prev, ytd, invoices] = await Promise.all([
         model.groupBy({
-          by: ['title', 'publisher'],
+          by: ['title', 'publisher', 'binding'],
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
           where: { date: { gte: currentLimit }, title: { not: '' } },
         }),
@@ -687,6 +704,8 @@ router.get('/growth-indicators', async (req, res) => {
     const bookData = new Map<string, { title: string; publisher: string; currentQty: number; currentRevenue: number; prevQty: number; ytdQty: number }>();
     // Distinct invoice numbers per title (current window) → used for bulk-order detection
     const invoiceSets = new Map<string, Set<string>>();
+    // Distinct binding types per title (current window) → used for the binding filter
+    const bindingSets = new Map<string, Set<string>>();
 
     for (const r of results) {
       // Process current
@@ -695,6 +714,12 @@ router.get('/growth-indicators', async (req, res) => {
         const pub = row.publisher || 'Unknown';
         const netQty = toNum(row._sum.qty) - toNum(row._sum.inQty);
         const netAmt = toNum(row._sum.amount) - toNum(row._sum.inAmount);
+        const binding = canonicalBinding(row.binding);
+        if (binding) {
+          let bset = bindingSets.get(title);
+          if (!bset) { bset = new Set<string>(); bindingSets.set(title, bset); }
+          bset.add(binding);
+        }
         const existing = bookData.get(title) ?? { title, publisher: pub, currentQty: 0, currentRevenue: 0, prevQty: 0, ytdQty: 0 };
         existing.currentQty += netQty;
         existing.currentRevenue += netAmt;
@@ -747,6 +772,7 @@ router.get('/growth-indicators', async (req, res) => {
         // current window is a bulk/institutional buy; >2 invoices = organic demand.
         const invoiceCount = invoiceSets.get(b.title)?.size ?? 0;
         const isBulk = invoiceCount > 0 && invoiceCount <= 2;
+        const bindings = Array.from(bindingSets.get(b.title) ?? []).sort((x, y) => x.localeCompare(y));
 
         return {
           ...b,
@@ -754,6 +780,7 @@ router.get('/growth-indicators', async (req, res) => {
           growthVsAvg,
           invoiceCount,
           isBulk,
+          bindings,
           isHighGrowth: growth >= threshold || growthVsAvg >= threshold,
         };
       })
