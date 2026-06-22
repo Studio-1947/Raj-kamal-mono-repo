@@ -398,7 +398,7 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel })
       <div className="bg-gray-50 p-4 rounded-3xl border border-gray-100 flex items-start gap-2.5 text-xs text-gray-500 leading-normal">
         <FiInfo className="h-5 w-5 text-gray-400 shrink-0 mt-0.5" />
         <span>
-          <strong>Categorization Methodology</strong>: Segment categorization uses direct SKU mapping from database catalog products when available. For unmapped spreadsheet items, titles are classified using text pattern keywords (e.g. poetry, novels, biographies) and a stable hash fallback algorithm to maintain complete, balanced coverage.
+          <strong>Categorization Methodology</strong>: Segments use the explicit <em>Fiction / Non-Fiction</em> label imported from the source sheet. Where that label is blank or marked "Other", the item falls back to SKU mapping from the catalog, then title keyword patterns (e.g. poetry, novels, biographies) and a stable hash to maintain complete coverage.
         </span>
       </div>
     </div>

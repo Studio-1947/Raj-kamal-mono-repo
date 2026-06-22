@@ -244,7 +244,8 @@ model GoogleSheetOfflineSale {
   state           String?           // StateName
   city            String?           // CityName
   type            String?           // Type
-  
+  fictionType     String?           // Fiction/ Non-Fiction
+
   rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
@@ -389,7 +390,8 @@ model MumbaiOfflineSale {
   state           String?           // StateName
   city            String?           // CityName
   type            String?           // Type
-  
+  fictionType     String?           // Fiction/ Non-Fiction
+
   rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
@@ -425,7 +427,8 @@ model PatnaOfflineSale {
   state           String?           // StateName
   city            String?           // CityName
   type            String?           // Type
-  
+  fictionType     String?           // Fiction/ Non-Fiction
+
   rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
@@ -461,7 +464,8 @@ model OnlineOfflineSale {
   state           String?           // StateName
   city            String?           // CityName
   type            String?           // Type
-  
+  fictionType     String?           // Fiction/ Non-Fiction
+
   rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
@@ -497,7 +501,8 @@ model BookFairOfflineSale {
   state           String?           // StateName
   city            String?           // CityName
   type            String?           // Type
-  
+  fictionType     String?           // Fiction/ Non-Fiction
+
   rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())
@@ -533,7 +538,8 @@ model LokbhartiOfflineSale {
   state           String?           // StateName
   city            String?           // CityName
   type            String?           // Type
-  
+  fictionType     String?           // Fiction/ Non-Fiction
+
   rowHash         String?
   rawJson         Json
   createdAt       DateTime          @default(now())

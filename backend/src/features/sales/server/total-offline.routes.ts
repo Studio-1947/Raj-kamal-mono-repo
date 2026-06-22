@@ -20,12 +20,34 @@ const REGION_LABEL: Record<ChannelKey, string> = {
 
 const toNum = (v: any): number => Number(v?.toString() ?? '0');
 
+// Canonicalises messy binding values from the source data so spelling/case
+// variants fold into one label (e.g. "paperback"/"Paperback", "Textbook"/"Text Book").
+// Unknown values are kept as their trimmed original.
+const BINDING_CANON: Record<string, string> = {
+  paperback: 'Paperback',
+  hardcover: 'Hardcover',
+  hardback: 'Hardcover',
+  hardbound: 'Hardcover',
+  textbook: 'Text Book',
+};
+function canonicalBinding(raw: string | null | undefined): string {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return '';
+  const key = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return BINDING_CANON[key] ?? trimmed;
+}
+
 interface CacheEntry {
   data: any;
   expiry: number;
 }
+// Bounded LRU + TTL cache. Map preserves insertion order, so the first key is
+// the least-recently-used. We re-insert on read/write to keep recency, and evict
+// the oldest entries once we exceed CACHE_MAX_ENTRIES — preventing unbounded
+// memory growth from high-cardinality keys (e.g. per-title drill-downs).
 const localCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 60 * 1000; // 1 minute Cache
+const CACHE_TTL_MS = 60 * 1000;     // 1 minute
+const CACHE_MAX_ENTRIES = 500;       // hard cap on retained responses
 
 function getCached(key: string): any | null {
   const entry = localCache.get(key);
@@ -34,14 +56,30 @@ function getCached(key: string): any | null {
     localCache.delete(key);
     return null;
   }
+  // Mark as most-recently-used by re-inserting at the end.
+  localCache.delete(key);
+  localCache.set(key, entry);
   return entry.data;
 }
 
 function setCached(key: string, data: any) {
-  localCache.set(key, {
-    data,
-    expiry: Date.now() + CACHE_TTL_MS
-  });
+  // Refresh recency for existing keys.
+  if (localCache.has(key)) localCache.delete(key);
+  localCache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
+
+  // Evict oldest entries (prefer already-expired) until within the cap.
+  if (localCache.size > CACHE_MAX_ENTRIES) {
+    const now = Date.now();
+    for (const [k, v] of localCache) {
+      if (localCache.size <= CACHE_MAX_ENTRIES) break;
+      if (now > v.expiry) localCache.delete(k); // drop expired first
+    }
+    while (localCache.size > CACHE_MAX_ENTRIES) {
+      const oldest = localCache.keys().next().value;
+      if (oldest === undefined) break;
+      localCache.delete(oldest);
+    }
+  }
 }
 
 export function clearTotalOfflineCache() {
@@ -627,9 +665,9 @@ router.get('/growth-indicators', async (req, res) => {
     // Fetch for each resolved channel
     const promises = channels.map(async (ch) => {
       const model = getModel(ch);
-      const [current, prev, ytd] = await Promise.all([
+      const [current, prev, ytd, invoices] = await Promise.all([
         model.groupBy({
-          by: ['title', 'publisher'],
+          by: ['title', 'publisher', 'binding'],
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
           where: { date: { gte: currentLimit }, title: { not: '' } },
         }),
@@ -643,14 +681,31 @@ router.get('/growth-indicators', async (req, res) => {
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
           where: { title: { not: '' } },
         }),
+        // Distinct invoices (docNo / TrnsdocNo) per title in the current window,
+        // counting ONLY invoices that contain an actual outward order line (qty > 0).
+        // This excludes return-only / inward (IN) rows so the count reflects orders OUT.
+        // One row per (title, docNo) → row-count per title = distinct OUT invoice count.
+        model.groupBy({
+          by: ['title', 'docNo'],
+          where: {
+            date: { gte: currentLimit },
+            title: { not: '' },
+            docNo: { not: null },
+            qty: { gt: 0 },
+          },
+        }),
       ]);
-      return { current, prev, ytd };
+      return { current, prev, ytd, invoices };
     });
 
     const results = await Promise.all(promises);
 
     // Merge in memory
     const bookData = new Map<string, { title: string; publisher: string; currentQty: number; currentRevenue: number; prevQty: number; ytdQty: number }>();
+    // Distinct invoice numbers per title (current window) → used for bulk-order detection
+    const invoiceSets = new Map<string, Set<string>>();
+    // Distinct binding types per title (current window) → used for the binding filter
+    const bindingSets = new Map<string, Set<string>>();
 
     for (const r of results) {
       // Process current
@@ -659,6 +714,12 @@ router.get('/growth-indicators', async (req, res) => {
         const pub = row.publisher || 'Unknown';
         const netQty = toNum(row._sum.qty) - toNum(row._sum.inQty);
         const netAmt = toNum(row._sum.amount) - toNum(row._sum.inAmount);
+        const binding = canonicalBinding(row.binding);
+        if (binding) {
+          let bset = bindingSets.get(title);
+          if (!bset) { bset = new Set<string>(); bindingSets.set(title, bset); }
+          bset.add(binding);
+        }
         const existing = bookData.get(title) ?? { title, publisher: pub, currentQty: 0, currentRevenue: 0, prevQty: 0, ytdQty: 0 };
         existing.currentQty += netQty;
         existing.currentRevenue += netAmt;
@@ -680,6 +741,14 @@ router.get('/growth-indicators', async (req, res) => {
         existing.ytdQty += netQty;
         bookData.set(title, existing);
       }
+      // Process invoices: collect distinct docNo per title across channels
+      for (const row of r.invoices) {
+        if (!row.docNo) continue;
+        const title = row.title.trim();
+        let set = invoiceSets.get(title);
+        if (!set) { set = new Set<string>(); invoiceSets.set(title, set); }
+        set.add(row.docNo);
+      }
     }
 
     const items = Array.from(bookData.values())
@@ -699,10 +768,19 @@ router.get('/growth-indicators', async (req, res) => {
           growthVsAvg = Math.round(((b.currentQty - avgMonthly) / avgMonthly) * 100);
         }
 
+        // Bulk-order detection: a title spread across few invoices (≤2) in the
+        // current window is a bulk/institutional buy; >2 invoices = organic demand.
+        const invoiceCount = invoiceSets.get(b.title)?.size ?? 0;
+        const isBulk = invoiceCount > 0 && invoiceCount <= 2;
+        const bindings = Array.from(bindingSets.get(b.title) ?? []).sort((x, y) => x.localeCompare(y));
+
         return {
           ...b,
           growth,
           growthVsAvg,
+          invoiceCount,
+          isBulk,
+          bindings,
           isHighGrowth: growth >= threshold || growthVsAvg >= threshold,
         };
       })
@@ -715,6 +793,90 @@ router.get('/growth-indicators', async (req, res) => {
   } catch (err: any) {
     console.error('Focus Tab Growth Indicators failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute growth indicators' });
+  }
+});
+
+// ─── GET /api/total-offline-sales/title-invoices ─────────────────────────────
+// Per-invoice breakdown for a single title in the last 30 days (drill-down modal).
+router.get('/title-invoices', async (req, res) => {
+  try {
+    const channel = (req.query.channel as string) || 'all';
+    const title = ((req.query.title as string) || '').trim();
+    if (!title) return res.status(400).json({ ok: false, error: 'Missing title' });
+
+    const channels = resolveChannels(channel);
+    if (channels.length === 0) return res.status(400).json({ ok: false, error: 'Invalid channel' });
+
+    const cacheKey = `title-invoices-${channel}-${title}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const since = new Date(Date.now() - 30 * 86_400_000);
+
+    // Collect rows for the title across resolved channels, matched on TRIMMED title
+    const perChannel = await Promise.all(
+      channels.map(async (ch) => {
+        const model = getModel(ch);
+        const rows = await model.findMany({
+          where: { date: { gte: since }, title: { contains: title } },
+          select: {
+            docNo: true, date: true, qty: true, inQty: true,
+            amount: true, inAmount: true, customerName: true, title: true,
+          },
+        });
+        return rows
+          .filter((r: any) => (r.title || '').trim() === title)
+          .map((r: any) => ({ ...r, channel: REGION_LABEL[ch] }));
+      })
+    );
+
+    // Aggregate per invoice (docNo)
+    const map = new Map<string, any>();
+    for (const r of perChannel.flat()) {
+      const key = r.docNo || '(no invoice no.)';
+      const e = map.get(key) ?? {
+        docNo: r.docNo || null, date: r.date, channel: r.channel,
+        customerName: r.customerName || null,
+        outQty: 0, inQty: 0, outAmount: 0, inAmount: 0,
+      };
+      e.outQty += toNum(r.qty);
+      e.inQty += toNum(r.inQty);
+      e.outAmount += toNum(r.amount);
+      e.inAmount += toNum(r.inAmount);
+      if (r.date && (!e.date || r.date > e.date)) e.date = r.date;
+      if (!e.customerName && r.customerName) e.customerName = r.customerName;
+      map.set(key, e);
+    }
+
+    const invoices = Array.from(map.values()).sort(
+      (a, b) => (b.date ? new Date(b.date).getTime() : 0) - (a.date ? new Date(a.date).getTime() : 0)
+    );
+
+    // Distinct invoices that actually carry an outward order (matches bulk logic)
+    const outInvoiceCount = invoices.filter(i => i.outQty > 0 && i.docNo).length;
+    const totals = invoices.reduce(
+      (acc, i) => ({
+        outQty: acc.outQty + i.outQty,
+        inQty: acc.inQty + i.inQty,
+        outAmount: acc.outAmount + i.outAmount,
+        inAmount: acc.inAmount + i.inAmount,
+      }),
+      { outQty: 0, inQty: 0, outAmount: 0, inAmount: 0 }
+    );
+
+    const responseData = {
+      ok: true,
+      title,
+      invoices,
+      totals,
+      outInvoiceCount,
+      isBulk: outInvoiceCount > 0 && outInvoiceCount <= 2,
+    };
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
+  } catch (err: any) {
+    console.error('Title invoices drill-down failed:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to load invoice breakdown' });
   }
 });
 
@@ -880,13 +1042,15 @@ router.get('/author-performance', async (req, res) => {
       .filter(a => a.revenue > 0)
       .sort((a, b) => b.revenue - a.revenue);
 
+    // Authors are ranked by net revenue (sales − returns), then split into cohorts:
+    // Top 15%, Next 50%, Bottom 35% — by author count.
     const totalCount = sortedAuthors.length;
-    const topLimit = Math.ceil(totalCount * 0.15); // Top 15%
-    const medLimit = Math.ceil(totalCount * 0.65); // Next 50%
+    const topLimit = Math.ceil(totalCount * 0.15);  // Top 15%
+    const medCount = Math.ceil(totalCount * 0.50);  // Next 50%
 
     const top = sortedAuthors.slice(0, topLimit);
-    const medium = sortedAuthors.slice(topLimit, topLimit + medLimit);
-    const low = sortedAuthors.slice(topLimit + medLimit);
+    const medium = sortedAuthors.slice(topLimit, topLimit + medCount);
+    const low = sortedAuthors.slice(topLimit + medCount);
 
     const responseData = {
       ok: true,
@@ -946,7 +1110,7 @@ router.get('/category-sales', async (req, res) => {
     const promises = channels.map(async (ch) => {
       const model = getModel(ch);
       return model.findMany({
-        select: { title: true, isbn: true, amount: true, inAmount: true, qty: true, inQty: true, date: true },
+        select: { title: true, isbn: true, fictionType: true, amount: true, inAmount: true, qty: true, inQty: true, date: true },
         where: { ...where, title: { not: '' } }
       });
     });
@@ -955,7 +1119,18 @@ router.get('/category-sales', async (req, res) => {
     const rows = results.flat();
 
     // 3. Classification helper inside route
-    const classifyCategory = (title: string, isbn: string | null): 'Fiction' | 'Non-Fiction' => {
+    const classifyCategory = (title: string, isbn: string | null, fictionType: string | null): 'Fiction' | 'Non-Fiction' => {
+      // PRIMARY: explicit "Fiction/ Non-Fiction" label imported from the source sheet.
+      if (fictionType) {
+        const ft = fictionType.trim().toLowerCase();
+        if (ft.includes('non')) return 'Non-Fiction';     // "Non-Fiction"
+        if (ft === 'fiction') return 'Fiction';           // "Fiction" / "fiction"
+        // Other explicit non-fiction genre labels that appear in the column.
+        const nonFictionLabels = ['history', 'biography', 'autobiography', 'essay', 'criticism', 'philosophy', 'politics', 'science', 'academic', 'reference'];
+        if (nonFictionLabels.some(l => ft.includes(l))) return 'Non-Fiction';
+        // "Other" / "#N/A" / unrecognized → fall through to heuristics below.
+      }
+
       const cleanTitle = (title || '').trim().toLowerCase();
       if (isbn) {
         const cleanIsbn = isbn.trim().replace(/[^0-9X]/gi, '');
@@ -1009,7 +1184,7 @@ router.get('/category-sales', async (req, res) => {
       if (!r.title) continue;
       const rev = toNum(r.amount) - toNum(r.inAmount);
       const qty = toNum(r.qty) - toNum(r.inQty);
-      const cat = classifyCategory(r.title, r.isbn);
+      const cat = classifyCategory(r.title, r.isbn, r.fictionType);
 
       if (cat === 'Fiction') {
         fictionRevenue += rev;

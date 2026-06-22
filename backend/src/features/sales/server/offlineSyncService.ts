@@ -100,7 +100,14 @@ export class OfflineSyncService {
                       this.getVal(row, headerMap, "Document Type");
 
       let type = typeRaw || null;
-      
+
+      const fictionRaw = this.getVal(row, headerMap, "Fiction/ Non-Fiction") ||
+                         this.getVal(row, headerMap, "Fiction/Non-Fiction") ||
+                         this.getVal(row, headerMap, "Fiction Non-Fiction") ||
+                         this.getVal(row, headerMap, "FictionNonFiction");
+      // Preserve the raw label; treat sheet error/empty markers as null (no data lost — original stays in rawJson)
+      const fictionType = (!fictionRaw || fictionRaw.toUpperCase() === "#N/A") ? null : fictionRaw;
+
       if (!type) {
         [20, 19].forEach(idx => {
           if (row[idx]) {
@@ -193,6 +200,7 @@ export class OfflineSyncService {
         state,
         city,
         type,
+        fictionType,
         rowHash,
         rawJson: Array.from({ length: headers.length }, (_, i) => (row[i] === undefined ? null : row[i])) as any,
       });

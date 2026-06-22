@@ -72,7 +72,6 @@ export default function OfflineSheetKPI({ data, isLoading }: Props) {
   const amtNetPct = grossAmt > 0 ? (((grossAmt - inAmt) / grossAmt) * 100).toFixed(1) : '100.0';
 
   const qtyRetPct = grossQty > 0 ? ((inQty / grossQty) * 100).toFixed(1) : '0.0';
-  const qtyNetPct = grossQty > 0 ? ((netQty / grossQty) * 100).toFixed(1) : '100.0';
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -95,14 +94,14 @@ export default function OfflineSheetKPI({ data, isLoading }: Props) {
         }
       />
       <KpiTile
-        label="Copies Dispatched"
-        value={grossQty.toLocaleString('en-IN')}
+        label="Net Copies (OUT − IN)"
+        value={netQty.toLocaleString('en-IN')}
         accent="text-teal-700"
         badge={
           <div className="mt-3 flex flex-col gap-1 border-t border-gray-100 pt-2.5">
             <div className="flex items-center justify-between text-[11px] text-gray-500">
-              <span>Net Copies:</span>
-              <span className="font-semibold text-teal-700">{netQty.toLocaleString('en-IN')} ({qtyNetPct}%)</span>
+              <span>Gross Out:</span>
+              <span className="font-semibold text-gray-700">{grossQty.toLocaleString('en-IN')}</span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-gray-500">
               <span>Returns (IN):</span>
