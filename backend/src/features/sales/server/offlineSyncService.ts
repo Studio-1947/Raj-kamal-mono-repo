@@ -45,12 +45,6 @@ export class OfflineSyncService {
       if (typeIdx !== -1) headerMap['type'] = typeIdx;
     }
 
-    // DEBUG: Write headers to a file to see what's actually coming through
-    try {
-      const fs = await import('fs');
-      fs.appendFileSync('headers_debug.log', `HEADERS: ${JSON.stringify(headers)}\n`);
-    } catch (e) {}
-
     let importedCount = 0;
     let count = 0;
     let skippedEmpty = 0;

@@ -936,7 +936,9 @@ router.get("/google-sheets", async (req, res) => {
 // POST /api/offline-sales/push
 router.post("/push", async (req, res) => {
   const token = req.headers["x-sync-token"];
-  if (!token || token !== (process.env.GOOGLE_SYNC_TOKEN || "rk_secure_push_25")) return res.status(401).json({ ok: false });
+  const syncToken = process.env.GOOGLE_SYNC_TOKEN;
+  if (!syncToken) return res.status(500).json({ ok: false, error: "GOOGLE_SYNC_TOKEN is not configured" });
+  if (!token || token !== syncToken) return res.status(401).json({ ok: false });
   const { data, isFirstBatch } = req.body;
   try {
     if (isFirstBatch) await prisma.googleSheetOfflineSale.deleteMany({});

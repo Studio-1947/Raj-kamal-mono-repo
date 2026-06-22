@@ -23,7 +23,7 @@ import { mountBookFairOfflineSales } from "./features/sales/server/bookfair-offl
 import { mountLokbhartiOfflineSales } from "./features/sales/server/lokbharti-offline.index.js";
 import { mountTotalOfflineSales } from "./features/sales/server/total-offline.index.js";
 import { notFound } from "./middleware/notFound.js";
-import { offlineSyncService } from "./features/sales/server/offlineSyncService.js";
+import cronRoutes from "./routes/cron.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger.js";
 
@@ -115,7 +115,7 @@ app.use(express.json({ limit: "300mb" }));
 app.use(express.urlencoded({ extended: true, limit: "300mb" }));
 
 // Health check endpoint
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.status(200).json({
     status: "OK",
     timestamp: new Date().toISOString(),
@@ -189,54 +189,11 @@ mountBookFairOfflineSales(app, "/api/bookfair-offline-sales");
 mountLokbhartiOfflineSales(app, "/api/lokbharti-offline-sales");
 mountTotalOfflineSales(app, "/api/total-offline-sales");
 
-// Fallback route for any unmatched requests
-app.use("*", (req, res) => {
-  console.log("Fallback route hit:", req.method, req.originalUrl);
-  res.status(200).json({
-    message: "Raj-Kamal Backend API is running!",
-    status: "OK",
-    timestamp: new Date().toISOString(),
-    version: "1.0.0",
-    environment: process.env.NODE_ENV || "development",
-    requestedPath: req.originalUrl,
-    method: req.method,
-    endpoints: {
-      health: "/health",
-      auth: "/api/auth",
-      dashboard: "/api/dashboard",
-      inventory: "/api/inventory",
-      rankings: "/api/rankings",
-    },
-    documentation: "Visit /api/auth/admin-status to check admin setup",
-  });
-});
+// Cron routes (daily sync triggered by Vercel Cron Jobs)
+app.use("/api/cron", cronRoutes);
 
-// Error handling middleware
+// 404 and error handling middleware
 app.use(notFound);
 app.use(errorHandler);
-
-// Basic background sync on startup (scalable fallback)
-if (process.env.NODE_ENV !== 'test') {
-  setTimeout(async () => {
-    console.log("Auto-syncing regional offline sales data sequentially...");
-    const syncTasks = [
-      { name: "Delhi/General Offline Sales", fn: () => offlineSyncService.syncOfflineSales() },
-      { name: "Mumbai Offline Sales", fn: () => offlineSyncService.syncMumbaiSales() },
-      { name: "Patna Offline Sales", fn: () => offlineSyncService.syncPatnaSales() },
-      { name: "Online Offline Sales", fn: () => offlineSyncService.syncOnlineOfflineSales() },
-      { name: "BookFair Offline Sales", fn: () => offlineSyncService.syncBookFairSales() },
-      { name: "Lokbharti Offline Sales", fn: () => offlineSyncService.syncLokbhartiSales() }
-    ];
-
-    for (const task of syncTasks) {
-      try {
-        await task.fn();
-      } catch (err: any) {
-        console.error(`Sync failed for ${task.name}:`, err.message || err);
-      }
-    }
-    console.log("Auto-syncing regional offline sales completed.");
-  }, 5000); // 5s delay to let server settle
-}
 
 export default app;
