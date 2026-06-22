@@ -1024,17 +1024,25 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
     },
     'bottom-items': {
       title: 'Least Selling Items',
-      render: (data) => (
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={data.bottomItems || []} layout="vertical" margin={{ left: 20, right: 60 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
-            <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600, formatter: (v: any) => fmtChartAxis(Number(v)) }} />
-          </BarChart>
-        </ResponsiveContainer>
-      )
+      render: (data) => {
+        // "Least selling" = lowest *positive* revenue. Drop net-negative (returns-heavy)
+        // outliers and non-finite values so a single -ve bar can't blow out the axis
+        // (forcing a -75…+25 scale) and overlap the title labels.
+        const items = (data.bottomItems || []).filter(
+          (d: any) => Number.isFinite(Number(d.total)) && Number(d.total) > 0
+        );
+        return (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={items} layout="vertical" margin={{ left: 20, right: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" domain={[0, 'auto']} allowDataOverflow tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+              <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600, formatter: (v: any) => fmtChartAxis(Number(v)) }} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      }
     }
   };
 

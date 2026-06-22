@@ -32,6 +32,7 @@ import {
   YoYComparisonView,
   AuthorPerformanceView,
   PriceReprintAnalysisView,
+  CategorySalesView,
 } from '../../../views/total-offline-sales/components';
 import { apiClient } from '../../../lib/apiClient';
 
@@ -448,6 +449,39 @@ function FilterBar({
             </div>
           </div>
           
+          {/* Quick Fiction Selectors */}
+          <div className="mt-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
+            <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Fiction:</span>
+            <div className="flex flex-wrap items-center gap-4">
+              {['Fiction', 'Non-Fiction', 'Other'].map((f) => {
+                const isActive = (filters.fictionType ?? '').split(',').includes(f);
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => {
+                      const current = (filters.fictionType ?? '').split(',').filter(Boolean);
+                      const next = current.includes(f) ? current.filter(x => x !== f) : [...current, f];
+                      updateFilter('fictionType', next.join(',') || undefined);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 transition-all active:scale-95 ${
+                      isActive
+                        ? 'bg-teal-600 border-teal-600 text-white shadow-md'
+                        : 'bg-white border-gray-100 text-gray-500 hover:border-teal-200 hover:bg-teal-50/30'
+                    }`}
+                  >
+                    <div className={`h-4 w-4 rounded-md flex items-center justify-center transition-colors ${isActive ? 'bg-white/20' : 'bg-gray-100'}`}>
+                      {isActive && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M20 6L9 17l-5-5"/></svg>}
+                    </div>
+                    <span className="text-xs font-normal uppercase tracking-tight">
+                      {f}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Quick reference for active filters when collapsed */}
           {!isExpanded && activeFilters.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2 animate-fadeIn">
@@ -655,7 +689,7 @@ function FilterBar({
 export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
   const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, updateFilters, setPage, clearAll } = useOfflineSheetFilters();
   const [resetVersion, setResetVersion] = useState(0);
-  const [dashboardTab, setDashboardTab] = useState<'sheet' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price'>('sheet');
+  const [dashboardTab, setDashboardTab] = useState<'sheet' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price' | 'category'>('sheet');
 
   const [summary, setSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -727,7 +761,8 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
           { id: 'focus',    label: 'Focus Tab (Growth)' },
           { id: 'yoy',      label: 'YoY Comparison' },
           { id: 'author',   label: 'Author Performance' },
-          { id: 'price',    label: 'Price & Reprints' }
+          { id: 'price',    label: 'Price & Reprints' },
+          { id: 'category', label: 'Fiction vs. Non-Fiction' }
         ].map((tab) => {
           const isActive = dashboardTab === tab.id;
           return (
@@ -836,6 +871,10 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
 
               {dashboardTab === 'price' && (
                 <PriceReprintAnalysisView channel={channelKey} />
+              )}
+
+              {dashboardTab === 'category' && (
+                <CategorySalesView channel={channelKey} />
               )}
             </>
           )}

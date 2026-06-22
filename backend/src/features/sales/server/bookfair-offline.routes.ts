@@ -5,6 +5,7 @@ import { prisma } from "../../../lib/prisma.js";
 import { offlineSyncService } from "./offlineSyncService.js";
 import { TtlCache } from "../../../lib/cache.js";
 import { authenticateToken } from "../../../middleware/authPrisma.js";
+import { parseFictionParam, fictionWhere, fictionSql } from "./fictionFilter.js";
 
 const summaryCache = new TtlCache<any>(5 * 60 * 1000);
 const countsCache = new TtlCache<any>(5 * 60 * 1000);
@@ -59,6 +60,7 @@ router.get("/", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
@@ -98,6 +100,9 @@ router.get("/", async (req, res) => {
       if (minAmount != null) where.amount.gte = minAmount;
       if (maxAmount != null) where.amount.lte = maxAmount;
     }
+
+    const fictionCond = fictionWhere(parseFictionParam(parsed.data.fictionType));
+    if (fictionCond) where.AND = [...(Array.isArray(where.AND) ? where.AND : []), fictionCond];
 
     const args: any = {
       take: limit,
@@ -145,6 +150,7 @@ router.get("/summary", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
@@ -154,7 +160,7 @@ router.get("/summary", async (req, res) => {
   const endDate = parsed.data.endDate ? new Date(parsed.data.endDate) : undefined;
   const { state, city, publisher, author, isbn, customerName, minAmount, maxAmount, binding, title, type, q } = parsed.data;
 
-  const cacheKey = `summary:${days ?? "all"}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${q ?? ""}`;
+  const cacheKey = `summary:${days ?? "all"}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:fic=${parseFictionParam(parsed.data.fictionType).join("|")}:${q ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) return res.json(cached);
 
@@ -206,6 +212,7 @@ router.get("/summary", async (req, res) => {
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
+    { const fc = fictionSql(parseFictionParam(parsed.data.fictionType)); if (fc) conditions.push(fc); }
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
     const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
@@ -250,6 +257,7 @@ router.get("/summary", async (req, res) => {
     }
     if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) itemConditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
+    { const fc = fictionSql(parseFictionParam(parsed.data.fictionType)); if (fc) itemConditions.push(fc); }
     const itemsWhereClause = itemConditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}` : Prisma.sql``;
 
     const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
@@ -474,6 +482,7 @@ router.get("/counts", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
@@ -527,6 +536,7 @@ router.get("/counts", async (req, res) => {
       });
     }
 
+    { const fc = fictionSql(parseFictionParam(parsed.data.fictionType)); if (fc) conditions.push(fc); }
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
     const [[agg], [topBindingRow]] = await Promise.all([
@@ -621,6 +631,7 @@ router.get("/daily-details", async (req, res) => {
     binding: z.string().optional(),
     title: z.string().optional(),
     type: z.string().optional(),
+    fictionType: z.string().optional(),
     q: z.string().optional(),
   });
   const parsed = Q.safeParse(req.query);
@@ -669,6 +680,7 @@ router.get("/daily-details", async (req, res) => {
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
     if (maxAmount != null) conditions.push(Prisma.sql`"amount" <= ${maxAmount}`);
 
+    { const fc = fictionSql(parseFictionParam(parsed.data.fictionType)); if (fc) conditions.push(fc); }
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
     const details = await prisma.$queryRaw<any[]>(Prisma.sql`

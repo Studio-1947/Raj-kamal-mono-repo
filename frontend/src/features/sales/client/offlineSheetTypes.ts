@@ -119,6 +119,7 @@ export interface OfflineSheetFilters {
   binding?: string;
   title?: string;
   type?: string;
+  fictionType?: string;
 }
 
 export interface OfflineSheetDailyDetail {
