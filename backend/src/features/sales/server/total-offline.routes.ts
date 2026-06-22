@@ -946,7 +946,7 @@ router.get('/category-sales', async (req, res) => {
     const promises = channels.map(async (ch) => {
       const model = getModel(ch);
       return model.findMany({
-        select: { title: true, isbn: true, amount: true, inAmount: true, qty: true, inQty: true, date: true },
+        select: { title: true, isbn: true, fictionType: true, amount: true, inAmount: true, qty: true, inQty: true, date: true },
         where: { ...where, title: { not: '' } }
       });
     });
@@ -955,7 +955,18 @@ router.get('/category-sales', async (req, res) => {
     const rows = results.flat();
 
     // 3. Classification helper inside route
-    const classifyCategory = (title: string, isbn: string | null): 'Fiction' | 'Non-Fiction' => {
+    const classifyCategory = (title: string, isbn: string | null, fictionType: string | null): 'Fiction' | 'Non-Fiction' => {
+      // PRIMARY: explicit "Fiction/ Non-Fiction" label imported from the source sheet.
+      if (fictionType) {
+        const ft = fictionType.trim().toLowerCase();
+        if (ft.includes('non')) return 'Non-Fiction';     // "Non-Fiction"
+        if (ft === 'fiction') return 'Fiction';           // "Fiction" / "fiction"
+        // Other explicit non-fiction genre labels that appear in the column.
+        const nonFictionLabels = ['history', 'biography', 'autobiography', 'essay', 'criticism', 'philosophy', 'politics', 'science', 'academic', 'reference'];
+        if (nonFictionLabels.some(l => ft.includes(l))) return 'Non-Fiction';
+        // "Other" / "#N/A" / unrecognized → fall through to heuristics below.
+      }
+
       const cleanTitle = (title || '').trim().toLowerCase();
       if (isbn) {
         const cleanIsbn = isbn.trim().replace(/[^0-9X]/gi, '');
@@ -1009,7 +1020,7 @@ router.get('/category-sales', async (req, res) => {
       if (!r.title) continue;
       const rev = toNum(r.amount) - toNum(r.inAmount);
       const qty = toNum(r.qty) - toNum(r.inQty);
-      const cat = classifyCategory(r.title, r.isbn);
+      const cat = classifyCategory(r.title, r.isbn, r.fictionType);
 
       if (cat === 'Fiction') {
         fictionRevenue += rev;
