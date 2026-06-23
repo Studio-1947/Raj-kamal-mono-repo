@@ -1,7 +1,6 @@
 export { default as Home } from "./Home";
 export { default as Dashboard } from "./Dashboard";
 export { default as NotFound } from "./NotFound";
-export { default as Inventory } from "./Inventory";
 export { default as Stock } from "./Stock";
 export { default as Rankings } from "./Rankings";
 export { default as Social } from "./Social";
@@ -15,3 +14,4 @@ export { default as OnlineOfflineSales } from "./OnlineOfflineSales";
 export { default as BookFairOfflineSales } from "./BookFairOfflineSales";
 export { default as LokbhartiOfflineSales } from "./LokbhartiOfflineSales";
 export { default as TotalOfflineSales } from "./TotalOfflineSales";
+export { default as GeoInsights } from "./GeoInsights";

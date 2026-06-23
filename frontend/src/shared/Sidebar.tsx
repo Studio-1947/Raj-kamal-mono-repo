@@ -80,8 +80,7 @@ export default function Sidebar() {
     { label: "Online - Website", to: "/online-offline-sales", icon: <span /> },
     { label: "BookFair Offline", to: "/bookfair-offline-sales", icon: <span /> },
     { label: "Lokbharti - Allahabad", to: "/lokbharti-offline-sales", icon: <span /> },
-    { label: t("geo_insights"), to: "/inventory", icon: <span />, disabled: true },
-    { label: t("inventory"), to: "/stock", icon: <span />, disabled: true },
+    { label: t("geo_insights"), to: "/geo-insights", icon: <span /> },
     { label: t("rankings"), to: "/rankings", icon: <span />, disabled: true },
   ];
 
@@ -120,8 +119,14 @@ export default function Sidebar() {
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     );
+    if (it.to === "/geo-insights") return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18 15 15 0 010-18z" />
+      </svg>
+    );
     if (it.to === "/dashboard") return active ? <IconSalesActive className="h-5 w-5" /> : <IconSalesDefault className="h-5 w-5" />;
-    if (it.to === "/inventory" || it.to === "/stock") return active ? <IconInventoryActive className="h-5 w-5" /> : <IconInventoryDefault className="h-5 w-5" />;
+    if (it.to === "/stock") return active ? <IconInventoryActive className="h-5 w-5" /> : <IconInventoryDefault className="h-5 w-5" />;
     if (it.to === "/rankings") return active ? <IconRankingsActive className="h-5 w-5" /> : <IconRankingsDefault className="h-5 w-5" />;
     if (it.to === "/social") return active ? <IconSocialActive className="h-5 w-5" /> : <IconSocialDefault className="h-5 w-5" />;
     return it.icon;
@@ -153,7 +158,9 @@ export default function Sidebar() {
         >
           <ul className={`${collapsed ? "space-y-0.5" : "space-y-0.5"}`}>
             {items.map((it) => {
-              const active = location.pathname === it.to;
+              const [itPath, itSearch] = it.to.split('?');
+              const active = location.pathname === itPath &&
+                (!itSearch || location.search === `?${itSearch}`);
               const iconEl = resolveIcon(it, active);
 
               return (

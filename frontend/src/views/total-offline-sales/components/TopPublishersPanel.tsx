@@ -189,7 +189,7 @@ export const TopPublishersPanel: React.FC<TopPublishersPanelProps> = ({
             </div>
 
             {/* Dynamic Content */}
-            <div className="overflow-y-auto pr-1 flex-1">
+            <div className="overflow-y-auto pr-1 flex-1 custom-scrollbar">
               {loadingDetails && (
                 <div className="h-60 flex flex-col items-center justify-center gap-3">
                   <FiLoader className="h-8 w-8 text-teal-600 animate-spin" />

@@ -4,7 +4,6 @@ import {
   Home,
   Dashboard,
   NotFound,
-  Inventory,
   Stock,
   Rankings,
   Social,
@@ -18,6 +17,7 @@ import {
   BookFairOfflineSales,
   LokbhartiOfflineSales,
   TotalOfflineSales,
+  GeoInsights,
 } from "../views";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -42,15 +42,6 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/inventory"
-        element={
-          <ProtectedRoute>
-            <Inventory />
           </ProtectedRoute>
         }
       />
@@ -145,6 +136,14 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <LokbhartiOfflineSales />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/geo-insights"
+        element={
+          <ProtectedRoute>
+            <GeoInsights />
           </ProtectedRoute>
         }
       />
