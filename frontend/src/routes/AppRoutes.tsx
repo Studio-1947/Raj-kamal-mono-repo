@@ -4,7 +4,6 @@ import {
   Home,
   Dashboard,
   NotFound,
-  Inventory,
   Stock,
   Rankings,
   Social,
@@ -43,15 +42,6 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/inventory"
-        element={
-          <ProtectedRoute>
-            <Inventory />
           </ProtectedRoute>
         }
       />

@@ -1045,7 +1045,7 @@ function TopLocationsCard({ days }: { days: number }) {
       }
       className=""
       footer={
-        <Link to="/inventory#geo-table">
+        <Link to="/geo-insights">
           <FooterButton>View more</FooterButton>
         </Link>
       }

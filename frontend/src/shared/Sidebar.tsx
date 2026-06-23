@@ -126,7 +126,7 @@ export default function Sidebar() {
       </svg>
     );
     if (it.to === "/dashboard") return active ? <IconSalesActive className="h-5 w-5" /> : <IconSalesDefault className="h-5 w-5" />;
-    if (it.to === "/inventory" || it.to === "/stock") return active ? <IconInventoryActive className="h-5 w-5" /> : <IconInventoryDefault className="h-5 w-5" />;
+    if (it.to === "/stock") return active ? <IconInventoryActive className="h-5 w-5" /> : <IconInventoryDefault className="h-5 w-5" />;
     if (it.to === "/rankings") return active ? <IconRankingsActive className="h-5 w-5" /> : <IconRankingsDefault className="h-5 w-5" />;
     if (it.to === "/social") return active ? <IconSocialActive className="h-5 w-5" /> : <IconSocialDefault className="h-5 w-5" />;
     return it.icon;
