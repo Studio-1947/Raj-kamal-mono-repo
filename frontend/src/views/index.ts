@@ -15,3 +15,4 @@ export { default as OnlineOfflineSales } from "./OnlineOfflineSales";
 export { default as BookFairOfflineSales } from "./BookFairOfflineSales";
 export { default as LokbhartiOfflineSales } from "./LokbhartiOfflineSales";
 export { default as TotalOfflineSales } from "./TotalOfflineSales";
+export { default as GeoInsights } from "./GeoInsights";

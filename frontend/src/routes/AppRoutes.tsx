@@ -18,6 +18,7 @@ import {
   BookFairOfflineSales,
   LokbhartiOfflineSales,
   TotalOfflineSales,
+  GeoInsights,
 } from "../views";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -145,6 +146,14 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <LokbhartiOfflineSales />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/geo-insights"
+        element={
+          <ProtectedRoute>
+            <GeoInsights />
           </ProtectedRoute>
         }
       />

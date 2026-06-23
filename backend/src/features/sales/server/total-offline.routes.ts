@@ -20,6 +20,14 @@ const REGION_LABEL: Record<ChannelKey, string> = {
 
 const toNum = (v: any): number => Number(v?.toString() ?? '0');
 
+// Rejects placeholder / junk location values (e.g. "-", "n/a") so they don't
+// pollute the geo breakdowns — they can't be placed on a map anyway.
+const PLACE_JUNK = new Set(['-', '--', '---', 'n/a', 'na', 'null', 'none', 'unknown', '.']);
+const isValidPlace = (s: string | null | undefined): boolean => {
+  const k = (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return k.length > 0 && !PLACE_JUNK.has(k);
+};
+
 // Canonicalises messy binding values from the source data so spelling/case
 // variants fold into one label (e.g. "paperback"/"Paperback", "Textbook"/"Text Book").
 // Unknown values are kept as their trimmed original.
@@ -137,9 +145,10 @@ function getModel(ch: ChannelKey): any {
 async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
   const model = getModel(ch);
   const stateWhere = { ...where, state: { not: null } };
+  const cityWhere = { ...where, city: { not: null }, state: { not: null } };
   const publisherWhere = { ...where, publisher: { not: null } };
 
-  const [count, agg, topBooks, tsRows, stateRows, publisherRows] = await Promise.all([
+  const [count, agg, topBooks, tsRows, stateRows, publisherRows, cityRows] = await Promise.all([
     model.count({ where }),
     model.aggregate({ _sum: { amount: true, inAmount: true, qty: true, inQty: true }, where }),
     model.groupBy({
@@ -163,6 +172,13 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
       where: publisherWhere,
       orderBy: { _sum: { amount: 'desc' } },
       take: 5,
+    }),
+    model.groupBy({
+      by: ['city', 'state'],
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
+      where: cityWhere,
+      orderBy: { _sum: { amount: 'desc' } },
+      take: 20,
     }),
   ]);
 
@@ -195,6 +211,15 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
     _sum: {
       amount: toNum(p._sum.amount) - toNum(p._sum.inAmount),
       qty: toNum(p._sum.qty) - toNum(p._sum.inQty)
+    }
+  }));
+
+  const mappedCityRows = cityRows.map((c: any) => ({
+    city: (c.city || '').trim(),
+    state: (c.state || '').trim(),
+    _sum: {
+      amount: toNum(c._sum.amount) - toNum(c._sum.inAmount),
+      qty: toNum(c._sum.qty) - toNum(c._sum.inQty)
     }
   }));
 
@@ -251,6 +276,7 @@ async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
     topBooks: mappedTopBooks,
     tsRows: mappedTsRows,
     stateRows: mappedStateRows,
+    cityRows: mappedCityRows,
     publisherRows: mappedPublisherRows,
     newVsOld,
   };
@@ -396,11 +422,24 @@ router.get('/summary', async (req, res) => {
     const topStatesByChannel: Record<string, { state: string; revenue: number; qty: number }[]> = {};
     for (const r of results) {
       topStatesByChannel[r.ch] = r.stateRows
-        .filter((s: any) => s.state && s.state.trim())
+        .filter((s: any) => isValidPlace(s.state))
         .map((s: any) => ({
           state:   s.state.trim(),
           revenue: toNum(s._sum.amount),
           qty:     toNum(s._sum.qty),
+        }));
+    }
+
+    // ── Top cities per channel ────────────────────────────────────────────────
+    const topCitiesByChannel: Record<string, { city: string; state: string; revenue: number; qty: number }[]> = {};
+    for (const r of results) {
+      topCitiesByChannel[r.ch] = r.cityRows
+        .filter((c: any) => isValidPlace(c.city) && isValidPlace(c.state))
+        .map((c: any) => ({
+          city:    c.city.trim(),
+          state:   c.state.trim(),
+          revenue: toNum(c._sum.amount),
+          qty:     toNum(c._sum.qty),
         }));
     }
 
@@ -422,6 +461,7 @@ router.get('/summary', async (req, res) => {
       topItems,
       monthlyByChannel,
       topStatesByChannel,
+      topCitiesByChannel,
       topPublishersByChannel,
     };
 
