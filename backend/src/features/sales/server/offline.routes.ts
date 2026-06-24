@@ -4,11 +4,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { offlineSyncService } from "./offlineSyncService.js";
 import { TtlCache } from "../../../lib/cache.js";
+import { registerSalesCacheClear } from "./salesCacheRegistry.js";
 import { authenticateToken } from "../../../middleware/authPrisma.js";
 import { parseFictionParam, fictionWhere, fictionSql } from "./fictionFilter.js";
 
 // 5-minute server-side cache for expensive aggregate endpoints
-const summaryCache = new TtlCache<any>(5 * 60 * 1000);
+const summaryCache = new TtlCache<any>(24 * 60 * 60 * 1000); // 24h — data changes only on sync; invalidated explicitly via the cache registry
 const countsCache = new TtlCache<any>(5 * 60 * 1000);
 const optionsCache = new TtlCache<any>(30 * 60 * 1000); // 30 minutes
 
@@ -24,6 +25,7 @@ function clearCaches() {
   countsCache.clear();
   optionsCache.clear();
 }
+registerSalesCacheClear(clearCaches);
 
 const router = express.Router();
 
@@ -330,7 +332,7 @@ router.get("/summary", async (req, res) => {
   const fictionCats = parseFictionParam(parsed.data.fictionType);
   const fictionRawCond = fictionSql(fictionCats);
 
-  const cacheKey = `summary:${days ?? "all"}:${startDate?.toISOString() ?? ""}:${endDate?.toISOString() ?? ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${fictionCats.join("|")}:${q ?? ""}`;
+  const cacheKey = `summary:${days ?? "all"}:${startDate ? startDate.toISOString().slice(0, 10) : ""}:${endDate ? endDate.toISOString().slice(0, 10) : ""}:${state ?? ""}:${city ?? ""}:${publisher ?? ""}:${author ?? ""}:${isbn ?? ""}:${customerName ?? ""}:${minAmount ?? ""}:${maxAmount ?? ""}:${binding ?? ""}:${title ?? ""}:${type ?? ""}:${fictionCats.join("|")}:${q ?? ""}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) return res.json(cached);
 

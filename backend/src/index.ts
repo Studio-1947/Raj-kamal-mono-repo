@@ -1,6 +1,6 @@
 import app from './app.js';
 import { prisma } from './lib/prisma.js';
-import { startSyncScheduler } from './features/sales/server/syncScheduler.js';
+import { startSyncScheduler, runScheduledSync } from './features/sales/server/syncScheduler.js';
 import { ensureSyncLogTable } from './features/sales/server/syncLogStore.js';
 
 const PORT = process.env.PORT || 4000;
@@ -16,6 +16,16 @@ app.listen(PORT, () => {
   // (VPS only; no-op unless ENABLE_SCHEDULED_SYNC=true).
   ensureSyncLogTable().catch((e) => console.error("[sync-log] ensure table failed:", e?.message || e));
   startSyncScheduler();
+
+  // Boot-time sync so data is fresh after a deploy/restart. VPS-only (this file isn't
+  // used on Vercel), routes through runScheduledSync so it invalidates caches + logs to
+  // sync_logs. Default ON; set SYNC_ON_STARTUP=false to disable. Short delay lets the
+  // server settle (and answer health checks) before the heavy sync begins.
+  if (process.env.NODE_ENV !== 'test' && process.env.SYNC_ON_STARTUP !== 'false') {
+    setTimeout(() => {
+      runScheduledSync('startup').catch((e) => console.error('[sync-scheduler] startup sync failed:', e?.message || e));
+    }, 5000);
+  }
 });
 
 // ── DB keep-warm heartbeat ───────────────────────────────────────────────────

@@ -14,6 +14,7 @@
 import cron from "node-cron";
 import { offlineSyncService } from "./offlineSyncService.js";
 import { recordSyncLog } from "./syncLogStore.js";
+import { clearAllSalesCaches } from "./salesCacheRegistry.js";
 
 let task: ReturnType<typeof cron.schedule> | null = null;
 let isRunning = false;
@@ -52,7 +53,7 @@ export function getLastSyncStatus(): LastSyncStatus {
  * status. Guards against overlapping runs (returns null if one is already in progress).
  * Exported for manual triggering (e.g. `npm run sync:all`).
  */
-export async function runScheduledSync(trigger: "scheduled" | "manual" = "scheduled"): Promise<LastSyncStatus | null> {
+export async function runScheduledSync(trigger: "scheduled" | "manual" | "startup" = "scheduled"): Promise<LastSyncStatus | null> {
   if (isRunning) {
     console.warn("[sync-scheduler] previous run still in progress; skipping this tick");
     return null;
@@ -106,6 +107,10 @@ export async function runScheduledSync(trigger: "scheduled" | "manual" = "schedu
   } finally {
     isRunning = false;
   }
+  // Data just changed — drop the live in-memory caches so the next request recomputes
+  // fresh (rather than waiting for TTL). Runs in the server process for the scheduled
+  // run; a no-op in the throwaway `sync:all` CLI process (no routes loaded there).
+  clearAllSalesCaches();
   await recordSyncLog(lastSync, trigger);
   return lastSync;
 }

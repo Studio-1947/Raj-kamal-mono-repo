@@ -26,10 +26,15 @@ export function useOfflineSheetFilters() {
     let finalStartDate = startDate;
     let finalEndDate = endDate;
 
-    // Default to Indian Financial Year to Date (FYTD) if no date filter parameters are set
+    // Default to Indian Financial Year to Date (FYTD) if no date filter parameters are set.
+    // Pin endDate to end-of-day (UTC) so the value is stable for the whole day — otherwise
+    // its millisecond timestamp makes every request a unique cache key (backend + react-query),
+    // defeating caching for the default view.
     if (days === undefined && startDate === undefined && endDate === undefined) {
       finalStartDate = getFinancialYearStartDate().toISOString();
-      finalEndDate = new Date().toISOString();
+      const endOfDay = new Date();
+      endOfDay.setUTCHours(23, 59, 59, 999);
+      finalEndDate = endOfDay.toISOString();
     }
 
     return {
