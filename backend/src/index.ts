@@ -1,5 +1,7 @@
 import app from './app.js';
 import { prisma } from './lib/prisma.js';
+import { startSyncScheduler } from './features/sales/server/syncScheduler.js';
+import { ensureSyncLogTable } from './features/sales/server/syncLogStore.js';
 
 const PORT = process.env.PORT || 4000;
 
@@ -9,6 +11,11 @@ app.listen(PORT, () => {
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`📚 API docs: http://localhost:${PORT}/api-docs`);
+
+  // Ensure the sync audit table exists (idempotent), then start the daily auto-sync
+  // (VPS only; no-op unless ENABLE_SCHEDULED_SYNC=true).
+  ensureSyncLogTable().catch((e) => console.error("[sync-log] ensure table failed:", e?.message || e));
+  startSyncScheduler();
 });
 
 // ── DB keep-warm heartbeat ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import inventoryRoutes from "./routes/inventory.js";
 import rankingsRoutes from "./routes/rankings.js";
 import socialRoutes from "./routes/social.js";
 import metricoolRoutes from "./routes/metricool.js";
+import syncLogsRoutes from "./routes/syncLogs.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { mountOnlineSales } from "./features/sales/server/online.index.js";
 import { mountOfflineSales } from "./features/sales/server/offline.index.js";
@@ -24,6 +25,7 @@ import { mountLokbhartiOfflineSales } from "./features/sales/server/lokbharti-of
 import { mountTotalOfflineSales } from "./features/sales/server/total-offline.index.js";
 import { notFound } from "./middleware/notFound.js";
 import { offlineSyncService } from "./features/sales/server/offlineSyncService.js";
+import { getLastSyncStatus } from "./features/sales/server/syncScheduler.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger.js";
 
@@ -130,12 +132,18 @@ app.use(express.json({ limit: "300mb" }));
 app.use(express.urlencoded({ extended: true, limit: "300mb" }));
 
 // Health check endpoint
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
+  const lastSync = getLastSyncStatus();
+  // Stale if the last run finished >26h ago (covers a missed nightly sync). A null
+  // finishedAt means none has run since process start — not an alarm on its own.
+  const STALE_MS = 26 * 60 * 60 * 1000;
+  const stale = lastSync.finishedAt != null && Date.now() - new Date(lastSync.finishedAt).getTime() > STALE_MS;
   res.status(200).json({
     status: "OK",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || "development",
+    sync: { ...lastSync, stale },
   });
 });
 
@@ -187,6 +195,7 @@ app.get("/", (_req, res) => {
 
 // API routes
 app.use("/api/auth", authRoutes);
+app.use("/api/sync-logs", syncLogsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/rankings", rankingsRoutes);

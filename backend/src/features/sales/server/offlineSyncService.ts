@@ -282,6 +282,36 @@ export class OfflineSyncService {
     return this.syncFromGoogleSheet(URL, prisma.lokbhartiOfflineSale);
   }
 
+  /**
+   * Run every Google-Sheet region sync sequentially. One region failing does NOT
+   * abort the others; each result (or error) is collected and returned. Sequential
+   * (not parallel) on purpose, to avoid hammering Google Sheets and the DB with six
+   * concurrent bulk upserts. Used by the scheduled overnight sync and `sync:all`.
+   */
+  async syncAll(): Promise<{ region: string; result: SyncResult }[]> {
+    const jobs: { region: string; run: () => Promise<SyncResult> }[] = [
+      { region: "delhi",     run: () => this.syncOfflineSales() },
+      { region: "mumbai",    run: () => this.syncMumbaiSales() },
+      { region: "patna",     run: () => this.syncPatnaSales() },
+      { region: "online",    run: () => this.syncOnlineOfflineSales() },
+      { region: "bookfair",  run: () => this.syncBookFairSales() },
+      { region: "lokbharti", run: () => this.syncLokbhartiSales() },
+    ];
+    const out: { region: string; result: SyncResult }[] = [];
+    for (const job of jobs) {
+      try {
+        const result = await job.run();
+        out.push({ region: job.region, result });
+      } catch (e: any) {
+        out.push({
+          region: job.region,
+          result: { success: false, importedCount: 0, skippedCount: 0, error: e?.message || String(e) },
+        });
+      }
+    }
+    return out;
+  }
+
   private async syncFromGoogleSheet(url: string, targetModel: any, sheetNamePreference?: string) {
     const startTime = Date.now();
     try {
