@@ -24,7 +24,6 @@ import { mountBookFairOfflineSales } from "./features/sales/server/bookfair-offl
 import { mountLokbhartiOfflineSales } from "./features/sales/server/lokbharti-offline.index.js";
 import { mountTotalOfflineSales } from "./features/sales/server/total-offline.index.js";
 import { notFound } from "./middleware/notFound.js";
-import { offlineSyncService } from "./features/sales/server/offlineSyncService.js";
 import { getLastSyncStatus } from "./features/sales/server/syncScheduler.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger.js";
@@ -239,28 +238,9 @@ app.use("*", (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-// Basic background sync on startup (scalable fallback)
-if (process.env.NODE_ENV !== 'test') {
-  setTimeout(async () => {
-    console.log("Auto-syncing regional offline sales data sequentially...");
-    const syncTasks = [
-      { name: "Delhi/General Offline Sales", fn: () => offlineSyncService.syncOfflineSales() },
-      { name: "Mumbai Offline Sales", fn: () => offlineSyncService.syncMumbaiSales() },
-      { name: "Patna Offline Sales", fn: () => offlineSyncService.syncPatnaSales() },
-      { name: "Online Offline Sales", fn: () => offlineSyncService.syncOnlineOfflineSales() },
-      { name: "BookFair Offline Sales", fn: () => offlineSyncService.syncBookFairSales() },
-      { name: "Lokbharti Offline Sales", fn: () => offlineSyncService.syncLokbhartiSales() }
-    ];
-
-    for (const task of syncTasks) {
-      try {
-        await task.fn();
-      } catch (err: any) {
-        console.error(`Sync failed for ${task.name}:`, err.message || err);
-      }
-    }
-    console.log("Auto-syncing regional offline sales completed.");
-  }, 5000); // 5s delay to let server settle
-}
+// NOTE: the on-startup background sync that used to live here was removed. It ran on
+// EVERY app load — including every Vercel serverless cold start — firing a full
+// wipe-and-reinsert of all regions, and it bypassed cache invalidation + sync_logs.
+// Boot-time sync now lives in index.ts (VPS-only) and routes through runScheduledSync.
 
 export default app;

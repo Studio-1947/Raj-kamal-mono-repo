@@ -48,7 +48,7 @@ export function ensureSyncLogTable(): Promise<void> {
 
 /** Persists one completed sync run. Resilient: logs and swallows errors so a logging
  *  failure can never break the sync itself. */
-export async function recordSyncLog(status: LastSyncStatus, trigger: "scheduled" | "manual"): Promise<void> {
+export async function recordSyncLog(status: LastSyncStatus, trigger: "scheduled" | "manual" | "startup"): Promise<void> {
   if (!status.startedAt || !status.finishedAt) return;
   try {
     await ensureSyncLogTable();
