@@ -34,14 +34,29 @@ const app = express();
 
 const sanitizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, "");
 
-const corsOrigins = (
-  process.env.CORS_ORIGINS ||
-  process.env.FRONTEND_URL ||
-  "http://localhost:5173"
-)
-  .split(",")
-  .map((origin) => sanitizeOrigin(origin))
-  .filter(Boolean);
+// Known production frontends — always allowed. CORS_ORIGINS / FRONTEND_URL from the
+// environment are merged on top, so per-deploy overrides still work (they can only
+// add origins, never silently drop these live ones).
+const defaultAllowedOrigins = [
+  "https://dashboard-rk.duckdns.org", // Hostinger VPS frontend
+  "https://rk-dashboard.netlify.app", // Netlify frontend
+  "https://raj-kamal-frontend.netlify.app", // Netlify frontend
+  "https://raj-kamal-mono-repo.vercel.app", // Vercel
+  "https://raj-kamal-mono-repo-gf9k.vercel.app", // Vercel
+  "http://localhost:5173", // local dev (Vite)
+  "http://localhost:3000", // local dev
+];
+
+const corsOrigins = Array.from(
+  new Set(
+    [
+      ...defaultAllowedOrigins,
+      ...(process.env.CORS_ORIGINS || process.env.FRONTEND_URL || "").split(","),
+    ]
+      .map((origin) => sanitizeOrigin(origin))
+      .filter(Boolean),
+  ),
+);
 
 if (corsOrigins.length === 0) {
   corsOrigins.push("http://localhost:5173");

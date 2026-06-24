@@ -1,0 +1,53 @@
+name: Deploy to VPS
+
+# Auto-deploy the Hostinger VPS (dashboard-rk.duckdns.org) on every push to main.
+# This runs ALONGSIDE the existing Vercel + Netlify integrations — it does not
+# replace them. Vercel/Netlify keep deploying from their own dashboards; this job
+# only SSHes into the VPS, pulls, rebuilds both apps, and restarts the backend.
+
+on:
+  push:
+    branches:
+      - main
+
+# If several pushes land quickly, only run the latest deploy.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          # Frontend build is heavy (large bundle); give it room beyond the 10m default.
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /var/www/app
+            git pull origin main
+
+            # ----- Backend -----
+            cd /var/www/app/backend
+            npm install
+            npm run build
+            # `start` resolves to "node dist/src/index.js" (see package.json). PM2 was
+            # registered as: pm2 start npm --name backend -- run start
+            pm2 restart backend --update-env
+
+            # ----- Frontend (served as static files by Nginx) -----
+            cd /var/www/app/frontend
+            # VPS build talks to the backend through the same domain via a relative path.
+            # This file is gitignored, so writing it here never affects Vercel/Netlify.
+            echo "VITE_API_URL=/api" > .env.production
+            npm install
+            npm run build
+            # No restart needed — Nginx serves the fresh dist/ immediately.
+
+            echo "Deployment completed successfully"
