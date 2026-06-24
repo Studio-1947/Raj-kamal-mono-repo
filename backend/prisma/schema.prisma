@@ -7,8 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -254,6 +255,8 @@ model GoogleSheetOfflineSale {
   @@index([date, amount, qty, title])
   @@index([customerName])
   @@index([docNo])
+  @@index([state, amount, inAmount, qty, inQty], map: "gsos_geo_state")
+  @@index([city, state, amount, inAmount, qty, inQty], map: "gsos_geo_city")
   @@map("google_sheet_offline_sales")
 }
 
@@ -400,6 +403,8 @@ model MumbaiOfflineSale {
   @@index([date, amount, qty, title])
   @@index([customerName])
   @@index([docNo])
+  @@index([state, amount, inAmount, qty, inQty], map: "mos_geo_state")
+  @@index([city, state, amount, inAmount, qty, inQty], map: "mos_geo_city")
   @@map("mumbai_offline_sales")
 }
 
@@ -437,6 +442,8 @@ model PatnaOfflineSale {
   @@index([date, amount, qty, title])
   @@index([customerName])
   @@index([docNo])
+  @@index([state, amount, inAmount, qty, inQty], map: "pos_geo_state")
+  @@index([city, state, amount, inAmount, qty, inQty], map: "pos_geo_city")
   @@map("patna_offline_sales")
 }
 
@@ -474,6 +481,8 @@ model OnlineOfflineSale {
   @@index([date, amount, qty, title])
   @@index([customerName])
   @@index([docNo])
+  @@index([state, amount, inAmount, qty, inQty], map: "oos_geo_state")
+  @@index([city, state, amount, inAmount, qty, inQty], map: "oos_geo_city")
   @@map("online_offline_sales")
 }
 
@@ -511,6 +520,8 @@ model BookFairOfflineSale {
   @@index([date, amount, qty, title])
   @@index([customerName])
   @@index([docNo])
+  @@index([state, amount, inAmount, qty, inQty], map: "bfos_geo_state")
+  @@index([city, state, amount, inAmount, qty, inQty], map: "bfos_geo_city")
   @@map("bookfair_offline_sales")
 }
 
@@ -548,5 +559,7 @@ model LokbhartiOfflineSale {
   @@index([date, amount, qty, title])
   @@index([customerName])
   @@index([docNo])
+  @@index([state, amount, inAmount, qty, inQty], map: "lbos_geo_state")
+  @@index([city, state, amount, inAmount, qty, inQty], map: "lbos_geo_city")
   @@map("lokbharti_offline_sales")
 }
