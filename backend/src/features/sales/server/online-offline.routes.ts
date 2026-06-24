@@ -215,17 +215,6 @@ router.get("/summary", async (req, res) => {
     { const fc = fictionSql(parseFictionParam(parsed.data.fictionType)); if (fc) conditions.push(fc); }
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 
-    const timeSeriesRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT
-        to_char("date", 'YYYY-MM-DD') AS day,
-        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
-        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty
-      FROM "online_offline_sales"
-      ${whereClause}
-      GROUP BY to_char("date", 'YYYY-MM-DD')
-      ORDER BY day ASC
-    `);
-
     const itemConditions: any[] = [
       Prisma.sql`("amount" IS NULL OR "amount" >= 0)`,
       Prisma.sql`("rate" IS NULL OR "rate" >= 0)`,
@@ -260,7 +249,41 @@ router.get("/summary", async (req, res) => {
     { const fc = fictionSql(parseFictionParam(parsed.data.fictionType)); if (fc) itemConditions.push(fc); }
     const itemsWhereClause = itemConditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(itemConditions, ' AND ')}` : Prisma.sql``;
 
-    const topItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    // Financial-year bounds (Indian FY: Apr–Mar) used by the monthly projection query below.
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthCalendar = now.getMonth(); // 0-indexed: April = 3
+    const fyStartYear = currentMonthCalendar >= 3 ? currentYear : currentYear - 1;
+    const yearStart = new Date(`${fyStartYear}-04-01T00:00:00Z`);
+    const yearEnd = new Date(`${fyStartYear + 1}-03-31T23:59:59Z`);
+    const currentMonth = (currentMonthCalendar >= 3) ? (currentMonthCalendar - 2) : (currentMonthCalendar + 10);
+
+    // Run every independent aggregation concurrently instead of sequentially.
+    // Prisma's connection pool naturally caps how many actually execute at once.
+    const [
+      timeSeriesRows,
+      topItemsRows,
+      topItemsRowsByQty,
+      bottomItemsRows,
+      revenueByStateRows,
+      revenueByCityRows,
+      revenueByPubRows,
+      topCustomerRows,
+      revenueByBindingRows,
+      revenueByTypeRows,
+      monthlyRows,
+    ] = await Promise.all([
+      prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        to_char("date", 'YYYY-MM-DD') AS day,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty
+      FROM "online_offline_sales"
+      ${whereClause}
+      GROUP BY to_char("date", 'YYYY-MM-DD')
+      ORDER BY day ASC
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
@@ -270,9 +293,8 @@ router.get("/summary", async (req, res) => {
       ${itemsWhereClause}
       GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY total DESC LIMIT 10
-    `);
-
-    const topItemsRowsByQty = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
@@ -282,17 +304,8 @@ router.get("/summary", async (req, res) => {
       ${itemsWhereClause}
       GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY qty DESC LIMIT 10
-    `);
-
-    const result: any = {
-      ok: true,
-      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
-      topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
-      topItemsByQty: topItemsRowsByQty.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
-    };
-
-    // --- BOTTOM ITEMS ---
-    const bottomItemsRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") WHEN "isbn" IS NOT NULL AND "isbn" != '' THEN '[No Title] ISBN: ' || "isbn" ELSE 'Untitled Item (Doc: ' || COALESCE("docNo", 'Unknown') || ')' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
         (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
@@ -302,72 +315,41 @@ router.get("/summary", async (req, res) => {
       ${itemsWhereClause}
       GROUP BY 1 HAVING ((COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0)) > 0 OR (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0)) > 0)
       ORDER BY total ASC LIMIT 10
-    `);
-    result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
-
-    // --- REVENUE BY STATE ---
-    const revenueByStateRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "online_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
-    `);
-    result.revenueByState = revenueByStateRows.map(r => ({ state: r.state, total: round2(Number(r.total)) }));
-
-    // --- REVENUE BY CITY ---
-    const revenueByCityRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-      SELECT 
-        COALESCE(NULLIF(TRIM("city"), ''), 'Unknown City') AS city, 
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(TRIM("city"), ''), 'Unknown City') AS city,
         MAX(COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State')) AS state,
         (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "online_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
-    `);
-    result.revenueByCity = revenueByCityRows.map(r => ({ city: r.city, state: r.state, total: round2(Number(r.total)) }));
-
-    // --- REVENUE BY PUBLISHER ---
-    const revenueByPubRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "online_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
-    `);
-    result.revenueByPublisher = revenueByPubRows.map(r => ({ publisher: r.publisher, total: round2(Number(r.total)) }));
-
-    // --- TOP CUSTOMERS ---
-    const topCustomerRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(NULLIF(TRIM("customerName"), ''), 'Unnamed Customer') AS customer_name, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "online_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC LIMIT 10
-    `);
-    result.topCustomers = topCustomerRows.map(r => ({ customerName: r.customer_name, total: round2(Number(r.total)) }));
-
-    // --- REVENUE BY BINDING ---
-    const revenueByBindingRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(NULLIF(TRIM("binding"), ''), 'Unknown Binding') AS binding, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total, (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty
       FROM "online_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC
-    `);
-    result.revenueByBinding = revenueByBindingRows.map(r => ({ binding: r.binding, total: round2(Number(r.total)), qty: Number(r.qty) || 0 }));
-    
-    // --- REVENUE BY TYPE ---
-    const revenueByTypeRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT COALESCE(NULLIF(TRIM("type"), ''), 'Unknown Type') AS type, (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total
       FROM "online_offline_sales" ${whereClause}
       GROUP BY 1 ORDER BY total DESC
-    `);
-    result.revenueByType = revenueByTypeRows.map(r => ({ type: r.type, total: round2(Number(r.total)) }));
-
-    // --- Projection Logic (Indian Financial Year) — month-wise weighted ---
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonthCalendar = now.getMonth(); // 0-indexed: April = 3
-    const fyStartYear = currentMonthCalendar >= 3 ? currentYear : currentYear - 1;
-
-    const yearStart = new Date(`${fyStartYear}-04-01T00:00:00Z`);
-    const yearEnd = new Date(`${fyStartYear + 1}-03-31T23:59:59Z`);
-    const currentMonth = (currentMonthCalendar >= 3) ? (currentMonthCalendar - 2) : (currentMonthCalendar + 10);
-
-    // Monthly totals for all FY data recorded so far
-    const monthlyRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
       SELECT
         EXTRACT(MONTH FROM "date")::int AS month,
         (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount"
@@ -384,8 +366,25 @@ router.get("/summary", async (req, res) => {
         AND ("title" IS NULL OR "title" !~* '^E-')
       GROUP BY 1
       ORDER BY 1
-    `);
+    `),
+    ]);
 
+    const result: any = {
+      ok: true,
+      timeSeries: timeSeriesRows.map(r => ({ date: r.day, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
+      topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
+      topItemsByQty: topItemsRowsByQty.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) })),
+    };
+
+    result.bottomItems = bottomItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: r.qty, rate: round2(Number(r.rate)) }));
+    result.revenueByState = revenueByStateRows.map(r => ({ state: r.state, total: round2(Number(r.total)) }));
+    result.revenueByCity = revenueByCityRows.map(r => ({ city: r.city, state: r.state, total: round2(Number(r.total)) }));
+    result.revenueByPublisher = revenueByPubRows.map(r => ({ publisher: r.publisher, total: round2(Number(r.total)) }));
+    result.topCustomers = topCustomerRows.map(r => ({ customerName: r.customer_name, total: round2(Number(r.total)) }));
+    result.revenueByBinding = revenueByBindingRows.map(r => ({ binding: r.binding, total: round2(Number(r.total)), qty: Number(r.qty) || 0 }));
+    result.revenueByType = revenueByTypeRows.map(r => ({ type: r.type, total: round2(Number(r.total)) }));
+
+    // --- Projection Logic (Indian Financial Year) — month-wise weighted ---
     const getRelativeMonth = (calMonth: number) => (calMonth >= 4) ? (calMonth - 3) : (calMonth + 9);
 
     // Split into complete months vs current month

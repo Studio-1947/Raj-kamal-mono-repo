@@ -8,8 +8,7 @@ import {
   Tooltip,
 } from 'recharts';
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
-import { apiClient } from '../../../lib/apiClient';
-import { useOfflineSheetOptions, useOfflineSheetDailyDetails } from './offlineSheetService';
+import { useOfflineSheetOptions, useOfflineSheetDailyDetails, useOfflineSheetSummary } from './offlineSheetService';
 import { getFinancialYearStartDate } from './useOfflineSheetFilters';
 import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 
@@ -579,8 +578,6 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
   });
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [data, setData] = useState<OfflineSheetSummaryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const initialResetVersion = React.useRef(resetVersion);
 
   useEffect(() => {
@@ -593,44 +590,39 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
 
   const { data: optData } = useOfflineSheetOptions(region);
 
-  useEffect(() => {
-    async function fetchChart() {
-      setLoading(true);
-      try {
-        const p = new URLSearchParams();
-        // 1. Start with global filters
-        Object.entries(globalFilters).forEach(([k, v]) => {
-          if (v !== undefined && v !== '' && v !== null && k !== 'page' && k !== 'limit') {
-            // Ignore global date bounds if block is using 'days'
-            if ((k === 'startDate' || k === 'endDate') && localFilters.days !== undefined) return;
-            // Ignore global 'days' if block is using explicit custom dates
-            if (k === 'days' && (localFilters.startDate !== undefined || localFilters.endDate !== undefined)) return;
-            p.set(k, String(v));
-          }
-        });
-        // 2. Overlay local filters (overrides)
-        Object.entries(localFilters).forEach(([k, v]) => {
-          // If a local override is empty string or explicit null, we should delete the global one.
-          // Since we already set globals, if local is undefined we just skip it unless we need to explicitly delete.
-          if (v !== undefined && v !== '' && v !== null) {
-            p.set(k, String(v));
-          } else if (v === '' || v === undefined) {
-             p.delete(k); // Allow local to clear global
-          }
-        });
-
-        const base = REGION_MAP[region] || 'offline-sales';
-        const resp = await apiClient.get<OfflineSheetSummaryResponse>(`${base}/summary?${p.toString()}`);
-        setData(resp);
-        localStorage.setItem(`rk_chart_filters_${id}`, JSON.stringify(localFilters));
-      } catch (e) {
-        console.error(`Failed to fetch chart ${id}`, e);
-      } finally {
-        setLoading(false);
+  // Merge global + local filters using the page's precedence rules, then read through
+  // the shared react-query hook. Because every ChartBlock with the same merged filters
+  // produces the same query key, the 10 chart blocks dedupe into a single network
+  // request (and share the cached result) instead of each fetching the summary.
+  const mergedFilters = useMemo<OfflineSheetFilters>(() => {
+    const out: OfflineSheetFilters = {};
+    // 1. Start with global filters
+    (Object.entries(globalFilters) as [keyof OfflineSheetFilters, any][]).forEach(([k, v]) => {
+      if (v === undefined || v === '' || v === null) return;
+      if (k === 'page' || k === 'limit') return;
+      // Ignore global date bounds if this block is using 'days'
+      if ((k === 'startDate' || k === 'endDate') && localFilters.days !== undefined) return;
+      // Ignore global 'days' if this block is using explicit custom dates
+      if (k === 'days' && (localFilters.startDate !== undefined || localFilters.endDate !== undefined)) return;
+      (out as any)[k] = v;
+    });
+    // 2. Overlay local filters (overrides; empty values clear the inherited global)
+    (Object.entries(localFilters) as [keyof OfflineSheetFilters, any][]).forEach(([k, v]) => {
+      if (v !== undefined && v !== '' && v !== null) {
+        (out as any)[k] = v;
+      } else {
+        delete (out as any)[k];
       }
-    }
-    fetchChart();
-  }, [id, localFilters, globalFilters, region]);
+    });
+    return out;
+  }, [globalFilters, localFilters]);
+
+  const { data, isLoading: loading } = useOfflineSheetSummary(mergedFilters, region);
+
+  // Persist this block's local filter selection across reloads.
+  useEffect(() => {
+    localStorage.setItem(`rk_chart_filters_${id}`, JSON.stringify(localFilters));
+  }, [id, localFilters]);
 
   const updateF = (key: keyof OfflineSheetFilters, val: any) => {
     setLocalFilters(prev => {
@@ -835,15 +827,6 @@ interface Props {
   onApplyDateRange?: (start: string, end: string) => void;
   region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti';
 }
-
-const REGION_MAP = {
-  delhi: 'offline-sales',
-  mumbai: 'mumbai-offline-sales',
-  patna: 'patna-offline-sales',
-  online: 'online-offline-sales',
-  bookfair: 'bookfair-offline-sales',
-  lokbharti: 'lokbharti-offline-sales',
-};
 
 const DEFAULT_ORDER = ['revenue-trend', 'sales-by-type', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'top-items-qty', 'bottom-items'];
 
