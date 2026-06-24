@@ -28,7 +28,8 @@
     "sync:delhi": "tsx scripts/sync-delhi.ts",
     "sync:online": "tsx scripts/sync-online.ts",
     "sync:bookfair": "tsx scripts/sync-bookfair.ts",
-    "sync:lokbharti": "tsx scripts/sync-lokbharti.ts"
+    "sync:lokbharti": "tsx scripts/sync-lokbharti.ts",
+    "sync:all": "tsx scripts/sync-all.ts"
   },
   "engines": {
     "node": "20.x"
@@ -44,6 +45,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "node-cron": "^4.5.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "xlsx": "^0.18.5",

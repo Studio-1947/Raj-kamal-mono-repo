@@ -563,3 +563,21 @@ model LokbhartiOfflineSale {
   @@index([city, state, amount, inAmount, qty, inQty], map: "lbos_geo_city")
   @@map("lokbharti_offline_sales")
 }
+
+// Audit log of Google-Sheet sync runs (scheduled or manual). One row per run.
+model SyncLog {
+  id            Int      @id @default(autoincrement())
+  trigger       String   @default("scheduled") // "scheduled" | "manual"
+  startedAt     DateTime
+  finishedAt    DateTime
+  durationMs    Int
+  ok            Boolean // true only if every region succeeded
+  okCount       Int
+  totalRegions  Int
+  totalImported Int
+  regions       Json // [{ region, success, importedCount, skippedCount, error }]
+  createdAt     DateTime @default(now())
+
+  @@index([startedAt])
+  @@map("sync_logs")
+}
