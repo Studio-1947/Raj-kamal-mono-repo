@@ -31,7 +31,13 @@ jobs:
           script: |
             set -e
             cd /var/www/app
-            git pull origin main
+            # Mirror main exactly. `reset --hard` (not `pull`) so any drift in tracked
+            # files on the server — e.g. a package.json hand-edited during setup — is
+            # overwritten instead of blocking the deploy with a merge conflict.
+            # Untracked files (.env, .env.production, dist/, node_modules/) are NOT
+            # touched: no `git clean` is run.
+            git fetch origin main
+            git reset --hard origin/main
 
             # ----- Backend -----
             cd /var/www/app/backend
