@@ -14,13 +14,26 @@ export interface SyncResult {
   skippedCount: number;
   error?: string;
 }
+
+/**
+ * Last-known-good book metadata for a single ISBN. These four fields are populated by
+ * lookup formulas in the Google Sheet, so the CSV export can return them BLANK whenever
+ * Google hasn't recalculated (notably the 3 AM scheduled sync). We snapshot them before
+ * each wipe so blank exports can be backfilled instead of erasing good data.
+ */
+interface PreservedMeta {
+  author: string;
+  binding: string;
+  pubYear: number;
+  publisher: string;
+}
 export class OfflineSyncService {
   /**
    * Main entry point to process an array of rows from any source (Sheets, ERP, etc.)
    * @param rows The data rows (including headers)
    * @param targetModel The Prisma model delegate to use (default: prisma.googleSheetOfflineSale)
    */
-  async processData(rows: any[][], targetModel: any = prisma.googleSheetOfflineSale, txClient?: any): Promise<SyncResult> {
+  async processData(rows: any[][], targetModel: any = prisma.googleSheetOfflineSale, txClient?: any, preserveMap?: Map<string, PreservedMeta>): Promise<SyncResult> {
     if (!rows || rows.length < 2) {
       return { success: true, importedCount: 0, skippedCount: 0 };
     }
@@ -55,6 +68,7 @@ export class OfflineSyncService {
     let count = 0;
     let skippedEmpty = 0;
     let duplicateCount = 0;
+    let backfilledCount = 0;
 
     const toInsert: any[] = [];
     const rowsToProcess = dataRows;
@@ -76,10 +90,26 @@ export class OfflineSyncService {
                     this.getVal(row, headerMap, "ItemName") || 
                     this.getVal(row, headerMap, "Title") || 
                     this.getVal(row, headerMap, "Name");
-      const author = this.getVal(row, headerMap, "Author") || this.getVal(row, headerMap, "DisplayAuthorName");
-      const binding = this.getVal(row, headerMap, "Binding");
-      const pubYear = parseInt(this.getVal(row, headerMap, "Pub-Year") || this.getVal(row, headerMap, "Pub-year") || "0");
-      const publisher = this.getVal(row, headerMap, "Publisher");
+      let author = this.getVal(row, headerMap, "Author") || this.getVal(row, headerMap, "DisplayAuthorName");
+      let binding = this.getVal(row, headerMap, "Binding");
+      let pubYear = parseInt(this.getVal(row, headerMap, "Pub-Year") || this.getVal(row, headerMap, "Pub-year") || "0");
+      let publisher = this.getVal(row, headerMap, "Publisher");
+
+      // SELF-HEAL: author/binding/pubYear/publisher come from lookup-formula columns in
+      // the sheet, which the CSV export returns BLANK when Google hasn't recalculated
+      // (e.g. the 3 AM scheduled run). Since this sync is a destructive wipe-and-replace,
+      // importing those blanks would erase good metadata. So if the fresh export is blank
+      // but we captured a non-blank value for this ISBN before wiping, carry it forward.
+      // We never override a value the export DID provide, so legitimate updates still win.
+      if (preserveMap && isbn) {
+        const prev = preserveMap.get(isbn);
+        if (prev) {
+          if (!author && prev.author) { author = prev.author; backfilledCount++; }
+          if (!binding && prev.binding) binding = prev.binding;
+          if ((!pubYear || pubYear === 0) && prev.pubYear) pubYear = prev.pubYear;
+          if (!publisher && prev.publisher) publisher = prev.publisher;
+        }
+      }
       const qty = parseInt(this.getVal(row, headerMap, "OUT") || this.getVal(row, headerMap, "Qty") || "0");
       const inQty = parseInt(this.getVal(row, headerMap, "IN") || "0");
       const currency = this.getVal(row, headerMap, "CURRENCYID") || "RS";
@@ -227,8 +257,54 @@ export class OfflineSyncService {
       }
     }
 
-    console.log(`[SYNC LOG] Total Rows: ${count}, Newly Imported: ${importedCount}, Duplicates Skipped: ${duplicateCount}, Empty Skipped: ${skippedEmpty}`);
+    console.log(`[SYNC LOG] Total Rows: ${count}, Newly Imported: ${importedCount}, Duplicates Skipped: ${duplicateCount}, Empty Skipped: ${skippedEmpty}, Metadata Backfilled: ${backfilledCount}`);
+    if (preserveMap && count > 0 && backfilledCount / count > 0.5) {
+      console.warn(`[SYNC WARN] ${backfilledCount}/${count} rows had blank author in the export — the sheet's lookup formulas were almost certainly not recalculated (stale CSV export). Backfilled from last-known-good; verify the source sheet.`);
+    }
     return { success: true, importedCount, skippedCount: skippedEmpty };
+  }
+
+  /**
+   * Snapshot ISBN -> last-known-good book metadata from the CURRENT table contents,
+   * taken just before a wipe-and-replace sync. Lets processData backfill rows whose
+   * metadata columns come back blank from a stale sheet export. Best-effort: any failure
+   * degrades gracefully to "no backfill" rather than aborting the sync.
+   */
+  private async buildPreserveMap(model: any): Promise<Map<string, PreservedMeta>> {
+    const map = new Map<string, PreservedMeta>();
+    try {
+      const existing: any[] = await model.findMany({
+        select: { isbn: true, author: true, binding: true, pubYear: true, publisher: true },
+      });
+      for (const r of existing) {
+        if (!r.isbn) continue;
+        const hasMeta =
+          (r.author && r.author !== "") ||
+          (r.binding && r.binding !== "") ||
+          (r.publisher && r.publisher !== "") ||
+          (r.pubYear && r.pubYear !== 0);
+        if (!hasMeta) continue;
+        const prev = map.get(r.isbn);
+        if (!prev) {
+          map.set(r.isbn, {
+            author: r.author || "",
+            binding: r.binding || "",
+            pubYear: r.pubYear || 0,
+            publisher: r.publisher || "",
+          });
+        } else {
+          // Merge so each ISBN ends up with the most complete metadata across its rows.
+          if (!prev.author && r.author) prev.author = r.author;
+          if (!prev.binding && r.binding) prev.binding = r.binding;
+          if (!prev.pubYear && r.pubYear) prev.pubYear = r.pubYear;
+          if (!prev.publisher && r.publisher) prev.publisher = r.publisher;
+        }
+      }
+      console.log(`[SYNC] Captured last-known-good metadata for ${map.size} ISBNs before wipe.`);
+    } catch (e: any) {
+      console.warn(`[SYNC] buildPreserveMap failed (continuing without backfill): ${e?.message || e}`);
+    }
+    return map;
   }
   /**
    * Sync Delhi/General Offline Sales from Google Sheet
@@ -347,8 +423,9 @@ export class OfflineSyncService {
 
       if (!modelKey) {
         console.log(`[SYNC] Model key not found for atomic transaction. Falling back to non-atomic sync.`);
+        const preserveMap = await this.buildPreserveMap(targetModel);
         await targetModel.deleteMany({});
-        const result = await this.processData(rows, targetModel);
+        const result = await this.processData(rows, targetModel, undefined, preserveMap);
         const nonAtomicTime = Date.now();
         console.log(`[SYNC PERFORMANCE] Non-atomic total time: ${((nonAtomicTime - startTime)/1000).toFixed(2)}s`);
         return result;
@@ -359,10 +436,14 @@ export class OfflineSyncService {
       
       await prisma.$transaction(async (tx) => {
         const txModel = (tx as any)[modelKey];
+        // Capture last-known-good metadata BEFORE wiping so a stale/blank sheet export
+        // (e.g. the 3 AM run, formulas not recalculated) can't erase it. See SELF-HEAL
+        // note in processData.
+        const preserveMap = await this.buildPreserveMap(txModel);
         // Delete all rows inside transaction
         await txModel.deleteMany({});
         // Process and insert inside transaction
-        syncResult = await this.processData(rows, targetModel, txModel);
+        syncResult = await this.processData(rows, targetModel, txModel, preserveMap);
       }, {
         maxWait: 30000, // 30 seconds to acquire a connection from the pool
         timeout: 240000, // 4 minutes timeout for large sheets
