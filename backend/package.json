@@ -29,7 +29,8 @@
     "sync:online": "tsx scripts/sync-online.ts",
     "sync:bookfair": "tsx scripts/sync-bookfair.ts",
     "sync:lokbharti": "tsx scripts/sync-lokbharti.ts",
-    "sync:all": "tsx scripts/sync-all.ts"
+    "sync:all": "tsx scripts/sync-all.ts",
+    "seed:history": "tsx scripts/seed-history.ts"
   },
   "engines": {
     "node": "20.x"

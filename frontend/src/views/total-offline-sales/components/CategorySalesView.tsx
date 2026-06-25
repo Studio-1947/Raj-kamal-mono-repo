@@ -18,9 +18,10 @@ interface CategorySalesData {
 
 interface CategorySalesViewProps {
   channel: string;
+  fy?: string;
 }
 
-export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel }) => {
+export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, fy = 'current' }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<CategorySalesData | null>(null);
@@ -31,7 +32,7 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel })
     setError(null);
     try {
       const res = await apiClient.get<any>(
-        `total-offline-sales/category-sales?channel=${channel}&range=all`
+        `total-offline-sales/category-sales?channel=${channel}&range=all&fy=${fy}`
       );
       if (res.ok) {
         setData(res);
@@ -48,7 +49,7 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel })
 
   useEffect(() => {
     fetchData();
-  }, [channel]);
+  }, [channel, fy]);
 
   // Derived values for category share
   const totals = useMemo(() => {

@@ -138,27 +138,78 @@ function getModel(ch: ChannelKey): any {
   }
 }
 
+// ─── Financial-year selection (live current FY vs archived history) ─────────────
+//
+// The live tables (getModel) hold the CURRENT financial year, refreshed by the daily
+// sync. Past years live in the single `offline_sales_history` archive, discriminated
+// by `channel` + `financialYear`. resolveFy() maps an ?fy= query param to either, and
+// getChannelSource() returns the right Prisma delegate plus a base `where` that scopes
+// the archive to one channel/year. For the live case the base is empty (each live table
+// IS one channel), so the existing query logic is unchanged.
+
+// Financial years available in the history archive (newest first).
+const ARCHIVE_FYS = ['2025-26'];
+
+// Canonical label for the current (live) financial year, e.g. "2026-27".
+function currentFyLabel(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const startYear = now.getMonth() >= 3 ? y : y - 1; // FY starts 1 Apr
+  return `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
+}
+
+const CURRENT_FY = currentFyLabel();
+
+// '', 'current', 'this' → live current FY. 'previous'/'last' → newest archived FY.
+// An explicit archived label (e.g. '2025-26') selects that archive year.
+function resolveFy(param?: string): { fy: string; isHistory: boolean } {
+  const raw = (param ?? '').trim();
+  const p = raw.toLowerCase();
+  if (!p || p === 'current' || p === 'this') return { fy: CURRENT_FY, isHistory: false };
+  if (p === 'previous' || p === 'last') return { fy: ARCHIVE_FYS[0]!, isHistory: true };
+  if (ARCHIVE_FYS.includes(raw)) return { fy: raw, isHistory: true };
+  return { fy: CURRENT_FY, isHistory: false };
+}
+
+// Resolve the Prisma model + base where-clause for a channel under a given FY.
+// Live: the per-channel table, no extra filter. History: the shared archive table,
+// scoped to this channel + financial year.
+function getChannelSource(ch: ChannelKey, isHistory: boolean, fy: string): { model: any; base: Record<string, any> } {
+  if (!isHistory) return { model: getModel(ch), base: {} };
+  return { model: prisma.offlineSaleHistory, base: { channel: ch, financialYear: fy } };
+}
+
+// Last instant of a financial year (e.g. "2025-26" → 2026-03-31 23:59:59.999 UTC).
+// Used to anchor "trailing window" analytics for a COMPLETED past year, where "now"
+// is meaningless (the year ended months ago).
+function fyEndDate(fy: string): Date {
+  const startYear = parseInt(fy.slice(0, 4), 10);
+  return new Date(Date.UTC(startYear + 1, 2, 31, 23, 59, 59, 999));
+}
+
 /**
  * Fetch all analytics for one channel in a single parallel burst:
  * count · agg · topBooks · timeSeries rows · state breakdown
  */
-async function fetchChannelData(ch: ChannelKey, where: any, bookWhere: any) {
-  const model = getModel(ch);
-  const stateWhere = { ...where, state: { not: null } };
-  const cityWhere = { ...where, city: { not: null }, state: { not: null } };
-  const publisherWhere = { ...where, publisher: { not: null } };
+async function fetchChannelData(ch: ChannelKey, isHistory: boolean, fy: string, where: any, bookWhere: any) {
+  const { model, base } = getChannelSource(ch, isHistory, fy);
+  const w = { ...base, ...where };
+  const bw = { ...base, ...bookWhere };
+  const stateWhere = { ...w, state: { not: null } };
+  const cityWhere = { ...w, city: { not: null }, state: { not: null } };
+  const publisherWhere = { ...w, publisher: { not: null } };
 
   const [count, agg, topBooks, tsRows, stateRows, publisherRows, cityRows] = await Promise.all([
-    model.count({ where }),
-    model.aggregate({ _sum: { amount: true, inAmount: true, qty: true, inQty: true }, where }),
+    model.count({ where: w }),
+    model.aggregate({ _sum: { amount: true, inAmount: true, qty: true, inQty: true }, where: w }),
     model.groupBy({
       by: ['title'],
       _sum: { amount: true, inAmount: true, qty: true, inQty: true },
-      where: bookWhere,
+      where: bw,
       orderBy: { _sum: { amount: 'desc' } },
       take: 10,
     }),
-    model.findMany({ where, select: { date: true, amount: true, qty: true, inAmount: true, inQty: true, pubYear: true, title: true } }),
+    model.findMany({ where: w, select: { date: true, amount: true, qty: true, inAmount: true, inQty: true, pubYear: true, title: true } }),
     model.groupBy({
       by: ['state'],
       _sum: { amount: true, inAmount: true, qty: true, inQty: true },
@@ -288,12 +339,15 @@ router.get('/summary', async (req, res) => {
   try {
     const range   = (req.query.range   as string) || '30';
     const channel = (req.query.channel as string) || 'all';
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
-    const cacheKey = `summary-${range}-${channel}`;
+    const cacheKey = `summary-${range}-${channel}-${fy}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    const dateFilter = buildDateFilter(range);
+    // Past financial years are complete & fixed, so the relative "last N days / FYTD"
+    // ranges don't apply — the archive is already exactly one FY, so we query it whole.
+    const dateFilter = isHistory ? undefined : buildDateFilter(range);
     const where      = dateFilter ? { date: dateFilter } : {};
     const bookWhere  = dateFilter
       ? { date: dateFilter, title: { not: '' } }
@@ -305,7 +359,7 @@ router.get('/summary', async (req, res) => {
     }
 
     // All channel data fetched in one parallel burst
-    const results = await Promise.all(channels.map(ch => fetchChannelData(ch, where, bookWhere)));
+    const results = await Promise.all(channels.map(ch => fetchChannelData(ch, isHistory, fy, where, bookWhere)));
 
     // ── Grand totals ──────────────────────────────────────────────────────────
     const totalRevenue        = results.reduce((s, r) => s + r.revenue,        0);  // net OUT-IN
@@ -446,6 +500,8 @@ router.get('/summary', async (req, res) => {
     const responseData = {
       ok: true,
       channel,
+      fy,
+      isHistory,
       counts: {
         totalCount,
         totalRevenue,        // net (OUT − IN)
@@ -480,8 +536,9 @@ router.get('/transactions', async (req, res) => {
     const channel = (req.query.channel as string) || 'all';
     const range   = (req.query.range   as string) || '30';
     const limit   = Math.min(parseInt((req.query.limit as string) || '20', 10), 100);
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
-    const dateFilter = buildDateFilter(range);
+    const dateFilter = isHistory ? undefined : buildDateFilter(range);
     const where      = dateFilter ? { date: dateFilter } : {};
 
     const channels   = resolveChannels(channel);
@@ -493,9 +550,9 @@ router.get('/transactions', async (req, res) => {
     const perLimit = channel === 'all' ? Math.ceil(limit / channels.length) + 2 : limit;
 
     const fetchers = channels.map(async (ch) => {
-      const model = getModel(ch);
+      const { model, base } = getChannelSource(ch, isHistory, fy);
       const rows  = await model.findMany({
-        where,
+        where: { ...base, ...where },
         take: perLimit,
         orderBy: { date: 'desc' },
       });
@@ -627,23 +684,24 @@ router.get('/publisher-details', async (req, res) => {
     const channel   = req.query.channel as string;
     const publisher = req.query.publisher as string;
     const range     = (req.query.range as string) || '30';
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
     if (!channel || !publisher) {
       return res.status(400).json({ ok: false, error: 'Missing channel or publisher parameters' });
     }
 
-    const dateFilter = buildDateFilter(range);
+    const dateFilter = isHistory ? undefined : buildDateFilter(range);
+    const { model, base } = getChannelSource(channel as ChannelKey, isHistory, fy);
+    if (!model) {
+      return res.status(400).json({ ok: false, error: 'Invalid channel parameter' });
+    }
     const where: any = {
+      ...base,
       publisher: { equals: publisher },
       title: { not: '' },
     };
     if (dateFilter) {
       where.date = dateFilter;
-    }
-
-    const model = getModel(channel as ChannelKey);
-    if (!model) {
-      return res.status(400).json({ ok: false, error: 'Invalid channel parameter' });
     }
 
     // Query top 10 books by amount (revenue) desc
@@ -688,8 +746,9 @@ router.get('/growth-indicators', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
     const threshold = toNum(req.query.threshold || '50'); // 50% default
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
-    const cacheKey = `growth-${channel}-${threshold}`;
+    const cacheKey = `growth-${channel}-${threshold}-${fy}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
@@ -698,28 +757,32 @@ router.get('/growth-indicators', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Invalid channel' });
     }
 
-    const ago = (d: number) => new Date(Date.now() - d * 86_400_000);
+    // For a completed past year, anchor the trailing 30/60-day windows to the FY's
+    // end (its final month) rather than "now" — otherwise they'd fall outside the
+    // archive entirely and return nothing.
+    const anchorMs = isHistory ? fyEndDate(fy).getTime() : Date.now();
+    const ago = (d: number) => new Date(anchorMs - d * 86_400_000);
     const currentLimit = ago(30);
     const prevLimit = ago(60);
 
     // Fetch for each resolved channel
     const promises = channels.map(async (ch) => {
-      const model = getModel(ch);
+      const { model, base } = getChannelSource(ch, isHistory, fy);
       const [current, prev, ytd, invoices] = await Promise.all([
         model.groupBy({
           by: ['title', 'publisher', 'binding'],
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
-          where: { date: { gte: currentLimit }, title: { not: '' } },
+          where: { ...base, date: { gte: currentLimit }, title: { not: '' } },
         }),
         model.groupBy({
           by: ['title'],
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
-          where: { date: { gte: prevLimit, lt: currentLimit }, title: { not: '' } },
+          where: { ...base, date: { gte: prevLimit, lt: currentLimit }, title: { not: '' } },
         }),
         model.groupBy({
           by: ['title'],
           _sum: { qty: true, amount: true, inQty: true, inAmount: true },
-          where: { title: { not: '' } },
+          where: { ...base, title: { not: '' } },
         }),
         // Distinct invoices (docNo / TrnsdocNo) per title in the current window,
         // counting ONLY invoices that contain an actual outward order line (qty > 0).
@@ -728,6 +791,7 @@ router.get('/growth-indicators', async (req, res) => {
         model.groupBy({
           by: ['title', 'docNo'],
           where: {
+            ...base,
             date: { gte: currentLimit },
             title: { not: '' },
             docNo: { not: null },
@@ -843,22 +907,26 @@ router.get('/title-invoices', async (req, res) => {
     const channel = (req.query.channel as string) || 'all';
     const title = ((req.query.title as string) || '').trim();
     if (!title) return res.status(400).json({ ok: false, error: 'Missing title' });
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
     const channels = resolveChannels(channel);
     if (channels.length === 0) return res.status(400).json({ ok: false, error: 'Invalid channel' });
 
-    const cacheKey = `title-invoices-${channel}-${title}`;
+    const cacheKey = `title-invoices-${channel}-${title}-${fy}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    const since = new Date(Date.now() - 30 * 86_400_000);
+    // Mirror growth-indicators: trailing 30-day window anchored to "now" for the live
+    // year, or to the FY's end for a completed archived year.
+    const anchorMs = isHistory ? fyEndDate(fy).getTime() : Date.now();
+    const since = new Date(anchorMs - 30 * 86_400_000);
 
     // Collect rows for the title across resolved channels, matched on TRIMMED title
     const perChannel = await Promise.all(
       channels.map(async (ch) => {
-        const model = getModel(ch);
+        const { model, base } = getChannelSource(ch, isHistory, fy);
         const rows = await model.findMany({
-          where: { date: { gte: since }, title: { contains: title } },
+          where: { ...base, date: { gte: since }, title: { contains: title } },
           select: {
             docNo: true, date: true, qty: true, inQty: true,
             amount: true, inAmount: true, customerName: true, title: true,
@@ -921,6 +989,11 @@ router.get('/title-invoices', async (req, res) => {
 });
 
 // ─── GET /api/total-offline-sales/yoy-comparison ─────────────────────────────
+// REAL financial-year-over-financial-year comparison: the archived previous FY
+// (offline_sales_history) vs the current live FY, indexed by financial month
+// (0 = Apr … 11 = Mar). No more simulated baseline — both curves are actual data.
+const FY_MONTH_LABELS = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
 router.get('/yoy-comparison', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
@@ -934,98 +1007,52 @@ router.get('/yoy-comparison', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Invalid channel' });
     }
 
-    // Fetch all transaction dates, quantities, and amounts for resolved channels
-    const promises = channels.map(async (ch) => {
-      const model = getModel(ch);
-      return model.findMany({
-        select: { date: true, amount: true, inAmount: true, qty: true, inQty: true },
-        where: { date: { not: null } }
-      });
-    });
+    // Calendar month (0=Jan) → financial-month index (0=Apr … 11=Mar).
+    const fyMonthIndex = (d: Date) => { const m = d.getUTCMonth(); return m >= 3 ? m - 3 : m + 9; };
 
-    const results = await Promise.all(promises);
-    const rows = results.flat();
-
-    // Group actual transactions by year and month index (0-11)
-    const yearlyMap = new Map<number, number[]>(); // year -> array of 12 elements (revenue)
-    const yearlyQtyMap = new Map<number, number[]>(); // year -> array of 12 elements (qty)
-
-    for (const r of rows) {
-      if (!r.date) continue;
-      const d = new Date(r.date);
-      const year = d.getFullYear();
-      const month = d.getMonth(); // 0-11
-      const rev = toNum(r.amount) - toNum(r.inAmount);
-      const qty = toNum(r.qty) - toNum(r.inQty);
-
-      if (!yearlyMap.has(year)) {
-        yearlyMap.set(year, Array(12).fill(0));
-        yearlyQtyMap.set(year, Array(12).fill(0));
+    // Fold groupBy-date rows (each carrying _sum) into 12 FY-month buckets.
+    const fold = (rows: any[]) => {
+      const rev = Array(12).fill(0) as number[];
+      const qty = Array(12).fill(0) as number[];
+      for (const r of rows) {
+        if (!r.date) continue;
+        const idx = fyMonthIndex(new Date(r.date));
+        rev[idx] = (rev[idx] ?? 0) + toNum(r._sum?.amount) - toNum(r._sum?.inAmount);
+        qty[idx] = (qty[idx] ?? 0) + toNum(r._sum?.qty) - toNum(r._sum?.inQty);
       }
-      const revArr = yearlyMap.get(year) || Array(12).fill(0);
-      const qtyArr = yearlyQtyMap.get(year) || Array(12).fill(0);
-      revArr[month] = (revArr[month] ?? 0) + rev;
-      qtyArr[month] = (qtyArr[month] ?? 0) + qty;
-      yearlyMap.set(year, revArr);
-      yearlyQtyMap.set(year, qtyArr);
-    }
+      return { rev, qty };
+    };
+    const toMonthly = (f: { rev: number[]; qty: number[] }) =>
+      f.rev.map((revenue, month) => ({ month, revenue, qty: f.qty[month] ?? 0 }));
 
-    const availableYears = Array.from(yearlyMap.keys()).sort();
+    // ── Previous FY: the archive (single table, scoped by channel + financialYear) ──
+    const prevFy = ARCHIVE_FYS[0]!;
+    const prevRows = await prisma.offlineSaleHistory.groupBy({
+      by: ['date'],
+      _sum: { amount: true, inAmount: true, qty: true, inQty: true },
+      where: { financialYear: prevFy, channel: { in: channels }, date: { not: null } },
+    });
+    const prev = fold(prevRows);
 
-    // If only one year exists in the DB (like 2026), we dynamically simulate
-    // the previous year (e.g. 2025) as 88% of current actuals with minor variation
-    const formattedYears: any[] = [];
-    
-    // Check if we need to simulate last year
-    let simulatedYearData: any = null;
-    if (availableYears.length === 1 && availableYears[0] === 2026) {
-      const currentYear = 2026;
-      const prevYear = 2025;
-      const currentRevs = yearlyMap.get(currentYear)!;
-      const currentQtys = yearlyQtyMap.get(currentYear)!;
-      
-      const simulatedRevs = currentRevs.map((val, idx) => {
-        if (val === 0) return 0;
-        const multiplier = 0.85 + (idx % 3 === 0 ? 0.05 : -0.05); 
-        return Math.round(val * multiplier);
-      });
-      const simulatedQtys = currentQtys.map((val, idx) => {
-        if (val === 0) return 0;
-        const multiplier = 0.88 + (idx % 3 === 0 ? 0.03 : -0.04);
-        return Math.round(val * multiplier);
-      });
+    // ── Current FY: the live tables, bounded to this FY's Apr 1 → Mar 31 window ──
+    const startYear = parseInt(CURRENT_FY.slice(0, 4), 10);
+    const fyStart = new Date(Date.UTC(startYear, 3, 1));
+    const fyEnd = new Date(Date.UTC(startYear + 1, 2, 31, 23, 59, 59, 999));
+    const liveResults = await Promise.all(channels.map((ch) =>
+      getModel(ch).groupBy({
+        by: ['date'],
+        _sum: { amount: true, inAmount: true, qty: true, inQty: true },
+        where: { date: { gte: fyStart, lte: fyEnd } },
+      })
+    ));
+    const curr = fold(liveResults.flat());
 
-      simulatedYearData = {
-        year: prevYear,
-        isSimulated: true,
-        monthly: simulatedRevs.map((revenue, idx) => ({
-          month: idx, // 0-11
-          revenue,
-          qty: simulatedQtys[idx]
-        }))
-      };
-    }
+    const datasets = [
+      { fy: prevFy,     label: `FY ${prevFy}`,     isHistory: true,  isSimulated: false, monthly: toMonthly(prev) },
+      { fy: CURRENT_FY, label: `FY ${CURRENT_FY}`, isHistory: false, isSimulated: false, monthly: toMonthly(curr) },
+    ];
 
-    // Process actual years
-    for (const year of availableYears) {
-      const revs = yearlyMap.get(year)!;
-      const qtys = yearlyQtyMap.get(year)!;
-      formattedYears.push({
-        year,
-        isSimulated: false,
-        monthly: revs.map((revenue, idx) => ({
-          month: idx,
-          revenue,
-          qty: qtys[idx]
-        }))
-      });
-    }
-
-    if (simulatedYearData) {
-      formattedYears.unshift(simulatedYearData);
-    }
-
-    const responseData = { ok: true, datasets: formattedYears };
+    const responseData = { ok: true, monthLabels: FY_MONTH_LABELS, datasets };
     setCached(cacheKey, responseData);
     return res.json(responseData);
   } catch (err: any) {
@@ -1038,8 +1065,9 @@ router.get('/yoy-comparison', async (req, res) => {
 router.get('/author-performance', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
-    const cacheKey = `author-${channel}`;
+    const cacheKey = `author-${channel}-${fy}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
     const channels = resolveChannels(channel);
@@ -1048,11 +1076,12 @@ router.get('/author-performance', async (req, res) => {
     }
 
     const promises = channels.map(async (ch) => {
-      const model = getModel(ch);
+      const { model, base } = getChannelSource(ch, isHistory, fy);
       return model.groupBy({
         by: ['author'],
         _sum: { amount: true, inAmount: true, qty: true, inQty: true },
         where: {
+          ...base,
           AND: [
             { author: { not: null } },
             { author: { not: '' } }
@@ -1118,12 +1147,13 @@ router.get('/category-sales', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
     const range = (req.query.range as string) || '30';
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
-    const cacheKey = `category-${channel}-${range}`;
+    const cacheKey = `category-${channel}-${range}-${fy}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    const dateFilter = buildDateFilter(range);
+    const dateFilter = isHistory ? undefined : buildDateFilter(range);
     const where = dateFilter ? { date: dateFilter } : {};
 
     const channels = resolveChannels(channel);
@@ -1148,10 +1178,10 @@ router.get('/category-sales', async (req, res) => {
 
     // 2. Fetch all transaction rows for resolved channels
     const promises = channels.map(async (ch) => {
-      const model = getModel(ch);
+      const { model, base } = getChannelSource(ch, isHistory, fy);
       return model.findMany({
         select: { title: true, isbn: true, fictionType: true, amount: true, inAmount: true, qty: true, inQty: true, date: true },
-        where: { ...where, title: { not: '' } }
+        where: { ...base, ...where, title: { not: '' } }
       });
     });
 
@@ -1299,8 +1329,9 @@ router.get('/price-analysis', async (req, res) => {
   try {
     const channel = (req.query.channel as string) || 'all';
     const titleParam = req.query.title as string;
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
 
-    const cacheKey = `price-${channel}-${titleParam || 'summary'}`;
+    const cacheKey = `price-${channel}-${titleParam || 'summary'}-${fy}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
@@ -1312,10 +1343,10 @@ router.get('/price-analysis', async (req, res) => {
 
     if (titleParam) {
       const promises = channels.map(async (ch) => {
-        const model = getModel(ch);
+        const { model, base } = getChannelSource(ch, isHistory, fy);
         return model.findMany({
           select: { rate: true, qty: true, inQty: true, amount: true, inAmount: true, date: true, binding: true },
-          where: { title: { equals: titleParam }, rate: { gt: 0 } }
+          where: { ...base, title: { equals: titleParam }, rate: { gt: 0 } }
         });
       });
 
@@ -1360,10 +1391,10 @@ router.get('/price-analysis', async (req, res) => {
     }
 
     const promises = channels.map(async (ch) => {
-      const model = getModel(ch);
+      const { model, base } = getChannelSource(ch, isHistory, fy);
       return model.findMany({
         select: { title: true, rate: true, qty: true, inQty: true, amount: true, inAmount: true, binding: true },
-        where: { title: { not: '' }, rate: { gt: 0 } }
+        where: { ...base, title: { not: '' }, rate: { gt: 0 } }
       });
     });
 

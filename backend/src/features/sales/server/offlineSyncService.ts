@@ -33,7 +33,19 @@ export class OfflineSyncService {
    * @param rows The data rows (including headers)
    * @param targetModel The Prisma model delegate to use (default: prisma.googleSheetOfflineSale)
    */
-  async processData(rows: any[][], targetModel: any = prisma.googleSheetOfflineSale, txClient?: any, preserveMap?: Map<string, PreservedMeta>): Promise<SyncResult> {
+  async processData(
+    rows: any[][],
+    targetModel: any = prisma.googleSheetOfflineSale,
+    txClient?: any,
+    preserveMap?: Map<string, PreservedMeta>,
+    // Extra columns merged into every inserted row (e.g. { channel, financialYear }
+    // for the one-time history archive). When provided alongside omitRawJson, lets
+    // the same parser feed the slim offline_sales_history table.
+    extraFields?: Record<string, any>,
+    // The history table has no rawJson column; skip it so createMany doesn't reject
+    // the unknown field.
+    omitRawJson = false,
+  ): Promise<SyncResult> {
     if (!rows || rows.length < 2) {
       return { success: true, importedCount: 0, skippedCount: 0 };
     }
@@ -93,7 +105,8 @@ export class OfflineSyncService {
       let author = this.getVal(row, headerMap, "Author") || this.getVal(row, headerMap, "DisplayAuthorName");
       let binding = this.getVal(row, headerMap, "Binding");
       let pubYear = parseInt(this.getVal(row, headerMap, "Pub-Year") || this.getVal(row, headerMap, "Pub-year") || "0");
-      let publisher = this.getVal(row, headerMap, "Publisher");
+      // Mumbai & Lokbharti historical sheets label this column "Publishername".
+      let publisher = this.getVal(row, headerMap, "Publisher") || this.getVal(row, headerMap, "Publishername");
 
       // SELF-HEAL: author/binding/pubYear/publisher come from lookup-formula columns in
       // the sheet, which the CSV export returns BLANK when Google hasn't recalculated
@@ -207,7 +220,7 @@ export class OfflineSyncService {
       };
       const rowHash = crypto.createHash('md5').update(JSON.stringify(businessData)).digest('hex');
 
-      toInsert.push({
+      const record: any = {
         slNo,
         docNo,
         date,
@@ -232,8 +245,12 @@ export class OfflineSyncService {
         type,
         fictionType,
         rowHash,
-        rawJson: Array.from({ length: headers.length }, (_, i) => (row[i] === undefined ? null : row[i])) as any,
-      });
+        ...(extraFields ?? {}),
+      };
+      if (!omitRawJson) {
+        record.rawJson = Array.from({ length: headers.length }, (_, i) => (row[i] === undefined ? null : row[i])) as any;
+      }
+      toInsert.push(record);
       count++;
     }
 

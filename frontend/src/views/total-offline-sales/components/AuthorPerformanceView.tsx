@@ -15,6 +15,7 @@ interface AuthorStat {
 
 interface AuthorPerformanceViewProps {
   channel: string;
+  fy?: string;
 }
 
 type SortField = 'author' | 'revenue' | 'copies' | 'share';
@@ -23,7 +24,7 @@ type TierKey = 'top' | 'medium' | 'low';
 
 const TIER_LABEL: Record<TierKey, string> = { top: 'Top Tier', medium: 'Medium Tier', low: 'Low Tier' };
 
-export const AuthorPerformanceView: React.FC<AuthorPerformanceViewProps> = ({ channel }) => {
+export const AuthorPerformanceView: React.FC<AuthorPerformanceViewProps> = ({ channel, fy = 'current' }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authorData, setAuthorData] = useState<{ top: AuthorStat[]; medium: AuthorStat[]; low: AuthorStat[]; counts: { total: number } } | null>(null);
@@ -46,7 +47,7 @@ export const AuthorPerformanceView: React.FC<AuthorPerformanceViewProps> = ({ ch
     setError(null);
     try {
       const data = await apiClient.get<any>(
-        `total-offline-sales/author-performance?channel=${channel}`
+        `total-offline-sales/author-performance?channel=${channel}&fy=${fy}`
       );
       if (data.ok) {
         setAuthorData(data);
@@ -63,7 +64,7 @@ export const AuthorPerformanceView: React.FC<AuthorPerformanceViewProps> = ({ ch
 
   useEffect(() => {
     fetchData();
-  }, [channel]);
+  }, [channel, fy]);
 
   // Reset pagination on filter / tier / sort change
   useEffect(() => {

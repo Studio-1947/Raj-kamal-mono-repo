@@ -62,17 +62,20 @@ export default function TotalOfflineSales() {
   const [activeTab,     setActiveTab]     = useState<'revenue' | 'volume'>('revenue');
   const [dateRange,     setDateRange]     = useState<string>('fytd');
   const [activeChannel, setActiveChannel] = useState<ChannelKey>('all');
+  // 'current' = live FY (default). 'previous' = archived FY 2025-26 (full year).
+  const [fyMode,        setFyMode]        = useState<'current' | 'previous'>('current');
   const [dashboardTab,  setDashboardTab]  = useState<'overview' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price' | 'category'>('overview');
 
   // ── Data fetching ──────────────────────────────────────────────────────────
-  async function fetchData(rangeStr = dateRange, channelStr: ChannelKey = activeChannel) {
+  async function fetchData(rangeStr = dateRange, channelStr: ChannelKey = activeChannel, fyStr: 'current' | 'previous' = fyMode) {
     setLoading(true);
     setError(null);
     try {
-      const qs = `range=${rangeStr}&channel=${channelStr}`;
+      const qs = `range=${rangeStr}&channel=${channelStr}&fy=${fyStr}`;
       const [sumData, txnData, projData] = await Promise.all([
         apiClient.get<any>(`total-offline-sales/summary?${qs}`),
         apiClient.get<any>(`total-offline-sales/transactions?${qs}&limit=20`),
+        // Projection is a forward-looking estimate of the CURRENT FY only.
         apiClient.get<any>(`total-offline-sales/projections`),
       ]);
       if (sumData.ok)  setSummary(sumData);
@@ -86,7 +89,7 @@ export default function TotalOfflineSales() {
     }
   }
 
-  useEffect(() => { fetchData(dateRange, activeChannel); }, [dateRange, activeChannel]);
+  useEffect(() => { fetchData(dateRange, activeChannel, fyMode); }, [dateRange, activeChannel, fyMode]);
 
   // When user clicks a channel card, update state
   const handleChannelSelect = (ch: string) => {
@@ -151,32 +154,61 @@ export default function TotalOfflineSales() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full xl:w-auto">
-          {/* Quick Period selector */}
+          {/* Financial-year selector: live current FY vs archived FY 2025-26 */}
           <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
             {[
-              { label: 'FYTD', value: 'fytd' },
-              { label: '1M', value: '30' },
-              { label: '3M', value: '90' },
-              { label: '6M', value: '180' },
-              { label: '1Y', value: '365' },
-              { label: 'All', value: 'all' }
-            ].map((p) => {
-              const isSelected = dateRange === p.value;
+              { label: 'This Year', value: 'current' as const },
+              { label: 'Last Year', value: 'previous' as const },
+            ].map((y) => {
+              const isSelected = fyMode === y.value;
               return (
                 <button
-                  key={p.label}
-                  onClick={() => setDateRange(p.value)}
+                  key={y.value}
+                  onClick={() => setFyMode(y.value)}
                   className={`rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
                     isSelected
-                      ? 'bg-indigo-600 text-white shadow-md'
+                      ? 'bg-teal-600 text-white shadow-md'
                       : 'text-gray-600 hover:bg-gray-200/60'
                   }`}
                 >
-                  {p.label}
+                  {y.label}
                 </button>
               );
             })}
           </div>
+
+          {/* Quick Period selector — only for the live year; the archive is a full fixed FY */}
+          {fyMode === 'current' ? (
+            <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
+              {[
+                { label: 'FYTD', value: 'fytd' },
+                { label: '1M', value: '30' },
+                { label: '3M', value: '90' },
+                { label: '6M', value: '180' },
+                { label: '1Y', value: '365' },
+                { label: 'All', value: 'all' }
+              ].map((p) => {
+                const isSelected = dateRange === p.value;
+                return (
+                  <button
+                    key={p.label}
+                    onClick={() => setDateRange(p.value)}
+                    className={`rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-200/60'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="inline-flex items-center rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-amber-700">
+              FY 2025-26 · Full Year (Archive)
+            </div>
+          )}
 
           <button
             onClick={() => fetchData(dateRange, activeChannel)}
@@ -402,6 +434,7 @@ export default function TotalOfflineSales() {
                 activeChannel={activeChannel}
                 activeTab={activeTab}
                 dateRange={dateRange}
+                fy={fyMode}
               />
             </div>
           )}
@@ -428,7 +461,7 @@ export default function TotalOfflineSales() {
           )}
 
           {dashboardTab === 'focus' && (
-            <FocusTabGrowthView channel={activeChannel} />
+            <FocusTabGrowthView channel={activeChannel} fy={fyMode} />
           )}
 
           {dashboardTab === 'yoy' && (
@@ -436,15 +469,15 @@ export default function TotalOfflineSales() {
           )}
 
           {dashboardTab === 'author' && (
-            <AuthorPerformanceView channel={activeChannel} />
+            <AuthorPerformanceView channel={activeChannel} fy={fyMode} />
           )}
 
           {dashboardTab === 'price' && (
-            <PriceReprintAnalysisView channel={activeChannel} />
+            <PriceReprintAnalysisView channel={activeChannel} fy={fyMode} />
           )}
 
           {dashboardTab === 'category' && (
-            <CategorySalesView channel={activeChannel} />
+            <CategorySalesView channel={activeChannel} fy={fyMode} />
           )}
         </div>
       )}

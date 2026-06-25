@@ -31,9 +31,10 @@ interface PricePointDetail {
 
 interface PriceReprintAnalysisViewProps {
   channel: string;
+  fy?: string;
 }
 
-export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> = ({ channel }) => {
+export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> = ({ channel, fy = 'current' }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summaryData, setSummaryData] = useState<PriceSummaryData | null>(null);
@@ -50,7 +51,7 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
     setError(null);
     try {
       const data = await apiClient.get<any>(
-        `total-offline-sales/price-analysis?channel=${channel}`
+        `total-offline-sales/price-analysis?channel=${channel}&fy=${fy}`
       );
       if (data.ok) {
         setSummaryData(data);
@@ -70,7 +71,7 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
     setDetailsLoading(true);
     try {
       const data = await apiClient.get<any>(
-        `total-offline-sales/price-analysis?channel=${channel}&title=${encodeURIComponent(title)}`
+        `total-offline-sales/price-analysis?channel=${channel}&title=${encodeURIComponent(title)}&fy=${fy}`
       );
       if (data.ok) {
         setBookDetails(data.pricePoints || []);
@@ -88,14 +89,14 @@ export const PriceReprintAnalysisView: React.FC<PriceReprintAnalysisViewProps> =
     setBookDetails([]);
     setSearchTerm('');
     setSelectedBindingTab('All');
-  }, [channel]);
+  }, [channel, fy]);
 
   useEffect(() => {
     if (selectedBook) {
       fetchBookDetails(selectedBook);
       setSelectedDetailBinding('All');
     }
-  }, [selectedBook, channel]);
+  }, [selectedBook, channel, fy]);
 
   // Calculate counts for each binding tab
   const tabCounts = useMemo(() => {
