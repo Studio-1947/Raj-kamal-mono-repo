@@ -30,7 +30,7 @@ const Login: React.FC = () => {
   const loginMutation = useLogin();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from?.pathname || '/offline-sheet-sales';
+  const from = (location.state as any)?.from?.pathname || '/';
 
   useEffect(() => {
     if (isAuthenticated) {

@@ -1,146 +1,177 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLang } from "../modules/lang/LangContext";
 import { useLogout } from "../services/authService";
 import { useAuth } from "../modules/auth/AuthContext";
-import {
-  IconHomeDefault,
-  IconHomeActive,
-  IconSalesDefault,
-  IconSalesActive,
-  IconInventoryDefault,
-  IconInventoryActive,
-  IconRankingsDefault,
-  IconRankingsActive,
-  IconSettingsDefault,
-  IconLanguageDefault,
-  IconSocialDefault,
-  IconSocialActive,
-  IconUser,
-  IconChevron,
-  IconCheck,
-  IconChevronDown,
-} from "./icons/SidebarIcons";
+import { IconSettingsDefault } from "./icons/SidebarIcons";
 
 import { RajkamalLogo } from "./RajkamalLogo";
 
-type Item = {
+// ── Active state colour (per design spec) ──
+const ACTIVE = "#0067B5";
+
+// ── Small inline icon set (logos beside menu items) ──
+type IconProps = React.SVGProps<SVGSVGElement>;
+const svg = (path: React.ReactNode) => (p: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.7}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-4 w-4"
+    {...p}
+  >
+    {path}
+  </svg>
+);
+
+const IconHome = svg(<path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5" />);
+const IconStore = svg(<><path d="M4 9h16l-1-5H5L4 9Z" /><path d="M5 9v11h14V9" /><path d="M9 20v-6h6v6" /></>);
+const IconGlobe = svg(<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z" /></>);
+const IconBook = svg(<path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4Zm0 0v14M18 16H7" />);
+const IconPin = svg(<><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z" /><circle cx="12" cy="10" r="2.5" /></>);
+const IconChat = svg(<path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12Z" />);
+const IconBag = svg(<><path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></>);
+const IconMap = svg(<><path d="m9 4 6 2 5-2v14l-5 2-6-2-5 2V6l5-2Z" /><path d="M9 4v14M15 6v14" /></>);
+const IconSocial = svg(<><circle cx="6" cy="12" r="2.5" /><circle cx="17" cy="6" r="2.5" /><circle cx="17" cy="18" r="2.5" /><path d="m8.2 10.8 6.6-3.6M8.2 13.2l6.6 3.6" /></>);
+const IconArrowLeft = svg(<path d="M19 12H5M11 6l-6 6 6 6" />);
+const IconLogout = svg(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5M21 12H9" /></>);
+
+type Leaf = {
   label: string;
   to: string;
-  icon: JSX.Element;
+  icon: (p: IconProps) => JSX.Element;
   disabled?: boolean;
 };
 
-function LangMenuItems({ onSelect }: { onSelect: () => void }) {
-  const { lang, setLang, t } = useLang();
-  const entry = (key: "en" | "hi", label: string) => (
-    <button
-      key={key}
-      onClick={() => {
-        setLang(key);
-        onSelect();
-      }}
-      className={
-        "flex w-full items-center justify-between rounded-md px-2 py-2 text-sm font-normal hover:bg-gray-50 " +
-        (lang === key ? "text-gray-900" : "text-gray-600")
-      }
-    >
-      <span>{label}</span>
-      {lang === key && <IconCheck className="h-4 w-4 text-green-600" />}
-    </button>
-  );
-  return (
-    <div className="space-y-1">
-      {entry("en", t("english"))}
-      {entry("hi", t("hindi"))}
-    </div>
-  );
-}
+type NavNode =
+  | { kind: "item"; label: string; to: string; icon: (p: IconProps) => JSX.Element; disabled?: boolean }
+  | { kind: "group"; title: string; icon: (p: IconProps) => JSX.Element; items: Leaf[] };
+
+// ── Sidebar navigation tree (always-open, non-collapsible) ──
+const TREE: NavNode[] = [
+  { kind: "item", label: "Total", to: "/", icon: IconHome },
+  {
+    kind: "group",
+    title: "Offline Data",
+    icon: IconStore,
+    items: [
+      { label: "Delhi", to: "/offline-sheet-sales", icon: IconPin },
+      { label: "Mumbai", to: "/mumbai-offline-sales", icon: IconPin },
+      { label: "Patna", to: "/patna-offline-sales", icon: IconPin },
+      { label: "Lokbharti", to: "/lokbharti-offline-sales", icon: IconPin },
+    ],
+  },
+  {
+    kind: "group",
+    title: "Online Data",
+    icon: IconGlobe,
+    items: [
+      { label: "Website", to: "/online-offline-sales", icon: IconGlobe },
+      { label: "WhatsApp", to: "#", icon: IconChat, disabled: true },
+      { label: "Amazon", to: "#", icon: IconBag, disabled: true },
+      { label: "Flipkart", to: "#", icon: IconBag, disabled: true },
+    ],
+  },
+  {
+    kind: "group",
+    title: "BookFair",
+    icon: IconBook,
+    items: [
+      { label: "Delhi", to: "/bookfair-offline-sales", icon: IconPin },
+    ],
+  },
+];
 
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { t } = useLang();
   const navigate = useNavigate();
-  const { logout: clientLogout, user } = useAuth();
+  const { logout: clientLogout } = useAuth();
   const logoutMutation = useLogout();
+
+  const [collapsed, setCollapsed] = useState(false);
 
   function handleLogout() {
     clientLogout();
-    setOpenMenu(null);
     navigate("/login", { replace: true });
     logoutMutation.mutate();
   }
 
-  const items: Item[] = [
-    { label: t("home"), to: "/", icon: <span /> },
-    { label: "Delhi Offline", to: "/offline-sheet-sales", icon: <span /> },
-    { label: "Mumbai Offline", to: "/mumbai-offline-sales", icon: <span /> },
-    { label: "Patna Offline", to: "/patna-offline-sales", icon: <span /> },
-    { label: "Online - Website", to: "/online-offline-sales", icon: <span /> },
-    { label: "BookFair Offline", to: "/bookfair-offline-sales", icon: <span /> },
-    { label: "Lokbharti - Allahabad", to: "/lokbharti-offline-sales", icon: <span /> },
-    { label: t("geo_insights"), to: "/geo-insights", icon: <span /> },
-    { label: t("rankings"), to: "/rankings", icon: <span />, disabled: true },
-  ];
-
-  const [openMenu, setOpenMenu] = useState<null | "amod" | "settings" | "lang">(null);
-
-  const amodRef = useRef<HTMLDivElement | null>(null);
-  const settingsRef = useRef<HTMLDivElement | null>(null);
-  const langRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      const t = e.target as Node;
-      if (
-        !amodRef.current?.contains(t) &&
-        !settingsRef.current?.contains(t) &&
-        !langRef.current?.contains(t)
-      ) {
-        setOpenMenu(null);
-      }
-    }
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
-
-  // Helper: resolve correct icon for each nav item
-  function resolveIcon(it: Item, active: boolean) {
-    if (it.to === "/") return active ? <IconHomeActive className="h-5 w-5" /> : <IconHomeDefault className="h-5 w-5" />;
-    if (it.to === "/offline-sheet-sales") return (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    );
-    if (["/mumbai-offline-sales", "/patna-offline-sales", "/online-offline-sales", "/bookfair-offline-sales", "/lokbharti-offline-sales"].includes(it.to)) return (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    );
-    if (it.to === "/geo-insights") return (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18 15 15 0 010-18z" />
-      </svg>
-    );
-    if (it.to === "/dashboard") return active ? <IconSalesActive className="h-5 w-5" /> : <IconSalesDefault className="h-5 w-5" />;
-    if (it.to === "/stock") return active ? <IconInventoryActive className="h-5 w-5" /> : <IconInventoryDefault className="h-5 w-5" />;
-    if (it.to === "/rankings") return active ? <IconRankingsActive className="h-5 w-5" /> : <IconRankingsDefault className="h-5 w-5" />;
-    if (it.to === "/social") return active ? <IconSocialActive className="h-5 w-5" /> : <IconSocialDefault className="h-5 w-5" />;
-    return it.icon;
+  // A leaf/item is active when its path (and optional query) matches the URL.
+  function isActive(to: string) {
+    const [path, search] = to.split("?");
+    return location.pathname === path && (!search || location.search === `?${search}`);
   }
+
+  // ── Top-level item (e.g. "Total") ──
+  function TopItem({ label, to, icon: Icon, disabled }: { label: string; to: string; icon: (p: IconProps) => JSX.Element; disabled?: boolean }) {
+    const active = isActive(to);
+    return (
+      <Link
+        to={disabled ? "#" : to}
+        onClick={(e) => disabled && e.preventDefault()}
+        title={label}
+        style={active ? { color: ACTIVE } : undefined}
+        className={
+          "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors " +
+          (disabled ? "opacity-40 pointer-events-none " : "") +
+          (active
+            ? "bg-[#0067B5]/10"
+            : "text-gray-700 hover:bg-gray-50 hover:text-gray-900")
+        }
+      >
+        {active && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
+        <Icon className={"h-4 w-4 shrink-0 " + (active ? "" : "text-gray-400")} />
+        <span className="truncate">{label}</span>
+      </Link>
+    );
+  }
+
+  // ── Indented leaf inside a group ──
+  function LeafItem({ leaf }: { leaf: Leaf }) {
+    const active = isActive(leaf.to);
+    const Icon = leaf.icon;
+    return (
+      <Link
+        to={leaf.disabled ? "#" : leaf.to}
+        onClick={(e) => leaf.disabled && e.preventDefault()}
+        title={leaf.label}
+        style={active ? { color: ACTIVE } : undefined}
+        className={
+          "group/leaf flex items-center gap-2 rounded-lg py-0.5 pl-6 pr-3 text-sm transition-colors " +
+          (leaf.disabled ? "opacity-40 pointer-events-none " : "") +
+          (active
+            ? "bg-[#0067B5]/10 font-medium"
+            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900")
+        }
+      >
+        {active && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
+        <Icon className={"h-4 w-4 shrink-0 " + (active ? "" : "text-gray-400")} />
+        <span className="truncate">{leaf.label}</span>
+      </Link>
+    );
+  }
+
+  // Flattened nav for the collapsed icon-rail (sections become a single icon list).
+  const collapsedNav = [
+    ...TREE.flatMap((n) => (n.kind === "item" ? [{ label: n.label, to: n.to, icon: n.icon, disabled: n.disabled }] : n.items)),
+    { label: t("geo_insights"), to: "/geo-insights", icon: IconMap, disabled: false },
+    { label: t("social_media"), to: "/social", icon: IconSocial, disabled: false },
+  ];
 
   return (
     <aside
       className={
-        `relative flex h-full flex-col border-r border-gray-200 bg-white/90 backdrop-blur rounded-3xl overflow-visible ` +
-        `transition-[width] duration-300 ease-in-out ${collapsed ? "w-[72px]" : "w-64"}`
+        "relative flex h-full flex-col rounded-3xl border border-gray-200 bg-white/90 backdrop-blur " +
+        "transition-[width] duration-300 ease-in-out " +
+        (collapsed ? "w-[76px]" : "w-64")
       }
     >
       {/* ── Logo ── */}
-      <div className={`flex items-center py-3 ${collapsed ? "justify-center px-0" : "px-4 gap-2"}`}>
+      <div className={"flex items-center py-3 " + (collapsed ? "justify-center px-0" : "gap-2 px-4")}>
         <RajkamalLogo
           className={collapsed ? "" : "gap-2"}
           showWordmark={!collapsed}
@@ -150,224 +181,135 @@ export default function Sidebar() {
       </div>
 
       {/* ── Nav ── */}
-      <nav className="flex-1 flex flex-col overflow-hidden min-h-0 px-2 mt-1">
-        {/* Scrollable nav list — scrollbar hidden via inline style */}
+      <nav className="flex min-h-0 flex-1 flex-col px-2 mt-1">
+        {/* Scrollable area — scrollbar hidden */}
         <div
           className="flex-1 overflow-y-auto"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
         >
-          <ul className={`${collapsed ? "space-y-0.5" : "space-y-0.5"}`}>
-            {items.map((it) => {
-              const [itPath, itSearch] = it.to.split('?');
-              const active = location.pathname === itPath &&
-                (!itSearch || location.search === `?${itSearch}`);
-              const iconEl = resolveIcon(it, active);
-
-              return (
-                <li key={it.label} className={it.disabled ? "cursor-not-allowed" : ""}>
+          {collapsed ? (
+            /* ── Collapsed: centered icon rail ── */
+            <div className="flex flex-col items-center gap-1">
+              {collapsedNav.map((it) => {
+                const active = isActive(it.to);
+                const Icon = it.icon;
+                return (
                   <Link
+                    key={it.to + it.label}
                     to={it.disabled ? "#" : it.to}
                     onClick={(e) => it.disabled && e.preventDefault()}
-                    title={it.label} // always show tooltip on hover (helpful in both states)
+                    title={it.label}
+                    style={active ? { color: ACTIVE } : undefined}
                     className={
-                      "flex items-center text-sm font-normal transition-all duration-150 " +
+                      "flex h-10 w-10 items-center justify-center rounded-xl transition-colors " +
                       (it.disabled ? "opacity-40 pointer-events-none " : "") +
-                      (!collapsed
-                        ? // ── Expanded ──
-                          `gap-3 rounded-xl px-3 py-2.5 ${
-                            active
-                              ? "bg-[#526BA3] text-white"
-                              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                          }`
-                        : // ── Collapsed: perfectly centered icon circle ──
-                          `flex justify-center items-center w-10 h-10 mx-auto rounded-xl ${
-                            active
-                              ? "bg-[#526BA3] text-white"
-                              : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                          }`)
+                      (active ? "bg-[#0067B5]/10" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800")
                     }
                   >
-                    <span className={`shrink-0 ${active ? "text-white" : "text-gray-500"} ${collapsed && active ? "text-white" : ""}`}>
-                      {iconEl}
-                    </span>
-                    {!collapsed && <span className="truncate">{it.label}</span>}
+                    <Icon className="h-5 w-5 shrink-0" />
                   </Link>
-                </li>
-              );
-            })}
-          </ul>
+                );
+              })}
+            </div>
+          ) : (
+            /* ── Expanded: full tree — each cluster is its own separated card ── */
+            <div className="space-y-2.5">
+              {TREE.map((node) =>
+                node.kind === "item" ? (
+                  <div key={node.label} className="rounded-2xl border border-gray-100 p-1.5">
+                    <TopItem label={node.label} to={node.to} icon={node.icon} disabled={node.disabled} />
+                  </div>
+                ) : (
+                  <div key={node.title} className="rounded-2xl border border-gray-100 p-2">
+                    {/* Section header — static, non-collapsible */}
+                    <div className="flex items-center gap-2 px-3 pb-1.5 text-xs font-semibold tracking-wide text-gray-500">
+                      <node.icon className="h-4 w-4 shrink-0 text-gray-400" />
+                      <span>{node.title}</span>
+                    </div>
+                    {/* Sub-items — always visible */}
+                    <div className="relative space-y-0">
+                      {/* vertical tree guide line */}
+                      <span className="pointer-events-none absolute left-3 top-1 bottom-1 w-px bg-gray-100" aria-hidden />
+                      {node.items.map((leaf) => (
+                        <LeafItem key={node.title + leaf.label} leaf={leaf} />
+                      ))}
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* ── Standalone sections (boxed, like mockup) ── */}
+              <Link
+                  to="/geo-insights"
+                  style={isActive("/geo-insights") ? { color: ACTIVE, borderColor: ACTIVE } : undefined}
+                  className={
+                    "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors " +
+                    (isActive("/geo-insights")
+                      ? "bg-[#0067B5]/10 border-[#0067B5]"
+                      : "border-gray-200 text-gray-700 hover:bg-gray-50")
+                  }
+                >
+                  {isActive("/geo-insights") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
+                  <IconMap className={"h-4 w-4 shrink-0 " + (isActive("/geo-insights") ? "" : "text-gray-400")} />
+                  {t("geo_insights")}
+                </Link>
+                <Link
+                  to="/social"
+                  style={isActive("/social") ? { color: ACTIVE, borderColor: ACTIVE } : undefined}
+                  className={
+                    "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors " +
+                    (isActive("/social")
+                      ? "bg-[#0067B5]/10 border-[#0067B5]"
+                      : "border-gray-200 text-gray-700 hover:bg-gray-50")
+                  }
+                >
+                  {isActive("/social") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
+                  <IconSocial className={"h-4 w-4 shrink-0 " + (isActive("/social") ? "" : "text-gray-400")} />
+                  {t("social_media")}
+                </Link>
+            </div>
+          )}
         </div>
 
         {/* ── Divider ── */}
-        <div className="my-3 h-px w-full bg-gray-100 shrink-0" />
+        <div className="my-3 h-px w-full shrink-0 bg-gray-100" />
 
-        {/* ── Bottom: Account, Settings, Language ── */}
-        <div className="shrink-0 pb-1 space-y-0.5">
-
-          {/* Account button */}
-          <div ref={amodRef} className="relative">
-            <button
-              onClick={() => setOpenMenu((v) => (v === "amod" ? null : "amod"))}
-              title={user?.name || "Account"}
-              className={
-                !collapsed
-                  ? "flex w-full items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700 hover:bg-rose-100 transition-colors"
-                  : "flex mx-auto w-10 h-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
-              }
-            >
-              <div className={`flex items-center justify-center rounded-full bg-rose-100 text-rose-600 ${collapsed ? "h-6 w-6" : "h-7 w-7 shrink-0"}`}>
-                <IconUser className="h-3.5 w-3.5" />
-              </div>
-              {!collapsed && (
-                <>
-                  <span className="text-sm font-normal truncate flex-1 text-left">{user?.name || "Account"}</span>
-                  <IconChevronDown
-                    className={`h-4 w-4 shrink-0 transition-transform ${openMenu === "amod" ? "rotate-180" : ""}`}
-                  />
-                </>
-              )}
-            </button>
-            {/* Expanded: inline accordion */}
-            {!collapsed && (
-              <div className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "amod" ? "max-h-40" : "max-h-0"}`}>
-                <div className="mt-1.5 rounded-xl border border-gray-100 bg-white shadow-sm p-1">
-                  <Link
-                    to="/settings"
-                    onClick={() => setOpenMenu(null)}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50"
-                  >
-                    <IconSettingsDefault className="h-4 w-4" />
-                    <span>My Account</span>
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    disabled={logoutMutation.isPending}
-                    className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-normal text-red-600 hover:bg-red-50 disabled:opacity-60"
-                  >
-                    <span>Logout</span>
-                  </button>
-                </div>
-              </div>
-            )}
-            {/* Collapsed: popover */}
-            {collapsed && openMenu === "amod" && (
-              <div className="absolute left-full top-0 z-50 ml-3 w-52 rounded-2xl border border-gray-100 bg-white shadow-xl p-1.5">
-                <p className="px-3 py-1.5 text-xs font-normal text-gray-400 uppercase tracking-wider">{user?.name || "Account"}</p>
-                <Link
-                  to="/settings"
-                  onClick={() => setOpenMenu(null)}
-                  className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50"
-                >
-                  <IconSettingsDefault className="h-4 w-4" />
-                  <span>My Account</span>
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  disabled={logoutMutation.isPending}
-                  className="mt-0.5 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-normal text-red-600 hover:bg-red-50 disabled:opacity-60"
-                >
-                  <span>Logout</span>
-                </button>
-              </div>
-            )}
-          </div>
+        {/* ── Bottom: compact circular actions (Collapse · Settings · Logout) ── */}
+        <div className={"flex shrink-0 items-center gap-2.5 px-1 pb-2 " + (collapsed ? "flex-col" : "justify-start")}>
+          {/* Collapse / expand sidebar */}
+          <button
+            onClick={() => setCollapsed((v) => !v)}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1C386D] text-white shadow-sm transition hover:opacity-90"
+          >
+            <IconArrowLeft className={"h-4 w-4 transition-transform duration-300 " + (collapsed ? "rotate-180" : "")} />
+          </button>
 
           {/* Settings */}
-          <div ref={settingsRef} className="relative">
-            <button
-              onClick={() => setOpenMenu((v) => (v === "settings" ? null : "settings"))}
-              title={t("settings")}
-              className={
-                "flex items-center text-sm font-normal transition-all duration-150 " +
-                (!collapsed
-                  ? "w-full gap-3 rounded-xl px-3 py-2.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  : "w-10 h-10 mx-auto justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-800")
-              }
-            >
-              <span className="shrink-0 text-gray-500"><IconSettingsDefault className="h-5 w-5" /></span>
-              {!collapsed && (
-                <>
-                  <span className="truncate flex-1 text-left">{t("settings")}</span>
-                  <IconChevronDown className={`h-4 w-4 shrink-0 transition-transform ${openMenu === "settings" ? "rotate-180" : ""}`} />
-                </>
-              )}
-            </button>
-            {!collapsed && (
-              <div className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "settings" ? "max-h-48" : "max-h-0"}`}>
-                <div className="mt-1.5 rounded-xl border border-gray-100 bg-white shadow-sm p-1">
-                  <Link
-                    to="/settings"
-                    onClick={() => setOpenMenu(null)}
-                    className="block rounded-lg px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50"
-                  >
-                    General
-                  </Link>
-                </div>
-              </div>
-            )}
-            {collapsed && openMenu === "settings" && (
-              <div className="absolute left-full top-0 z-50 ml-3 w-52 rounded-2xl border border-gray-100 bg-white shadow-xl p-1.5">
-                <p className="px-3 py-1.5 text-xs font-normal text-gray-400 uppercase tracking-wider">{t("settings")}</p>
-                <Link to="/settings" onClick={() => setOpenMenu(null)} className="block rounded-xl px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50">General</Link>
-                <button onClick={() => setOpenMenu(null)} className="w-full text-left rounded-xl px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50">Theme</button>
-                <button onClick={() => setOpenMenu(null)} className="w-full text-left rounded-xl px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50">Notifications</button>
-              </div>
-            )}
-          </div>
+          <Link
+            to="/settings"
+            title={t("settings")}
+            className={
+              "flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition " +
+              (isActive("/settings")
+                ? "bg-[#0067B5] text-white"
+                : "bg-gray-200 text-gray-600 hover:bg-gray-300")
+            }
+          >
+            <IconSettingsDefault className="h-4 w-4" />
+          </Link>
 
-          {/* Language */}
-          <div ref={langRef} className="relative">
-            <button
-              onClick={() => setOpenMenu((v) => (v === "lang" ? null : "lang"))}
-              title={t("language")}
-              className={
-                "flex items-center text-sm font-normal transition-all duration-150 " +
-                (!collapsed
-                  ? "w-full gap-3 rounded-xl px-3 py-2.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  : "w-10 h-10 mx-auto justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-800")
-              }
-            >
-              <span className="shrink-0 text-gray-500"><IconLanguageDefault className="h-5 w-5" /></span>
-              {!collapsed && (
-                <>
-                  <span className="truncate flex-1 text-left">{t("language")}</span>
-                  <IconChevronDown className={`h-4 w-4 shrink-0 transition-transform ${openMenu === "lang" ? "rotate-180" : ""}`} />
-                </>
-              )}
-            </button>
-            {!collapsed && (
-              <div className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "lang" ? "max-h-40" : "max-h-0"}`}>
-                <div className="mt-1.5 rounded-xl border border-gray-100 bg-white shadow-sm p-1">
-                  <div className="px-3 py-1 text-xs font-normal text-gray-400 uppercase tracking-wider">{t("select_language")}</div>
-                  <LangMenuItems onSelect={() => setOpenMenu(null)} />
-                </div>
-              </div>
-            )}
-            {collapsed && openMenu === "lang" && (
-              <div className="absolute left-full top-0 z-50 ml-3 w-52 rounded-2xl border border-gray-100 bg-white shadow-xl p-1.5">
-                <p className="px-3 py-1.5 text-xs font-normal text-gray-400 uppercase tracking-wider">{t("select_language")}</p>
-                <LangMenuItems onSelect={() => setOpenMenu(null)} />
-              </div>
-            )}
-          </div>
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            disabled={logoutMutation.isPending}
+            title="Logout"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#B92234] text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+          >
+            <IconLogout className="h-4 w-4" />
+          </button>
         </div>
       </nav>
-
-      {/* ── Collapse Toggle ── */}
-      <div className={`px-3 pb-4 pt-2 ${collapsed ? "flex justify-center" : ""}`}>
-        <button
-          onClick={() => setCollapsed((v) => !v)}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={
-            collapsed
-              ? "flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-              : "flex w-full items-center justify-center gap-2 rounded-full bg-gray-100 py-2 text-xs font-normal text-gray-600 hover:bg-gray-200 hover:text-gray-800 transition-colors"
-          }
-        >
-          <IconChevron className={`h-4 w-4 transition-transform duration-300 ${collapsed ? "rotate-180" : ""}`} />
-          {!collapsed && <span>{t("collapse")}</span>}
-        </button>
-      </div>
     </aside>
   );
 }

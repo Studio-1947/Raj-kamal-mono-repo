@@ -11,7 +11,8 @@
 import React, { useMemo, useState, useEffect, useTransition } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../../../shared/AppLayout';
-import SalesDashboardTabs from '../../../components/SalesDashboardTabs';
+import PageHero from '../../../shared/PageHero';
+import StickyTabs from '../../../shared/StickyTabs';
 import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
@@ -43,6 +44,17 @@ const REGION_TO_CHANNEL: Record<string, string> = {
   online: 'Online',
   bookfair: 'BookFair',
   lokbharti: 'Lokbharti',
+};
+
+// Per-region banner copy (title + kicker + optional decorative image) for the PageHero.
+// Drop PNGs in `frontend/public/hero/` to enable the right-side illustration.
+const REGION_HERO: Record<string, { title: string; kicker: string; image?: string }> = {
+  delhi:     { title: 'Delhi',     kicker: 'Offline Sales Data' },
+  mumbai:    { title: 'Mumbai',    kicker: 'Offline Sales Data' },
+  patna:     { title: 'Patna',     kicker: 'Offline Sales Data' },
+  online:    { title: 'Website',   kicker: 'Online Sales Data', image: '/hero/website.png' },
+  bookfair:  { title: 'BookFair',  kicker: 'Offline Sales Data' },
+  lokbharti: { title: 'Lokbharti', kicker: 'Offline Sales Data' },
 };
 
 // ─── Pagination Component ───────────────────────────────────────────────────
@@ -735,50 +747,30 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
 
   return (
     <AppLayout>
-      <div className="pt-6">
-        <SalesDashboardTabs />
-      </div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-normal text-black tracking-tight uppercase">
-            {region === 'delhi' ? 'Master' : region.charAt(0).toUpperCase() + region.slice(1)} Sales Dashboard
-          </h1>
-          <p className="mt-1 text-base font-normal text-gray-500">
-            Advanced Spreadsheet-style Filters & Legibility Optimized Data View
-          </p>
+      {/* ── Page Hero + Sticky Tabs (tabs rise up behind the hero) ──────── */}
+      <div className="pt-6 mb-8">
+        <div className="relative z-10">
+          <PageHero
+            kicker={REGION_HERO[region].kicker}
+            title={REGION_HERO[region].title}
+            badge={{ label: 'Live Data', tone: 'live' }}
+            illustrationSrc={REGION_HERO[region].image}
+          />
         </div>
-        <div className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-normal text-white shadow-xl ring-4 ring-teal-500/20">
-          <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse" />
-          Live ERP Data
-        </div>
-      </div>
-
-      {/* ── Dashboard Sub-Tabs ────────────────────────────────────────── */}
-      <div className="flex border-b border-gray-100 mb-8 overflow-x-auto custom-scrollbar flex-nowrap whitespace-nowrap">
-        {[
-          { id: 'sheet',    label: 'Transaction Sheet' },
-          { id: 'new-old',  label: 'New vs. Old Titles' },
-          { id: 'focus',    label: 'Focus Tab (Growth)' },
-          { id: 'yoy',      label: 'YoY Comparison' },
-          { id: 'author',   label: 'Author Performance' },
-          { id: 'price',    label: 'Price & Reprints' },
-          { id: 'category', label: 'Fiction vs. Non-Fiction' }
-        ].map((tab) => {
-          const isActive = dashboardTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setDashboardTab(tab.id as any)}
-              className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all -mb-[2px] ${
-                isActive
-                  ? 'border-indigo-600 text-indigo-600 font-bold'
-                  : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+        <StickyTabs
+          active={dashboardTab}
+          onChange={(id) => setDashboardTab(id as any)}
+          className="relative z-0 -mt-5 pl-6 sm:pl-8"
+          tabs={[
+            { id: 'sheet',    label: 'Transaction Sheet' },
+            { id: 'new-old',  label: 'New vs. Old Titles' },
+            { id: 'focus',    label: 'Focus Tab (Growth)' },
+            { id: 'yoy',      label: 'YoY Comparison' },
+            { id: 'author',   label: 'Author Performance' },
+            { id: 'price',    label: 'Price & Reprints' },
+            { id: 'category', label: 'Fiction vs. Non-Fiction' },
+          ]}
+        />
       </div>
 
       {dashboardTab === 'sheet' ? (
