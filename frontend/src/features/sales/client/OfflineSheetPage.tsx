@@ -46,12 +46,13 @@ const REGION_TO_CHANNEL: Record<string, string> = {
   lokbharti: 'Lokbharti',
 };
 
-// Per-region banner copy (title + kicker) for the PageHero.
-const REGION_HERO: Record<string, { title: string; kicker: string }> = {
+// Per-region banner copy (title + kicker + optional decorative image) for the PageHero.
+// Drop PNGs in `frontend/public/hero/` to enable the right-side illustration.
+const REGION_HERO: Record<string, { title: string; kicker: string; image?: string }> = {
   delhi:     { title: 'Delhi',     kicker: 'Offline Sales Data' },
   mumbai:    { title: 'Mumbai',    kicker: 'Offline Sales Data' },
   patna:     { title: 'Patna',     kicker: 'Offline Sales Data' },
-  online:    { title: 'Website',   kicker: 'Online Sales Data' },
+  online:    { title: 'Website',   kicker: 'Online Sales Data', image: '/hero/website.png' },
   bookfair:  { title: 'BookFair',  kicker: 'Offline Sales Data' },
   lokbharti: { title: 'Lokbharti', kicker: 'Offline Sales Data' },
 };
@@ -753,6 +754,7 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
             kicker={REGION_HERO[region].kicker}
             title={REGION_HERO[region].title}
             badge={{ label: 'Live Data', tone: 'live' }}
+            illustrationSrc={REGION_HERO[region].image}
           />
         </div>
         <StickyTabs

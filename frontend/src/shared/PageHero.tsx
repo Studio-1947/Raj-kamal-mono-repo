@@ -9,17 +9,30 @@ type PageHeroProps = {
   badge?: { label: string; tone?: "live" | "neutral" };
   /** Optional controls / actions rendered on the right side of the banner */
   right?: React.ReactNode;
-  /** Optional decorative illustration on the far right */
-  illustration?: React.ReactNode;
+  /** Optional decorative PNG/illustration shown on the far right of the banner */
+  illustrationSrc?: string;
 };
 
 /**
- * Reusable page banner — soft rose gradient card with a status pill,
- * kicker, large navy title and an optional right-hand controls slot.
+ * Reusable page banner — navy card with a status pill, kicker, large title,
+ * an optional right-hand controls slot and an optional decorative image.
  */
-export default function PageHero({ kicker, title, badge, right, illustration }: PageHeroProps) {
+export default function PageHero({ kicker, title, badge, right, illustrationSrc }: PageHeroProps) {
   return (
     <div className="relative overflow-hidden rounded-[36px] border border-[#02376B] bg-[#02376B] px-7 py-12 sm:px-9 sm:py-14">
+      {/* Decorative image (e.g. device mockups) bleeding to the right edge */}
+      {illustrationSrc && (
+        <img
+          src={illustrationSrc}
+          alt=""
+          aria-hidden
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+          className="pointer-events-none absolute bottom-0 right-0 z-0 hidden h-full w-auto max-w-[55%] object-contain object-right-bottom select-none md:block"
+        />
+      )}
+
       <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
@@ -48,12 +61,7 @@ export default function PageHero({ kicker, title, badge, right, illustration }: 
           </h1>
         </div>
 
-        {(right || illustration) && (
-          <div className="flex shrink-0 flex-wrap items-center gap-4">
-            {right}
-            {illustration}
-          </div>
-        )}
+        {right && <div className="flex shrink-0 flex-wrap items-center gap-4">{right}</div>}
       </div>
     </div>
   );
