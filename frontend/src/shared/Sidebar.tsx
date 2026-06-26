@@ -1,15 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLang } from "../modules/lang/LangContext";
 import { useLogout } from "../services/authService";
 import { useAuth } from "../modules/auth/AuthContext";
-import {
-  IconSettingsDefault,
-  IconLanguageDefault,
-  IconUser,
-  IconCheck,
-  IconChevronDown,
-} from "./icons/SidebarIcons";
+import { IconSettingsDefault } from "./icons/SidebarIcons";
 
 import { RajkamalLogo } from "./RajkamalLogo";
 
@@ -42,6 +36,8 @@ const IconChat = svg(<path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 2
 const IconBag = svg(<><path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></>);
 const IconMap = svg(<><path d="m9 4 6 2 5-2v14l-5 2-6-2-5 2V6l5-2Z" /><path d="M9 4v14M15 6v14" /></>);
 const IconSocial = svg(<><circle cx="6" cy="12" r="2.5" /><circle cx="17" cy="6" r="2.5" /><circle cx="17" cy="18" r="2.5" /><path d="m8.2 10.8 6.6-3.6M8.2 13.2l6.6 3.6" /></>);
+const IconArrowLeft = svg(<path d="M19 12H5M11 6l-6 6 6 6" />);
+const IconLogout = svg(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5M21 12H9" /></>);
 
 type Leaf = {
   label: string;
@@ -89,66 +85,20 @@ const TREE: NavNode[] = [
   },
 ];
 
-function LangMenuItems({ onSelect }: { onSelect: () => void }) {
-  const { lang, setLang, t } = useLang();
-  const entry = (key: "en" | "hi", label: string) => (
-    <button
-      key={key}
-      onClick={() => {
-        setLang(key);
-        onSelect();
-      }}
-      className={
-        "flex w-full items-center justify-between rounded-md px-2 py-2 text-sm font-normal hover:bg-gray-50 " +
-        (lang === key ? "text-gray-900" : "text-gray-600")
-      }
-    >
-      <span>{label}</span>
-      {lang === key && <IconCheck className="h-4 w-4 text-green-600" />}
-    </button>
-  );
-  return (
-    <div className="space-y-1">
-      {entry("en", t("english"))}
-      {entry("hi", t("hindi"))}
-    </div>
-  );
-}
-
 export default function Sidebar() {
   const location = useLocation();
   const { t } = useLang();
   const navigate = useNavigate();
-  const { logout: clientLogout, user } = useAuth();
+  const { logout: clientLogout } = useAuth();
   const logoutMutation = useLogout();
 
-  const [openMenu, setOpenMenu] = useState<null | "amod" | "settings" | "lang">(null);
-
-  const amodRef = useRef<HTMLDivElement | null>(null);
-  const settingsRef = useRef<HTMLDivElement | null>(null);
-  const langRef = useRef<HTMLDivElement | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   function handleLogout() {
     clientLogout();
-    setOpenMenu(null);
     navigate("/login", { replace: true });
     logoutMutation.mutate();
   }
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      const target = e.target as globalThis.Node;
-      if (
-        !amodRef.current?.contains(target) &&
-        !settingsRef.current?.contains(target) &&
-        !langRef.current?.contains(target)
-      ) {
-        setOpenMenu(null);
-      }
-    }
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
 
   // A leaf/item is active when its path (and optional query) matches the URL.
   function isActive(to: string) {
@@ -191,7 +141,7 @@ export default function Sidebar() {
         title={leaf.label}
         style={active ? { color: ACTIVE } : undefined}
         className={
-          "group/leaf flex items-center gap-2 rounded-lg py-1.5 pl-6 pr-3 text-sm transition-colors " +
+          "group/leaf flex items-center gap-2 rounded-lg py-0.5 pl-6 pr-3 text-sm transition-colors " +
           (leaf.disabled ? "opacity-40 pointer-events-none " : "") +
           (active
             ? "bg-[#0067B5]/10 font-medium"
@@ -205,165 +155,159 @@ export default function Sidebar() {
     );
   }
 
+  // Flattened nav for the collapsed icon-rail (sections become a single icon list).
+  const collapsedNav = [
+    ...TREE.flatMap((n) => (n.kind === "item" ? [{ label: n.label, to: n.to, icon: n.icon, disabled: n.disabled }] : n.items)),
+    { label: t("geo_insights"), to: "/geo-insights", icon: IconMap, disabled: false },
+    { label: t("social_media"), to: "/social", icon: IconSocial, disabled: false },
+  ];
+
   return (
-    <aside className="relative flex h-full w-64 flex-col rounded-3xl border border-gray-200 bg-white/90 backdrop-blur">
+    <aside
+      className={
+        "relative flex h-full flex-col rounded-3xl border border-gray-200 bg-white/90 backdrop-blur " +
+        "transition-[width] duration-300 ease-in-out " +
+        (collapsed ? "w-[76px]" : "w-64")
+      }
+    >
       {/* ── Logo ── */}
-      <div className="flex items-center gap-2 px-4 py-3">
+      <div className={"flex items-center py-3 " + (collapsed ? "justify-center px-0" : "gap-2 px-4")}>
         <RajkamalLogo
-          className="gap-2"
-          showWordmark
-          emblemWrapperClassName="h-12 w-12"
+          className={collapsed ? "" : "gap-2"}
+          showWordmark={!collapsed}
+          emblemWrapperClassName={collapsed ? "h-10 w-10" : "h-12 w-12"}
           wordmarkClassName="h-9"
         />
       </div>
 
       {/* ── Nav ── */}
       <nav className="flex min-h-0 flex-1 flex-col px-2 mt-1">
-        {/* Scrollable tree — scrollbar hidden */}
+        {/* Scrollable area — scrollbar hidden */}
         <div
           className="flex-1 overflow-y-auto"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
         >
-          <div className="rounded-2xl border border-gray-100 p-2 space-y-1">
-            {TREE.map((node) =>
-              node.kind === "item" ? (
-                <TopItem key={node.label} label={node.label} to={node.to} icon={node.icon} disabled={node.disabled} />
-              ) : (
-                <div key={node.title} className="pt-2">
-                  {/* Section header — static, non-collapsible */}
-                  <div className="flex items-center gap-2 px-3 pb-1 text-xs font-semibold tracking-wide text-gray-500">
-                    <node.icon className="h-4 w-4 shrink-0 text-gray-400" />
-                    <span>{node.title}</span>
+          {collapsed ? (
+            /* ── Collapsed: centered icon rail ── */
+            <div className="flex flex-col items-center gap-1">
+              {collapsedNav.map((it) => {
+                const active = isActive(it.to);
+                const Icon = it.icon;
+                return (
+                  <Link
+                    key={it.to + it.label}
+                    to={it.disabled ? "#" : it.to}
+                    onClick={(e) => it.disabled && e.preventDefault()}
+                    title={it.label}
+                    style={active ? { color: ACTIVE } : undefined}
+                    className={
+                      "flex h-10 w-10 items-center justify-center rounded-xl transition-colors " +
+                      (it.disabled ? "opacity-40 pointer-events-none " : "") +
+                      (active ? "bg-[#0067B5]/10" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800")
+                    }
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            /* ── Expanded: full tree — each cluster is its own separated card ── */
+            <div className="space-y-2.5">
+              {TREE.map((node) =>
+                node.kind === "item" ? (
+                  <div key={node.label} className="rounded-2xl border border-gray-100 p-1.5">
+                    <TopItem label={node.label} to={node.to} icon={node.icon} disabled={node.disabled} />
                   </div>
-                  {/* Sub-items — always visible */}
-                  <div className="relative space-y-0.5">
-                    {/* vertical tree guide line */}
-                    <span className="pointer-events-none absolute left-3 top-1 bottom-1 w-px bg-gray-100" aria-hidden />
-                    {node.items.map((leaf) => (
-                      <LeafItem key={node.title + leaf.label} leaf={leaf} />
-                    ))}
+                ) : (
+                  <div key={node.title} className="rounded-2xl border border-gray-100 p-2">
+                    {/* Section header — static, non-collapsible */}
+                    <div className="flex items-center gap-2 px-3 pb-1.5 text-xs font-semibold tracking-wide text-gray-500">
+                      <node.icon className="h-4 w-4 shrink-0 text-gray-400" />
+                      <span>{node.title}</span>
+                    </div>
+                    {/* Sub-items — always visible */}
+                    <div className="relative space-y-0">
+                      {/* vertical tree guide line */}
+                      <span className="pointer-events-none absolute left-3 top-1 bottom-1 w-px bg-gray-100" aria-hidden />
+                      {node.items.map((leaf) => (
+                        <LeafItem key={node.title + leaf.label} leaf={leaf} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )
-            )}
-          </div>
+                )
+              )}
 
-          {/* ── Standalone sections (boxed, like mockup) ── */}
-          <div className="mt-3 space-y-2">
-            <Link
-              to="/geo-insights"
-              style={isActive("/geo-insights") ? { color: ACTIVE, borderColor: ACTIVE } : undefined}
-              className={
-                "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors " +
-                (isActive("/geo-insights")
-                  ? "bg-[#0067B5]/10 border-[#0067B5]"
-                  : "border-gray-200 text-gray-700 hover:bg-gray-50")
-              }
-            >
-              {isActive("/geo-insights") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
-              <IconMap className={"h-4 w-4 shrink-0 " + (isActive("/geo-insights") ? "" : "text-gray-400")} />
-              {t("geo_insights")}
-            </Link>
-            <Link
-              to="/social"
-              style={isActive("/social") ? { color: ACTIVE, borderColor: ACTIVE } : undefined}
-              className={
-                "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors " +
-                (isActive("/social")
-                  ? "bg-[#0067B5]/10 border-[#0067B5]"
-                  : "border-gray-200 text-gray-700 hover:bg-gray-50")
-              }
-            >
-              {isActive("/social") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
-              <IconSocial className={"h-4 w-4 shrink-0 " + (isActive("/social") ? "" : "text-gray-400")} />
-              {t("social_media")}
-            </Link>
-          </div>
+              {/* ── Standalone sections (boxed, like mockup) ── */}
+              <Link
+                  to="/geo-insights"
+                  style={isActive("/geo-insights") ? { color: ACTIVE, borderColor: ACTIVE } : undefined}
+                  className={
+                    "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors " +
+                    (isActive("/geo-insights")
+                      ? "bg-[#0067B5]/10 border-[#0067B5]"
+                      : "border-gray-200 text-gray-700 hover:bg-gray-50")
+                  }
+                >
+                  {isActive("/geo-insights") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
+                  <IconMap className={"h-4 w-4 shrink-0 " + (isActive("/geo-insights") ? "" : "text-gray-400")} />
+                  {t("geo_insights")}
+                </Link>
+                <Link
+                  to="/social"
+                  style={isActive("/social") ? { color: ACTIVE, borderColor: ACTIVE } : undefined}
+                  className={
+                    "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors " +
+                    (isActive("/social")
+                      ? "bg-[#0067B5]/10 border-[#0067B5]"
+                      : "border-gray-200 text-gray-700 hover:bg-gray-50")
+                  }
+                >
+                  {isActive("/social") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
+                  <IconSocial className={"h-4 w-4 shrink-0 " + (isActive("/social") ? "" : "text-gray-400")} />
+                  {t("social_media")}
+                </Link>
+            </div>
+          )}
         </div>
 
         {/* ── Divider ── */}
         <div className="my-3 h-px w-full shrink-0 bg-gray-100" />
 
-        {/* ── Bottom: Account, Settings, Language ── */}
-        <div className="shrink-0 space-y-0.5 pb-1">
-          {/* Account button */}
-          <div ref={amodRef} className="relative">
-            <button
-              onClick={() => setOpenMenu((v) => (v === "amod" ? null : "amod"))}
-              title={user?.name || "Account"}
-              className="flex w-full items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700 transition-colors hover:bg-rose-100"
-            >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-                <IconUser className="h-3.5 w-3.5" />
-              </div>
-              <span className="flex-1 truncate text-left text-sm font-normal">{user?.name || "Account"}</span>
-              <IconChevronDown
-                className={`h-4 w-4 shrink-0 transition-transform ${openMenu === "amod" ? "rotate-180" : ""}`}
-              />
-            </button>
-            <div className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "amod" ? "max-h-40" : "max-h-0"}`}>
-              <div className="mt-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-sm">
-                <Link
-                  to="/settings"
-                  onClick={() => setOpenMenu(null)}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50"
-                >
-                  <IconSettingsDefault className="h-4 w-4" />
-                  <span>My Account</span>
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  disabled={logoutMutation.isPending}
-                  className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-normal text-red-600 hover:bg-red-50 disabled:opacity-60"
-                >
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* ── Bottom: compact circular actions (Collapse · Settings · Logout) ── */}
+        <div className={"flex shrink-0 items-center gap-2.5 px-1 pb-2 " + (collapsed ? "flex-col" : "justify-start")}>
+          {/* Collapse / expand sidebar */}
+          <button
+            onClick={() => setCollapsed((v) => !v)}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1C386D] text-white shadow-sm transition hover:opacity-90"
+          >
+            <IconArrowLeft className={"h-4 w-4 transition-transform duration-300 " + (collapsed ? "rotate-180" : "")} />
+          </button>
 
           {/* Settings */}
-          <div ref={settingsRef} className="relative">
-            <button
-              onClick={() => setOpenMenu((v) => (v === "settings" ? null : "settings"))}
-              title={t("settings")}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-normal text-gray-600 transition-all duration-150 hover:bg-gray-100 hover:text-gray-900"
-            >
-              <span className="shrink-0 text-gray-500"><IconSettingsDefault className="h-5 w-5" /></span>
-              <span className="flex-1 truncate text-left">{t("settings")}</span>
-              <IconChevronDown className={`h-4 w-4 shrink-0 transition-transform ${openMenu === "settings" ? "rotate-180" : ""}`} />
-            </button>
-            <div className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "settings" ? "max-h-48" : "max-h-0"}`}>
-              <div className="mt-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-sm">
-                <Link
-                  to="/settings"
-                  onClick={() => setOpenMenu(null)}
-                  className="block rounded-lg px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50"
-                >
-                  General
-                </Link>
-              </div>
-            </div>
-          </div>
+          <Link
+            to="/settings"
+            title={t("settings")}
+            className={
+              "flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition " +
+              (isActive("/settings")
+                ? "bg-[#0067B5] text-white"
+                : "bg-gray-200 text-gray-600 hover:bg-gray-300")
+            }
+          >
+            <IconSettingsDefault className="h-4 w-4" />
+          </Link>
 
-          {/* Language */}
-          <div ref={langRef} className="relative">
-            <button
-              onClick={() => setOpenMenu((v) => (v === "lang" ? null : "lang"))}
-              title={t("language")}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-normal text-gray-600 transition-all duration-150 hover:bg-gray-100 hover:text-gray-900"
-            >
-              <span className="shrink-0 text-gray-500"><IconLanguageDefault className="h-5 w-5" /></span>
-              <span className="flex-1 truncate text-left">{t("language")}</span>
-              <IconChevronDown className={`h-4 w-4 shrink-0 transition-transform ${openMenu === "lang" ? "rotate-180" : ""}`} />
-            </button>
-            <div className={`overflow-hidden transition-[max-height] duration-200 ease-in-out ${openMenu === "lang" ? "max-h-40" : "max-h-0"}`}>
-              <div className="mt-1.5 rounded-xl border border-gray-100 bg-white p-1 shadow-sm">
-                <div className="px-3 py-1 text-xs font-normal uppercase tracking-wider text-gray-400">{t("select_language")}</div>
-                <LangMenuItems onSelect={() => setOpenMenu(null)} />
-              </div>
-            </div>
-          </div>
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            disabled={logoutMutation.isPending}
+            title="Logout"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#B92234] text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+          >
+            <IconLogout className="h-4 w-4" />
+          </button>
         </div>
       </nav>
     </aside>
