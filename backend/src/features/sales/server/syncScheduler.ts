@@ -119,14 +119,14 @@ export async function runScheduledSync(trigger: "scheduled" | "manual" | "startu
  * Starts the daily overnight Google-Sheet sync.
  * No-op unless ENABLE_SCHEDULED_SYNC=true (set this only on the VPS).
  * Schedule and timezone are overridable via SYNC_CRON / SYNC_TZ.
- * Defaults: 03:00 every day, Asia/Kolkata.
+ * Defaults: 06:00 every day, Asia/Kolkata.
  */
 export function startSyncScheduler(): void {
   if (process.env.ENABLE_SCHEDULED_SYNC !== "true") {
     console.log("[sync-scheduler] disabled (set ENABLE_SCHEDULED_SYNC=true to enable)");
     return;
   }
-  const expression = process.env.SYNC_CRON || "0 3 * * *"; // 03:00 daily
+  const expression = process.env.SYNC_CRON || "0 6 * * *"; // 06:00 daily
   const timezone = process.env.SYNC_TZ || "Asia/Kolkata";
   if (!cron.validate(expression)) {
     console.error(`[sync-scheduler] invalid SYNC_CRON "${expression}" — scheduler NOT started`);

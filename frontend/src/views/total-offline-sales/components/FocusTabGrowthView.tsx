@@ -19,6 +19,7 @@ interface GrowthBookItem {
 
 interface FocusTabGrowthViewProps {
   channel: string;
+  fy?: string; // 'current' (default) or 'previous'/'2025-26' to view the archived year
 }
 
 // Canonicalise messy binding values so spelling/case variants unify into one label
@@ -42,7 +43,7 @@ type SortField = 'title' | 'publisher' | 'copies' | 'baseline' | 'revenue' | 'gr
 type SortDir = 'asc' | 'desc';
 type StatusKey = 'all' | 'high' | 'steady' | 'dormant';
 
-export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel }) => {
+export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel, fy = 'current' }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [books, setBooks] = useState<GrowthBookItem[]>([]);
@@ -75,7 +76,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     setError(null);
     try {
       const data = await apiClient.get<any>(
-        `total-offline-sales/growth-indicators?channel=${channel}&threshold=${threshold}`
+        `total-offline-sales/growth-indicators?channel=${channel}&threshold=${threshold}&fy=${fy}`
       );
       if (data.ok) {
         // Normalise binding variants at ingestion so the pills/filter stay unified
@@ -98,7 +99,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
   React.useEffect(() => {
     fetchData();
     setCurrentPage(1);
-  }, [channel, threshold]);
+  }, [channel, threshold, fy]);
 
   // Open the per-invoice drill-down modal for a title
   const openInvoiceModal = async (title: string) => {
@@ -108,7 +109,7 @@ export const FocusTabGrowthView: React.FC<FocusTabGrowthViewProps> = ({ channel 
     setInvoiceLoading(true);
     try {
       const data = await apiClient.get<any>(
-        `total-offline-sales/title-invoices?channel=${channel}&title=${encodeURIComponent(title)}`
+        `total-offline-sales/title-invoices?channel=${channel}&title=${encodeURIComponent(title)}&fy=${fy}`
       );
       if (data.ok) {
         setInvoiceData(data);

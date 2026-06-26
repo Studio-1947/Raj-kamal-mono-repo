@@ -564,6 +564,50 @@ model LokbhartiOfflineSale {
   @@map("lokbharti_offline_sales")
 }
 
+// One-time historical archive of prior financial years (e.g. FY 2025-26), seeded
+// from a separate Google Sheet. Deliberately ISOLATED from the live offline tables:
+// the daily wipe-and-replace sync NEVER touches this table. Single table for all six
+// channels, discriminated by `channel`. Static/read-only — no scheduler.
+// Slim by design: no rawJson (every source column is mapped to a typed field) and
+// only two indexes, since this table is queried occasionally (YoY / all-time), not
+// on the hot dashboard path.
+model OfflineSaleHistory {
+  id              BigInt    @id @default(autoincrement())
+  channel         String    // 'Delhi' | 'Mumbai' | 'Patna' | 'Online' | 'BookFair' | 'Lokbharti'
+  financialYear   String    // e.g. "2025-26"
+
+  slNo            Int?
+  docNo           String?           // TrnsdocNo
+  date            DateTime?         // Trnsdocdate
+  dateStr         String?           // TrnsdocdateStr
+  isbn            String?           // BookCode
+  title           String?
+  author          String?
+  binding         String?
+  pubYear         Int?              // Pub-year
+  publisher       String?
+  qty             Int?              // OUT
+  inQty           Int?              // IN
+  currency        String?           // CURRENCYID
+  rate            Decimal?          @db.Decimal(12, 2) // BOOKRATE
+  discount        Decimal?          @db.Decimal(12, 2) // BookDiscount
+  addDiscount     Decimal?          @db.Decimal(12, 2) // BookAddDiscount
+  amount          Decimal?          @db.Decimal(12, 2) // OUTAmount
+  inAmount        Decimal?          @db.Decimal(12, 2) // INAmount
+  customerName    String?
+  state           String?           // StateName
+  city            String?           // CityName
+  type            String?           // Type
+  fictionType     String?           // Fiction/ Non-Fiction
+
+  rowHash         String?
+  createdAt       DateTime          @default(now())
+
+  @@index([channel, date], map: "osh_channel_date")
+  @@index([channel, title], map: "osh_channel_title")
+  @@map("offline_sales_history")
+}
+
 // Audit log of Google-Sheet sync runs (scheduled or manual). One row per run.
 model SyncLog {
   id            Int      @id @default(autoincrement())

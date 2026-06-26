@@ -26,6 +26,7 @@ interface TopPublishersPanelProps {
   activeChannel: string;
   activeTab: 'revenue' | 'volume';
   dateRange: string;
+  fy?: string;
 }
 
 const REGION_LABEL: Record<string, string> = {
@@ -42,6 +43,7 @@ export const TopPublishersPanel: React.FC<TopPublishersPanelProps> = ({
   activeChannel,
   activeTab,
   dateRange,
+  fy = 'current',
 }) => {
   const [selectedPub, setSelectedPub] = useState<{ channel: string; publisher: string } | null>(null);
   const [details, setDetails] = useState<PublisherDetailsResponse | null>(null);
@@ -60,7 +62,7 @@ export const TopPublishersPanel: React.FC<TopPublishersPanelProps> = ({
 
     try {
       const response = await apiClient.get<PublisherDetailsResponse>(
-        `total-offline-sales/publisher-details?channel=${channel}&publisher=${encodeURIComponent(publisher)}&range=${dateRange}`
+        `total-offline-sales/publisher-details?channel=${channel}&publisher=${encodeURIComponent(publisher)}&range=${dateRange}&fy=${fy}`
       );
       if (response.ok) {
         setDetails(response);

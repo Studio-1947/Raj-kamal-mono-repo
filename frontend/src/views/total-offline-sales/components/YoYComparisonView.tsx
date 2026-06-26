@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { formatINR, formatChartValue, formatLakhsAndCrores } from './utils';
-import { FiTrendingUp, FiTrendingDown, FiInfo, FiActivity } from 'react-icons/fi';
+import { formatINR, formatChartValue } from './utils';
+import { FiTrendingUp, FiTrendingDown, FiInfo } from 'react-icons/fi';
 import { apiClient } from '../../../lib/apiClient';
 
 interface MonthlyDataPoint {
-  month: number;
+  month: number; // financial-month index: 0 = Apr … 11 = Mar
   revenue: number;
   qty: number;
 }
 
 interface YearDataset {
-  year: number;
+  fy: string;        // e.g. "2025-26"
+  label: string;     // e.g. "FY 2025-26"
+  isHistory: boolean;
   isSimulated: boolean;
   monthly: MonthlyDataPoint[];
 }
@@ -20,12 +22,18 @@ interface YoYComparisonViewProps {
   channel: string;
 }
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const FALLBACK_LABELS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+
+// Current FY drawn in indigo, the archived previous FY in grey.
+const CURRENT_COLOR = '#4F46E5';
+const PREVIOUS_COLOR = '#9CA3AF';
+const colorFor = (d: YearDataset) => (d.isHistory ? PREVIOUS_COLOR : CURRENT_COLOR);
 
 export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [datasets, setDatasets] = useState<YearDataset[]>([]);
+  const [monthLabels, setMonthLabels] = useState<string[]>(FALLBACK_LABELS);
   const [metric, setMetric] = useState<'revenue' | 'qty'>('revenue');
 
   const fetchData = async () => {
@@ -37,6 +45,9 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
       );
       if (data.ok) {
         setDatasets(data.datasets || []);
+        if (Array.isArray(data.monthLabels) && data.monthLabels.length === 12) {
+          setMonthLabels(data.monthLabels);
+        }
       } else {
         throw new Error(data.error || 'Failed to fetch YoY comparison');
       }
@@ -52,66 +63,42 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
     fetchData();
   }, [channel]);
 
-  // Combine datasets for chart representation
+  // Build the chart rows: one entry per financial month, each dataset keyed by its FY.
   const chartData = useMemo(() => {
     if (datasets.length === 0) return [];
-    
-    // We expect datasets to represent different years (e.g. 2025 and 2026)
-    return MONTH_NAMES.map((name, idx) => {
+    return monthLabels.map((name, idx) => {
       const point: any = { month: name };
       for (const d of datasets) {
-        const monthVal = d.monthly.find(m => m.month === idx);
-        point[`year_${d.year}`] = monthVal ? (metric === 'revenue' ? monthVal.revenue : monthVal.qty) : 0;
-        point[`year_${d.year}_simulated`] = d.isSimulated;
+        const m = d.monthly.find(mm => mm.month === idx);
+        point[d.fy] = m ? (metric === 'revenue' ? m.revenue : m.qty) : 0;
       }
       return point;
     });
-  }, [datasets, metric]);
+  }, [datasets, monthLabels, metric]);
 
-  // Calculations for YoY indicators
+  // Like-for-like YTD: only sum the FY-months where the CURRENT year has activity,
+  // so we compare equal portions of each year (the current FY is still in progress).
   const stats = useMemo(() => {
-    if (datasets.length < 2) return null;
-    
-    // Find current (2026) and previous (2025)
-    const prevYearDataset = datasets.find(d => d.year === 2025);
-    const currYearDataset = datasets.find(d => d.year === 2026);
+    const prev = datasets.find(d => d.isHistory);
+    const curr = datasets.find(d => !d.isHistory);
+    if (!prev || !curr) return null;
 
-    if (!prevYearDataset || !currYearDataset) return null;
-
-    // Calculate sum of active months
-    // Only sum up to the months that have data in 2026 (to do a fair like-for-like YTD comparison)
-    let currTotalRev = 0;
-    let prevTotalRev = 0;
-    let currTotalQty = 0;
-    let prevTotalQty = 0;
-
-    currYearDataset.monthly.forEach((m, idx) => {
-      // If current year month has sales, count it in comparison
+    let currRev = 0, prevRev = 0, currQty = 0, prevQty = 0;
+    curr.monthly.forEach((m, idx) => {
       if (m.revenue > 0 || m.qty > 0) {
-        currTotalRev += m.revenue;
-        currTotalQty += m.qty;
-
-        const prevMonth = prevYearDataset.monthly[idx];
-        if (prevMonth) {
-          prevTotalRev += prevMonth.revenue;
-          prevTotalQty += prevMonth.qty;
-        }
+        currRev += m.revenue;
+        currQty += m.qty;
+        const pm = prev.monthly[idx];
+        if (pm) { prevRev += pm.revenue; prevQty += pm.qty; }
       }
     });
 
-    const revGrowth = prevTotalRev > 0 ? ((currTotalRev - prevTotalRev) / prevTotalRev) * 100 : 0;
-    const qtyGrowth = prevTotalQty > 0 ? ((currTotalQty - prevTotalQty) / prevTotalQty) * 100 : 0;
-
-    return {
-      currTotalRev,
-      prevTotalRev,
-      currTotalQty,
-      prevTotalQty,
-      revGrowth,
-      qtyGrowth,
-      isSimulated: prevYearDataset.isSimulated
-    };
+    const revGrowth = prevRev > 0 ? ((currRev - prevRev) / prevRev) * 100 : 0;
+    const qtyGrowth = prevQty > 0 ? ((currQty - prevQty) / prevQty) * 100 : 0;
+    return { currRev, prevRev, currQty, prevQty, revGrowth, qtyGrowth, prevLabel: prev.label, currLabel: curr.label };
   }, [datasets]);
+
+  const emptyDataset = datasets.find(d => d.monthly.every(m => m.revenue === 0 && m.qty === 0));
 
   if (loading) {
     return (
@@ -135,21 +122,13 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
 
   return (
     <div className="space-y-6">
-      {/* Simulation Banner */}
-      {stats?.isSimulated && (
-        <div className="bg-amber-50/50 border border-amber-200/60 p-5 rounded-3xl flex items-start gap-3.5 text-xs text-amber-900 leading-relaxed shadow-sm">
-          <FiInfo className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+      {/* Info banner only if one of the years genuinely has no data for this channel */}
+      {emptyDataset && (
+        <div className="bg-blue-50/50 border border-blue-200/60 p-5 rounded-3xl flex items-start gap-3.5 text-xs text-blue-900 leading-relaxed shadow-sm">
+          <FiInfo className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
           <div>
-            <h4 className="font-semibold text-amber-950 mb-1">No Historical 2025 Transaction Data Found</h4>
-            <p className="mb-2">
-              The database currently only contains transactions starting **January 1, 2026**. Since there is no actual 2025 transaction data in the system yet, a true historical comparison cannot be calculated.
-            </p>
-            <p className="text-amber-800 font-medium">
-              <strong>Future Integration:</strong> Once previous years' ERP worksheets are uploaded, this section will automatically load and plot the actual historical trends.
-            </p>
-            <p className="text-amber-800/80 mt-1">
-              <strong>Previewing YoY Comparison:</strong> To demonstrate how the comparison UI will behave in the future, we have generated a simulated 2025 baseline curve (shown in dotted lines) representing standard seasonality with a standard baseline offset. This preview allows you to test the interactive curves, toggle metrics, and review the YTD trend analysis.
-            </p>
+            <h4 className="font-semibold text-blue-950 mb-1">{emptyDataset.label} has no recorded sales for this channel</h4>
+            <p>The comparison below plots the years that do have data. Switch channels to view a full side-by-side.</p>
           </div>
         </div>
       )}
@@ -162,8 +141,8 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
             <div className="space-y-1">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block">YTD Like-for-Like Revenue</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-gray-900">{formatINR(stats.currTotalRev)}</span>
-                <span className="text-xs text-gray-400">vs {formatINR(stats.prevTotalRev)} (LY)</span>
+                <span className="text-2xl font-semibold text-gray-900">{formatINR(stats.currRev)}</span>
+                <span className="text-xs text-gray-400">vs {formatINR(stats.prevRev)} ({stats.prevLabel})</span>
               </div>
             </div>
             <div className={`p-3 rounded-2xl flex items-center gap-1 text-sm font-semibold shrink-0 ${
@@ -179,8 +158,8 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
             <div className="space-y-1">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block">YTD Like-for-Like Copies Sold</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-gray-900">{stats.currTotalQty.toLocaleString('en-IN')}</span>
-                <span className="text-xs text-gray-400">vs {stats.prevTotalQty.toLocaleString('en-IN')} (LY)</span>
+                <span className="text-2xl font-semibold text-gray-900">{stats.currQty.toLocaleString('en-IN')}</span>
+                <span className="text-xs text-gray-400">vs {stats.prevQty.toLocaleString('en-IN')} ({stats.prevLabel})</span>
               </div>
             </div>
             <div className={`p-3 rounded-2xl flex items-center gap-1 text-sm font-semibold shrink-0 ${
@@ -198,7 +177,7 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h3 className="text-lg font-normal text-gray-800">Year-on-Year Growth Chart</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Seasonal comparisons of sales totals</p>
+            <p className="text-xs text-gray-400 mt-0.5">Financial-year comparison by month (Apr → Mar)</p>
           </div>
 
           {/* Toggle metric */}
@@ -226,14 +205,12 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
               <defs>
-                <linearGradient id="color2026" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="color2025" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#9CA3AF" stopOpacity={0.1}/>
-                  <stop offset="95%" stopColor="#9CA3AF" stopOpacity={0}/>
-                </linearGradient>
+                {datasets.map((d) => (
+                  <linearGradient key={d.fy} id={`grad_${d.fy}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={colorFor(d)} stopOpacity={d.isHistory ? 0.1 : 0.2} />
+                    <stop offset="95%" stopColor={colorFor(d)} stopOpacity={0} />
+                  </linearGradient>
+                ))}
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
               <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
@@ -250,13 +227,10 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
                       <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-xl space-y-2 text-left">
                         <p className="text-xs font-semibold text-gray-500 border-b border-gray-100 pb-1.5">Month: {payload[0].payload.month}</p>
                         {payload.map((p: any, idx: number) => {
-                          const year = p.name.split('_')[1];
-                          const isSimulated = p.payload[`year_${year}_simulated`];
+                          const ds = datasets.find(d => d.fy === p.dataKey);
                           return (
                             <div key={idx} className="flex flex-col">
-                              <span className="text-[10px] text-gray-400 font-medium">
-                                Year {year} {isSimulated ? '(Simulated)' : '(Actual)'}
-                              </span>
+                              <span className="text-[10px] text-gray-400 font-medium">{ds?.label ?? p.name}</span>
                               <span className="text-sm font-semibold text-gray-800 mt-0.5" style={{ color: p.color }}>
                                 {metric === 'revenue' ? formatINR(p.value) : `${p.value.toLocaleString('en-IN')} copies`}
                               </span>
@@ -270,22 +244,18 @@ export const YoYComparisonView: React.FC<YoYComparisonViewProps> = ({ channel })
                 }}
               />
               <Legend verticalAlign="top" height={36} iconType="circle" />
-              {datasets.map((d, index) => {
-                const color = d.year === 2026 ? '#4F46E5' : '#9CA3AF';
-                return (
-                  <Area
-                    key={d.year}
-                    type="monotone"
-                    dataKey={`year_${d.year}`}
-                    name={`Year ${d.year} ${d.isSimulated ? '(Simulated)' : ''}`}
-                    stroke={color}
-                    strokeWidth={d.year === 2026 ? 2.5 : 1.5}
-                    strokeDasharray={d.isSimulated ? '4 4' : undefined}
-                    fillOpacity={1}
-                    fill={`url(#color${d.year})`}
-                  />
-                );
-              })}
+              {datasets.map((d) => (
+                <Area
+                  key={d.fy}
+                  type="monotone"
+                  dataKey={d.fy}
+                  name={d.label}
+                  stroke={colorFor(d)}
+                  strokeWidth={d.isHistory ? 1.5 : 2.5}
+                  fillOpacity={1}
+                  fill={`url(#grad_${d.fy})`}
+                />
+              ))}
             </AreaChart>
           </ResponsiveContainer>
         </div>
