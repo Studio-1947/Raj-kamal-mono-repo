@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '../shared/AppLayout';
-import SalesDashboardTabs from '../components/SalesDashboardTabs';
 import { useLang } from '../modules/lang/LangContext';
 import { apiClient } from '../lib/apiClient';
 import { FiTrendingUp, FiShoppingBag, FiDatabase, FiRefreshCw } from 'react-icons/fi';
@@ -137,11 +136,8 @@ export default function TotalOfflineSales() {
 
   return (
     <AppLayout>
-      <div className="pt-6">
-        <SalesDashboardTabs />
-      </div>
       {/* ── Page Header ─────────────────────────────────────────────────── */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6 border-b border-gray-100 pb-6">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6 border-b border-gray-100 pb-6 pt-6">
         <div>
           <h1 className="text-3xl font-normal text-gray-900 tracking-tight">
             <span className="bg-gradient-to-r from-indigo-600 to-teal-500 bg-clip-text text-transparent">

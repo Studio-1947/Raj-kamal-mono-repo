@@ -11,7 +11,6 @@
 import React, { useMemo, useState, useEffect, useTransition } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../../../shared/AppLayout';
-import SalesDashboardTabs from '../../../components/SalesDashboardTabs';
 import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
@@ -735,10 +734,7 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
 
   return (
     <AppLayout>
-      <div className="pt-6">
-        <SalesDashboardTabs />
-      </div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between pt-6">
         <div>
           <h1 className="text-3xl font-normal text-black tracking-tight uppercase">
             {region === 'delhi' ? 'Master' : region.charAt(0).toUpperCase() + region.slice(1)} Sales Dashboard
