@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '../shared/AppLayout';
+import PageHero from '../shared/PageHero';
+import StickyTabs from '../shared/StickyTabs';
 import { useLang } from '../modules/lang/LangContext';
 import { apiClient } from '../lib/apiClient';
 import { FiTrendingUp, FiShoppingBag, FiDatabase, FiRefreshCw } from 'react-icons/fi';
@@ -136,20 +138,33 @@ export default function TotalOfflineSales() {
 
   return (
     <AppLayout>
-      {/* ── Page Header ─────────────────────────────────────────────────── */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6 border-b border-gray-100 pb-6 pt-6">
-        <div>
-          <h1 className="text-3xl font-normal text-gray-900 tracking-tight">
-            <span className="bg-gradient-to-r from-indigo-600 to-teal-500 bg-clip-text text-transparent">
-              Total Sales Dashboard
-            </span>
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Deep analytics &amp; complete channel-wise tracking across all 6 sales channels
-          </p>
+      {/* ── Page Hero + Sticky Tabs (tabs rise up behind the hero) ──────── */}
+      <div className="pt-6 mb-6">
+        <div className="relative z-10">
+          <PageHero
+            kicker="All-Channel Dashboard"
+            title="Total Sales"
+            badge={{ label: 'Live Data', tone: 'live' }}
+          />
         </div>
+        <StickyTabs
+          active={dashboardTab}
+          onChange={(id) => setDashboardTab(id as any)}
+          className="relative z-0 -mt-5 pl-6 sm:pl-8"
+          tabs={[
+            { id: 'overview', label: 'General Overview' },
+            { id: 'new-old',  label: 'New vs. Old Titles' },
+            { id: 'focus',    label: 'Focus Tab (Growth)' },
+            { id: 'yoy',      label: 'YoY Comparison' },
+            { id: 'author',   label: 'Author Performance' },
+            { id: 'price',    label: 'Price & Reprints' },
+            { id: 'category', label: 'Fiction vs. Non-Fiction' },
+          ]}
+        />
+      </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full xl:w-auto">
+      {/* ── Controls: FY · Period · Refresh ──────────────────────────────── */}
+      <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-4 border-b border-gray-100 pb-6">
           {/* Financial-year selector: live current FY vs archived FY 2025-26 */}
           <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
             {[
@@ -214,7 +229,6 @@ export default function TotalOfflineSales() {
             <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
-        </div>
       </div>
 
       {/* ── Channel Filter Pills ────────────────────────────────────────── */}
@@ -247,33 +261,6 @@ export default function TotalOfflineSales() {
         })}
       </div>
 
-      {/* ── Dashboard Sub-Tabs ────────────────────────────────────────── */}
-      <div className="flex border-b border-gray-100 mb-8 overflow-x-auto custom-scrollbar flex-nowrap whitespace-nowrap">
-        {[
-          { id: 'overview', label: 'General Overview' },
-          { id: 'new-old',  label: 'New vs. Old Titles' },
-          { id: 'focus',    label: 'Focus Tab (Growth)' },
-          { id: 'yoy',      label: 'YoY Comparison' },
-          { id: 'author',   label: 'Author Performance' },
-          { id: 'price',    label: 'Price & Reprints' },
-          { id: 'category', label: 'Fiction vs. Non-Fiction' }
-        ].map((tab) => {
-          const isActive = dashboardTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setDashboardTab(tab.id as any)}
-              className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all -mb-[2px] ${
-                isActive
-                  ? 'border-indigo-600 text-indigo-600 font-bold'
-                  : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
 
       {/* ── Error Banner ────────────────────────────────────────────────── */}
       {error && (
