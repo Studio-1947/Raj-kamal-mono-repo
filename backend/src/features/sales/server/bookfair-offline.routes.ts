@@ -6,7 +6,8 @@ import { offlineSyncService } from "./offlineSyncService.js";
 import { TtlCache } from "../../../lib/cache.js";
 import { registerSalesCacheClear } from "./salesCacheRegistry.js";
 import { authenticateToken } from "../../../middleware/authPrisma.js";
-import { parseFictionParam, fictionWhere, fictionSql } from "./fictionFilter.js";
+import { parseFictionParam, fictionWhere, fictionSql, fictionBucketSql } from "./fictionFilter.js";
+import { latestArchiveFy } from "./fyConfig.js";
 
 const summaryCache = new TtlCache<any>(24 * 60 * 60 * 1000); // 24h — data changes only on sync; invalidated explicitly via the cache registry
 const countsCache = new TtlCache<any>(5 * 60 * 1000);
@@ -40,6 +41,21 @@ function getSearchTokens(q: string): string[] {
 }
 function toTokenRegex(token: string): string {
   return token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Source selector for the per-fair breakdown. The current (live) FY lives in
+// bookfair_offline_sales; completed years live in offline_sales_history
+// (channel = 'BookFair'). Returns the table reference + base scope predicate,
+// both as Prisma.Sql fragments to inline into the breakdown queries.
+type FairSource = 'live' | 'history';
+function bookfairScope(source: FairSource, fy: string): { table: Prisma.Sql; scope: Prisma.Sql } {
+  if (source === 'live') {
+    return { table: Prisma.sql`"bookfair_offline_sales"`, scope: Prisma.sql`TRUE` };
+  }
+  return {
+    table: Prisma.sql`"offline_sales_history"`,
+    scope: Prisma.sql`"channel" = 'BookFair' AND "financialYear" = ${fy}`,
+  };
 }
 
 // GET /api/bookfair-offline-sales
@@ -720,6 +736,205 @@ router.get("/daily-details", async (req, res) => {
   } catch (e: any) {
     console.error("bookfair_daily_details_failed", e);
     return res.status(500).json({ ok: false, error: "Daily details failed" });
+  }
+});
+
+// GET /api/bookfair-offline-sales/sub-fairs
+// Each individual book fair (Exhibition, World, Raipur…) is encoded in the "type"
+// column as "Book Fair - <Name>". Live tables currently carry a single generic
+// "Book Fair" type, so the per-fair breakdown is sourced from the archived
+// FY history (offline_sales_history, channel = 'BookFair'), where these
+// sub-types actually exist. Promotes each sub-type to a first-class category.
+router.get("/sub-fairs", async (req, res) => {
+  const Q = z.object({
+    fy: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+    source: z.enum(["live", "history"]).optional(),
+  });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
+  const fy = parsed.data.fy ?? latestArchiveFy();
+  const source: FairSource = parsed.data.source ?? "history";
+  const { table, scope } = bookfairScope(source, fy);
+
+  const cacheKey = `sub-fairs:${source}:${fy}`;
+  const cached = optionsCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(TRIM("type"), ''), 'Book Fair - Unknown') AS type,
+        (COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0)
+         - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
+        (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
+        COUNT(*)::int AS txns
+      FROM ${table}
+      WHERE ${scope}
+      GROUP BY 1
+      ORDER BY total DESC
+    `);
+
+    const subFairs = rows.map(r => ({
+      type: r.type,                                                  // full value, e.g. "Book Fair - Exhibition"
+      label: String(r.type).replace(/^book\s*fair\s*-\s*/i, '').trim() || r.type, // "Exhibition"
+      total: round2(Number(r.total)),
+      qty: Number(r.qty) || 0,
+      txns: Number(r.txns) || 0,
+    }));
+
+    const result = {
+      ok: true,
+      fy,
+      source,
+      grandTotal: round2(subFairs.reduce((a, s) => a + s.total, 0)),
+      grandQty: subFairs.reduce((a, s) => a + s.qty, 0),
+      subFairs,
+    };
+    optionsCache.set(cacheKey, result);
+    return res.json(result);
+  } catch (e: any) {
+    console.error("bookfair_sub_fairs_failed", e);
+    return res.status(500).json({ ok: false, error: "Sub-fairs breakdown failed" });
+  }
+});
+
+// GET /api/bookfair-offline-sales/sub-fair-details?fy=2025-26&type=Book Fair - Exhibition
+// Full drill-down analytics for ONE individual book fair (archived FY history).
+router.get("/sub-fair-details", async (req, res) => {
+  const Q = z.object({
+    fy: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+    type: z.string().min(1),
+    source: z.enum(["live", "history"]).optional(),
+  });
+  const parsed = Q.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
+  const fy = parsed.data.fy ?? latestArchiveFy();
+  const type = parsed.data.type;
+  const source: FairSource = parsed.data.source ?? "history";
+  const { table, scope } = bookfairScope(source, fy);
+
+  const cacheKey = `sub-fair-details:${source}:${fy}:${type}`;
+  const cached = summaryCache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  // Net revenue / qty expressions (OUT − IN), reused across every aggregation below.
+  const netRev = Prisma.sql`(COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))`;
+  const netQty = Prisma.sql`(COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))`;
+  const base = Prisma.sql`FROM ${table} WHERE ${scope} AND "type" = ${type}`;
+  const itemBase = Prisma.sql`${base} AND ("title" IS NULL OR "title" !~* '^E-')`;
+
+  try {
+    const [
+      countRows,
+      monthlyRows,
+      topItemsRows,
+      topItemsQtyRows,
+      topPublisherRows,
+      topAuthorRows,
+      topStateRows,
+      topCityRows,
+      fictionRows,
+    ] = await Promise.all([
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT
+          COUNT(*)::int AS txns,
+          ${netRev}::float AS total,
+          ${netQty}::int AS qty,
+          COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" ELSE 0 END), 0)::float AS gross,
+          COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" ELSE 0 END), 0)::float AS returns,
+          COUNT(CASE WHEN "inQty" > 0 OR "inAmount" > 0 THEN 1 END)::int AS refund_count,
+          COUNT(DISTINCT NULLIF(TRIM(LOWER("customerName")), ''))::int AS unique_customers,
+          COUNT(DISTINCT NULLIF(TRIM("title"), ''))::int AS unique_titles
+        ${base}
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT EXTRACT(MONTH FROM "date")::int AS month, ${netRev}::float AS total, ${netQty}::int AS qty
+        ${base} AND "date" IS NOT NULL
+        GROUP BY 1 ORDER BY 1
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT
+          (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
+          ${netRev}::float AS total, ${netQty}::int AS qty
+        ${itemBase}
+        GROUP BY 1 HAVING ${netRev} > 0 ORDER BY total DESC LIMIT 10
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT
+          (CASE WHEN TRIM("title") IS NOT NULL AND TRIM("title") != '' THEN TRIM("title") ELSE '[No Title]' END) || COALESCE(' (' || NULLIF(TRIM("binding"), '') || ')', '') AS title,
+          ${netRev}::float AS total, ${netQty}::int AS qty
+        ${itemBase}
+        GROUP BY 1 HAVING ${netQty} > 0 ORDER BY qty DESC LIMIT 10
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM("publisher"), ''), 'Unknown Publisher') AS publisher, ${netRev}::float AS total
+        ${base} GROUP BY 1 ORDER BY total DESC LIMIT 8
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM("author"), ''), 'Unknown Author') AS author, ${netRev}::float AS total, ${netQty}::int AS qty
+        ${base} GROUP BY 1 ORDER BY total DESC LIMIT 8
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM("state"), ''), 'Unknown State') AS state, ${netRev}::float AS total
+        ${base} GROUP BY 1 ORDER BY total DESC LIMIT 8
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT COALESCE(NULLIF(TRIM("city"), ''), 'Unknown City') AS city, ${netRev}::float AS total
+        ${base} GROUP BY 1 ORDER BY total DESC LIMIT 8
+      `),
+      prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT ${fictionBucketSql} AS fiction_type, ${netRev}::float AS total, ${netQty}::int AS qty
+        ${base} GROUP BY 1 ORDER BY total DESC
+      `),
+    ]);
+
+    const c = countRows[0] ?? {};
+    const net = Number(c.total) || 0;
+    const qty = Number(c.qty) || 0;
+
+    // Re-base calendar months onto the Indian FY (Apr = index 0 … Mar = 11).
+    const MONTH_NAMES = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+    const monthly = MONTH_NAMES.map((name, idx) => ({ month: name, total: 0, qty: 0 }));
+    for (const r of monthlyRows) {
+      const cal = Number(r.month);             // 1-12
+      const fyIdx = cal >= 4 ? cal - 4 : cal + 8;
+      if (fyIdx >= 0 && fyIdx < 12) {
+        monthly[fyIdx]!.total = round2(Number(r.total));
+        monthly[fyIdx]!.qty = Number(r.qty) || 0;
+      }
+    }
+
+    const result = {
+      ok: true,
+      fy,
+      type,
+      label: String(type).replace(/^book\s*fair\s*-\s*/i, '').trim() || type,
+      kpis: {
+        total: round2(net),
+        qty,
+        txns: Number(c.txns) || 0,
+        gross: round2(Number(c.gross) || 0),
+        returns: round2(Number(c.returns) || 0),
+        refundCount: Number(c.refund_count) || 0,
+        uniqueCustomers: Number(c.unique_customers) || 0,
+        uniqueTitles: Number(c.unique_titles) || 0,
+        avgRate: qty > 0 ? round2(net / qty) : 0,
+      },
+      monthly,
+      topItems: topItemsRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
+      topItemsByQty: topItemsQtyRows.map(r => ({ title: r.title, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
+      topPublishers: topPublisherRows.map(r => ({ publisher: r.publisher, total: round2(Number(r.total)) })),
+      topAuthors: topAuthorRows.map(r => ({ author: r.author, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
+      topStates: topStateRows.map(r => ({ state: r.state, total: round2(Number(r.total)) })),
+      topCities: topCityRows.map(r => ({ city: r.city, total: round2(Number(r.total)) })),
+      fictionSplit: fictionRows.map(r => ({ fictionType: r.fiction_type, total: round2(Number(r.total)), qty: Number(r.qty) || 0 })),
+    };
+
+    summaryCache.set(cacheKey, result);
+    return res.json(result);
+  } catch (e: any) {
+    console.error("bookfair_sub_fair_details_failed", e);
+    return res.status(500).json({ ok: false, error: "Sub-fair details failed" });
   }
 });
 

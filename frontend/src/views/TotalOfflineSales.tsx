@@ -28,6 +28,7 @@ import {
   PriceReprintAnalysisView,
   CategorySalesView,
 } from './total-offline-sales/components';
+import BookFairSubFairs from '../features/sales/client/BookFairSubFairs';
 
 type ChannelKey = 'all' | 'Delhi' | 'Mumbai' | 'Patna' | 'Online' | 'BookFair' | 'Lokbharti';
 
@@ -73,15 +74,19 @@ export default function TotalOfflineSales() {
     setError(null);
     try {
       const qs = `range=${rangeStr}&channel=${channelStr}&fy=${fyStr}`;
+      // Projection is a forward-looking estimate of the CURRENT FY only.
+      // "Last Year" (previous) is a fully-recorded archive — nothing to project.
+      const isPrevious = fyStr === 'previous';
       const [sumData, txnData, projData] = await Promise.all([
         apiClient.get<any>(`total-offline-sales/summary?${qs}`),
         apiClient.get<any>(`total-offline-sales/transactions?${qs}&limit=20`),
-        // Projection is a forward-looking estimate of the CURRENT FY only.
-        apiClient.get<any>(`total-offline-sales/projections`),
+        isPrevious
+          ? Promise.resolve({ ok: false })
+          : apiClient.get<any>(`total-offline-sales/projections`),
       ]);
       if (sumData.ok)  setSummary(sumData);
       if (txnData.ok)  setTransactions(txnData.items);
-      if (projData.ok) setProjectionData(projData);
+      setProjectionData(projData.ok ? projData : null);
     } catch (err: any) {
       console.error('Failed to load total sales analysis:', err);
       setError(err?.message || 'Failed to fetch sales analysis data');
@@ -144,7 +149,9 @@ export default function TotalOfflineSales() {
           <PageHero
             kicker="All-Channel Dashboard"
             title="Total Sales"
-            badge={{ label: 'Live Data', tone: 'live' }}
+            badge={fyMode === 'previous'
+              ? { label: 'Archived · FY 2025-26', tone: 'neutral' }
+              : { label: 'Live Data', tone: 'live' }}
           />
         </div>
         <StickyTabs
@@ -329,12 +336,16 @@ export default function TotalOfflineSales() {
             />
 
             <KpiCard
-              title="Annual Projected Sales"
-              value={formatINR(projectedAnnualRevenue)}
-              icon={<FiTrendingUp className="h-20 w-20 text-indigo-600 animate-pulse" />}
+              title={fyMode === 'previous' ? 'Annual Sales (Recorded)' : 'Annual Projected Sales'}
+              value={formatINR(fyMode === 'previous' ? totalRangeRevenue : projectedAnnualRevenue)}
+              icon={<FiTrendingUp className={`h-20 w-20 text-indigo-600 ${fyMode === 'previous' ? '' : 'animate-pulse'}`} />}
               badge={
                 <div className="mt-2 flex items-center gap-1.5 text-xs font-normal text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full w-fit">
-                  <span>Velocity: {formatINR(totalRangeRevenue / Math.max(1, rangeDaysCount))} / day</span>
+                  <span>
+                    {fyMode === 'previous'
+                      ? 'Full-year actuals · FY 2025-26'
+                      : `Velocity: ${formatINR(totalRangeRevenue / Math.max(1, rangeDaysCount))} / day`}
+                  </span>
                 </div>
               }
             />
@@ -349,6 +360,19 @@ export default function TotalOfflineSales() {
               }
             />
           </div>
+
+          {/* 1.5. Individual Book Fairs — archive only carries per-fair sub-types */}
+          {activeChannel === 'BookFair' && (
+            <div className="border-t border-gray-100 pt-8">
+              {/* 'Last Year' reads the resolved archive FY (summary.fy — single backend
+                  source of truth); 'This Year' reads the live BookFair table. Either way
+                  the section auto-hides until the source carries "Book Fair - <Name>" sub-types. */}
+              <BookFairSubFairs
+                fy={fyMode === 'previous' ? summary?.fy : undefined}
+                source={fyMode === 'previous' ? 'history' : 'live'}
+              />
+            </div>
+          )}
 
           {/* 2. Channel KPI Strip */}
           {summary?.regionalBreakdown?.length > 0 && (
@@ -432,10 +456,16 @@ export default function TotalOfflineSales() {
                 <RecentTransactionsTable transactions={transactions || []} />
               </div>
 
-              <p className="text-xs text-gray-400 italic">
-                * Projection uses a straight-line daily velocity derived from YTD actuals. Current month
-                is extrapolated from {new Date().getDate()} of {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()} days recorded.
-              </p>
+              {fyMode === 'previous' ? (
+                <p className="text-xs text-gray-400 italic">
+                  * FY 2025-26 is a fully-recorded archive — all figures shown are final actuals, not projections.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400 italic">
+                  * Projection uses a straight-line daily velocity derived from YTD actuals. Current month
+                  is extrapolated from {new Date().getDate()} of {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()} days recorded.
+                </p>
+              )}
             </>
           )}
 

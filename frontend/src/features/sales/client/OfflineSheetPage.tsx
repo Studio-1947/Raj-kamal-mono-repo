@@ -18,6 +18,7 @@ import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
 import OfflineSheetTable  from './OfflineSheetTable';
 import OfflineSheetProjection from './OfflineSheetProjection';
+import BookFairSubFairs from './BookFairSubFairs';
 import {
   useOfflineSheetCounts,
   useOfflineSheetSummary,
@@ -465,7 +466,7 @@ function FilterBar({
           <div className="mt-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
             <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Fiction:</span>
             <div className="flex flex-wrap items-center gap-4">
-              {['Fiction', 'Non-Fiction', 'Other'].map((f) => {
+              {['Fiction', 'Non-Fiction', 'Children Book', 'Other'].map((f) => {
                 const isActive = (filters.fictionType ?? '').split(',').includes(f);
                 return (
                   <button
@@ -798,6 +799,12 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
               isLoading={countsQ.isLoading} 
             />
           </div>
+
+          {region === 'bookfair' && (
+            <div className="mb-12">
+              <BookFairSubFairs source="live" />
+            </div>
+          )}
 
           <div className="mb-12">
             <OfflineSheetProjection

@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../../../lib/prisma.js';
+import { ARCHIVE_FYS, CURRENT_FY, resolveFy, fyEndDate } from './fyConfig.js';
 
 const router = express.Router();
 
@@ -159,30 +160,6 @@ const CHANNEL_TABLE: Record<ChannelKey, string> = {
 // the archive to one channel/year. For the live case the base is empty (each live table
 // IS one channel), so the existing query logic is unchanged.
 
-// Financial years available in the history archive (newest first).
-const ARCHIVE_FYS = ['2025-26'];
-
-// Canonical label for the current (live) financial year, e.g. "2026-27".
-function currentFyLabel(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const startYear = now.getMonth() >= 3 ? y : y - 1; // FY starts 1 Apr
-  return `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
-}
-
-const CURRENT_FY = currentFyLabel();
-
-// '', 'current', 'this' → live current FY. 'previous'/'last' → newest archived FY.
-// An explicit archived label (e.g. '2025-26') selects that archive year.
-function resolveFy(param?: string): { fy: string; isHistory: boolean } {
-  const raw = (param ?? '').trim();
-  const p = raw.toLowerCase();
-  if (!p || p === 'current' || p === 'this') return { fy: CURRENT_FY, isHistory: false };
-  if (p === 'previous' || p === 'last') return { fy: ARCHIVE_FYS[0]!, isHistory: true };
-  if (ARCHIVE_FYS.includes(raw)) return { fy: raw, isHistory: true };
-  return { fy: CURRENT_FY, isHistory: false };
-}
-
 // Resolve the Prisma model + base where-clause for a channel under a given FY.
 // Live: the per-channel table, no extra filter. History: the shared archive table,
 // scoped to this channel + financial year.
@@ -191,13 +168,6 @@ function getChannelSource(ch: ChannelKey, isHistory: boolean, fy: string): { mod
   return { model: prisma.offlineSaleHistory, base: { channel: ch, financialYear: fy } };
 }
 
-// Last instant of a financial year (e.g. "2025-26" → 2026-03-31 23:59:59.999 UTC).
-// Used to anchor "trailing window" analytics for a COMPLETED past year, where "now"
-// is meaningless (the year ended months ago).
-function fyEndDate(fy: string): Date {
-  const startYear = parseInt(fy.slice(0, 4), 10);
-  return new Date(Date.UTC(startYear + 1, 2, 31, 23, 59, 59, 999));
-}
 
 /**
  * Fetch all analytics for one channel in a single parallel burst:
