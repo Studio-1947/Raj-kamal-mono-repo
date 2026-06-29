@@ -8,7 +8,7 @@ import {
   Tooltip,
 } from 'recharts';
 import type { OfflineSheetSummaryResponse, OfflineSheetFilters } from './offlineSheetTypes';
-import { useOfflineSheetOptions, useOfflineSheetDailyDetails, useOfflineSheetSummary } from './offlineSheetService';
+import { useOfflineSheetOptions, useOfflineSheetDailyDetails, useOfflineSheetSummary, useHistoryChannelSummary } from './offlineSheetService';
 import { getFinancialYearStartDate } from './useOfflineSheetFilters';
 import { fuzzyMatch, useDebounce } from '../../../shared/searchUtils';
 
@@ -562,9 +562,10 @@ interface ChartBlockProps {
   render: (data: OfflineSheetSummaryResponse) => React.ReactNode;
   resetVersion?: number;
   region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti';
+  fy?: 'current' | 'previous';
 }
 
-function ChartBlock({ id, title, globalFilters, render, resetVersion, region = 'delhi' }: ChartBlockProps) {
+function ChartBlock({ id, title, globalFilters, render, resetVersion, region = 'delhi', fy = 'current' }: ChartBlockProps) {
   const [localFilters, setLocalFilters] = useState<OfflineSheetFilters>(() => {
     const saved = localStorage.getItem(`rk_chart_filters_${id}`);
     if (saved) {
@@ -617,7 +618,9 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
     return out;
   }, [globalFilters, localFilters]);
 
-  const { data, isLoading: loading } = useOfflineSheetSummary(mergedFilters, region);
+  const liveSummary    = useOfflineSheetSummary(mergedFilters, region);
+  const historySummary = useHistoryChannelSummary(region, 'previous', fy === 'previous');
+  const { data, isLoading: loading } = fy === 'previous' ? historySummary : liveSummary;
 
   // Persist this block's local filter selection across reloads.
   useEffect(() => {
@@ -653,8 +656,8 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Quick Days Selector */}
-          <div className="flex items-center gap-1 rounded-xl bg-gray-50 p-1 border border-gray-100">
+          {/* Quick Days Selector — hidden in archive mode (data is fixed to FY2025-26) */}
+          {fy !== 'previous' && <div className="flex items-center gap-1 rounded-xl bg-gray-50 p-1 border border-gray-100">
             {[
               { label: 'FYTD', value: 'fytd' },
               { label: '1M', value: 30 },
@@ -695,7 +698,7 @@ function ChartBlock({ id, title, globalFilters, render, resetVersion, region = '
             {(localFilters.startDate || localFilters.endDate) && (
               <span className="px-2 py-1 text-[10px] font-normal text-teal-600 uppercase tracking-tight bg-teal-50 rounded-lg border border-teal-100">Custom</span>
             )}
-          </div>
+          </div>}
 
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
@@ -826,11 +829,12 @@ interface Props {
   resetVersion?: number;
   onApplyDateRange?: (start: string, end: string) => void;
   region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti';
+  fy?: 'current' | 'previous';
 }
 
 const DEFAULT_ORDER = ['revenue-trend', 'sales-by-type', 'sales-by-state', 'sales-by-city', 'sales-by-publisher', 'top-customers', 'sales-by-binding', 'top-items', 'top-items-qty', 'bottom-items'];
 
-export default function OfflineSheetCharts({ filters: globalFilters, resetVersion, onApplyDateRange, region = 'delhi' }: Props) {
+export default function OfflineSheetCharts({ filters: globalFilters, resetVersion, onApplyDateRange, region = 'delhi', fy = 'current' }: Props) {
   const [items, setItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('rk_offline_charts_order');
     if (saved) {
@@ -965,17 +969,33 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
     },
     'sales-by-binding': {
       title: 'Sales by Binding',
-      render: (data) => (
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data.revenueByBinding || []} layout="vertical" margin={{ left: 20, right: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
-            <YAxis type="category" dataKey="binding" width={100} tick={BOLD_TEXT} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="total" fill="#EC4899" radius={[0, 4, 4, 0]} barSize={30} />
-          </BarChart>
-        </ResponsiveContainer>
-      )
+      render: (data) => {
+        // Filter out rows where binding is a 4-digit year number — happens when the
+        // historical source sheet stored pub-year values in the Binding column.
+        const isYear = (v: string) => /^\d{4}$/.test((v || '').trim());
+        const bindingData = (data.revenueByBinding || []).filter(
+          (b: any) => b.binding && !isYear(b.binding)
+        );
+        if (bindingData.length === 0) {
+          return (
+            <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 text-gray-400">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-40"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+              <p className="text-sm">Binding data not available for this archive</p>
+            </div>
+          );
+        }
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={bindingData} layout="vertical" margin={{ left: 20, right: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
+              <YAxis type="category" dataKey="binding" width={100} tick={BOLD_TEXT} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="total" fill="#EC4899" radius={[0, 4, 4, 0]} barSize={30} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      }
     },
     'top-items': {
       title: 'Top Selling Items',
@@ -993,35 +1013,53 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
     },
     'top-items-qty': {
       title: 'Top Items by Volume (Qty)',
-      render: (data) => (
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={data.topItemsByQty || []} layout="vertical" margin={{ left: 20, right: 60 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={BOLD_TEXT} />
-            <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
-            <Tooltip content={<CustomTooltip title="Quantity" />} />
-            <Bar dataKey="qty" fill="#F59E0B" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600 }} />
-          </BarChart>
-        </ResponsiveContainer>
-      )
+      render: (data) => {
+        const qtyData = (data.topItemsByQty || []).filter((d: any) => d.qty > 0);
+        if (qtyData.length === 0) {
+          return (
+            <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 text-gray-400">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-40"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <p className="text-sm">No data found</p>
+            </div>
+          );
+        }
+        return (
+          <ResponsiveContainer width="100%" height={Math.max(250, qtyData.length * 42)}>
+            <BarChart data={qtyData} layout="vertical" margin={{ left: 20, right: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tick={BOLD_TEXT} />
+              <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
+              <Tooltip content={<CustomTooltip title="Quantity" />} />
+              <Bar dataKey="qty" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      }
     },
     'bottom-items': {
       title: 'Least Selling Items',
       render: (data) => {
-        // "Least selling" = lowest *positive* revenue. Drop net-negative (returns-heavy)
-        // outliers and non-finite values so a single -ve bar can't blow out the axis
-        // (forcing a -75…+25 scale) and overlap the title labels.
-        const items = (data.bottomItems || []).filter(
-          (d: any) => Number.isFinite(Number(d.total)) && Number(d.total) > 0
-        );
+        // "Least selling" = lowest *positive* net revenue. Drop net-negative (returns-heavy)
+        // outliers and non-finite values so a single -ve bar can't blow out the axis.
+        const bottomData = (data.bottomItems || [])
+          .filter((d: any) => Number.isFinite(Number(d.total)) && Number(d.total) > 0)
+          .slice(0, 10);
+        if (bottomData.length === 0) {
+          return (
+            <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 text-gray-400">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-40"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              <p className="text-sm">No data found</p>
+            </div>
+          );
+        }
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={items} layout="vertical" margin={{ left: 20, right: 60 }}>
+          <ResponsiveContainer width="100%" height={Math.max(250, bottomData.length * 42)}>
+            <BarChart data={bottomData} layout="vertical" margin={{ left: 20, right: 30 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
               <XAxis type="number" domain={[0, 'auto']} allowDataOverflow tick={BOLD_TEXT} tickFormatter={fmtChartAxis} />
               <YAxis type="category" dataKey="title" width={180} tick={{ fontSize: 11, fontWeight: 500 }} tickFormatter={(v) => v.length > 25 ? v.substring(0, 23) + '..' : v} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} barSize={18} label={{ position: 'right', fontSize: 10, fontWeight: 600, formatter: (v: any) => fmtChartAxis(Number(v)) }} />
+              <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -1039,7 +1077,7 @@ export default function OfflineSheetCharts({ filters: globalFilters, resetVersio
             const isStretched = stretchedItems.includes(id);
             return (
               <SortableItem key={id} id={id} isStretched={isStretched} onToggleStretch={toggleStretch} className={isStretched ? 'lg:col-span-2' : ''}>
-                <ChartBlock id={id} title={config.title} globalFilters={globalFilters} render={config.render} resetVersion={resetVersion} region={region} />
+                <ChartBlock id={id} title={config.title} globalFilters={globalFilters} render={config.render} resetVersion={resetVersion} region={region} fy={fy} />
               </SortableItem>
             );
           })}
