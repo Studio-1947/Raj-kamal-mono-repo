@@ -362,9 +362,15 @@ export default function TotalOfflineSales() {
           </div>
 
           {/* 1.5. Individual Book Fairs — archive only carries per-fair sub-types */}
-          {fyMode === 'previous' && activeChannel === 'BookFair' && (
+          {activeChannel === 'BookFair' && (
             <div className="border-t border-gray-100 pt-8">
-              <BookFairSubFairs fy="2025-26" />
+              {/* 'Last Year' reads the resolved archive FY (summary.fy — single backend
+                  source of truth); 'This Year' reads the live BookFair table. Either way
+                  the section auto-hides until the source carries "Book Fair - <Name>" sub-types. */}
+              <BookFairSubFairs
+                fy={fyMode === 'previous' ? summary?.fy : undefined}
+                source={fyMode === 'previous' ? 'history' : 'live'}
+              />
             </div>
           )}
 

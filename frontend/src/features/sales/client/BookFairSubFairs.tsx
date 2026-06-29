@@ -41,10 +41,13 @@ const PALETTE = ['#4F46E5', '#0D9488', '#EC4899', '#F59E0B', '#8B5CF6', '#10B981
 
 interface Props {
   /** Archive financial year to break down. Defaults to the latest archive (2025-26). */
+  /** Archive financial year. Omit to let the backend default to the latest archive. */
   fy?: string;
+  /** 'history' (default) reads the archived FY; 'live' reads the current live BookFair table. */
+  source?: 'live' | 'history';
 }
 
-export default function BookFairSubFairs({ fy = '2025-26' }: Props) {
+export default function BookFairSubFairs({ fy, source = 'history' }: Props) {
   const [data, setData] = useState<SubFairsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +57,10 @@ export default function BookFairSubFairs({ fy = '2025-26' }: Props) {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setActive(null);
+    const qs = `source=${source}${fy ? `&fy=${encodeURIComponent(fy)}` : ''}`;
     apiClient
-      .get<SubFairsResponse>(`bookfair-offline-sales/sub-fairs?fy=${fy}`)
+      .get<SubFairsResponse>(`bookfair-offline-sales/sub-fairs?${qs}`)
       .then((res) => {
         if (cancelled) return;
         if (res.ok) setData(res);
@@ -64,7 +69,7 @@ export default function BookFairSubFairs({ fy = '2025-26' }: Props) {
       .catch((e: any) => !cancelled && setError(e?.message || 'Failed to load book-fair breakdown'))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [fy]);
+  }, [fy, source]);
 
   const maxTotal = useMemo(
     () => Math.max(1, ...(data?.subFairs ?? []).map((s) => s.total)),
@@ -80,8 +85,11 @@ export default function BookFairSubFairs({ fy = '2025-26' }: Props) {
     );
   }
 
-  // Silent when there's genuinely no archived breakdown (keeps the live page clean).
-  if (error || !data || data.subFairs.length === 0) return null;
+  // Only meaningful once the source actually encodes per-fair sub-types
+  // ("Book Fair - <Name>"). Until the live sheet adopts them it stays a single
+  // generic "Book Fair" row — hide the section then to keep the page clean.
+  const hasSubTypes = !!data && data.subFairs.some((s) => /book\s*fair\s*-\s*\S/i.test(s.type));
+  if (error || !data || !hasSubTypes) return null;
 
   const selectedIdx = active ? data.subFairs.findIndex((s) => s.type === active) : -1;
   const selected = selectedIdx >= 0 ? data.subFairs[selectedIdx] : null;
@@ -93,7 +101,7 @@ export default function BookFairSubFairs({ fy = '2025-26' }: Props) {
         <div>
           <h3 className="text-lg font-normal text-gray-900">Individual Book Fairs</h3>
           <p className="mt-0.5 text-xs text-gray-400">
-            Each fair as its own category · FY {data.fy} archive
+            Each fair as its own category · {source === 'live' ? 'Live current-year data' : `FY ${data.fy} archive`}
           </p>
         </div>
         <div className="flex items-center gap-4 text-right">
@@ -147,6 +155,7 @@ export default function BookFairSubFairs({ fy = '2025-26' }: Props) {
             label={selected.label}
             color={selectedColor}
             fy={data.fy}
+            source={source}
             onClose={() => setActive(null)}
           />
         </div>

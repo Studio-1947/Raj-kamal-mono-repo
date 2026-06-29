@@ -7,6 +7,7 @@ import { TtlCache } from "../../../lib/cache.js";
 import { registerSalesCacheClear } from "./salesCacheRegistry.js";
 import { authenticateToken } from "../../../middleware/authPrisma.js";
 import { parseFictionParam, fictionWhere, fictionSql, fictionBucketSql } from "./fictionFilter.js";
+import { latestArchiveFy } from "./fyConfig.js";
 
 const summaryCache = new TtlCache<any>(24 * 60 * 60 * 1000); // 24h — data changes only on sync; invalidated explicitly via the cache registry
 const countsCache = new TtlCache<any>(5 * 60 * 1000);
@@ -40,6 +41,21 @@ function getSearchTokens(q: string): string[] {
 }
 function toTokenRegex(token: string): string {
   return token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Source selector for the per-fair breakdown. The current (live) FY lives in
+// bookfair_offline_sales; completed years live in offline_sales_history
+// (channel = 'BookFair'). Returns the table reference + base scope predicate,
+// both as Prisma.Sql fragments to inline into the breakdown queries.
+type FairSource = 'live' | 'history';
+function bookfairScope(source: FairSource, fy: string): { table: Prisma.Sql; scope: Prisma.Sql } {
+  if (source === 'live') {
+    return { table: Prisma.sql`"bookfair_offline_sales"`, scope: Prisma.sql`TRUE` };
+  }
+  return {
+    table: Prisma.sql`"offline_sales_history"`,
+    scope: Prisma.sql`"channel" = 'BookFair' AND "financialYear" = ${fy}`,
+  };
 }
 
 // GET /api/bookfair-offline-sales
@@ -730,12 +746,17 @@ router.get("/daily-details", async (req, res) => {
 // FY history (offline_sales_history, channel = 'BookFair'), where these
 // sub-types actually exist. Promotes each sub-type to a first-class category.
 router.get("/sub-fairs", async (req, res) => {
-  const Q = z.object({ fy: z.string().regex(/^\d{4}-\d{2}$/).optional() });
+  const Q = z.object({
+    fy: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+    source: z.enum(["live", "history"]).optional(),
+  });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
-  const fy = parsed.data.fy ?? "2025-26";
+  const fy = parsed.data.fy ?? latestArchiveFy();
+  const source: FairSource = parsed.data.source ?? "history";
+  const { table, scope } = bookfairScope(source, fy);
 
-  const cacheKey = `sub-fairs:${fy}`;
+  const cacheKey = `sub-fairs:${source}:${fy}`;
   const cached = optionsCache.get(cacheKey);
   if (cached) return res.json(cached);
 
@@ -747,8 +768,8 @@ router.get("/sub-fairs", async (req, res) => {
          - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))::float AS total,
         (COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))::int AS qty,
         COUNT(*)::int AS txns
-      FROM "offline_sales_history"
-      WHERE "channel" = 'BookFair' AND "financialYear" = ${fy}
+      FROM ${table}
+      WHERE ${scope}
       GROUP BY 1
       ORDER BY total DESC
     `);
@@ -764,6 +785,7 @@ router.get("/sub-fairs", async (req, res) => {
     const result = {
       ok: true,
       fy,
+      source,
       grandTotal: round2(subFairs.reduce((a, s) => a + s.total, 0)),
       grandQty: subFairs.reduce((a, s) => a + s.qty, 0),
       subFairs,
@@ -782,20 +804,23 @@ router.get("/sub-fair-details", async (req, res) => {
   const Q = z.object({
     fy: z.string().regex(/^\d{4}-\d{2}$/).optional(),
     type: z.string().min(1),
+    source: z.enum(["live", "history"]).optional(),
   });
   const parsed = Q.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid query" });
-  const fy = parsed.data.fy ?? "2025-26";
+  const fy = parsed.data.fy ?? latestArchiveFy();
   const type = parsed.data.type;
+  const source: FairSource = parsed.data.source ?? "history";
+  const { table, scope } = bookfairScope(source, fy);
 
-  const cacheKey = `sub-fair-details:${fy}:${type}`;
+  const cacheKey = `sub-fair-details:${source}:${fy}:${type}`;
   const cached = summaryCache.get(cacheKey);
   if (cached) return res.json(cached);
 
   // Net revenue / qty expressions (OUT − IN), reused across every aggregation below.
   const netRev = Prisma.sql`(COALESCE(SUM(CASE WHEN "amount" IS NOT NULL AND "amount" > 0 THEN "amount" WHEN "rate" IS NOT NULL AND "qty" IS NOT NULL THEN "rate" * "qty" ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "inAmount" IS NOT NULL AND "inAmount" > 0 THEN "inAmount" WHEN "rate" IS NOT NULL AND "inQty" IS NOT NULL THEN "rate" * "inQty" ELSE 0 END), 0))`;
   const netQty = Prisma.sql`(COALESCE(SUM("qty"), 0) - COALESCE(SUM("inQty"), 0))`;
-  const base = Prisma.sql`FROM "offline_sales_history" WHERE "channel" = 'BookFair' AND "financialYear" = ${fy} AND "type" = ${type}`;
+  const base = Prisma.sql`FROM ${table} WHERE ${scope} AND "type" = ${type}`;
   const itemBase = Prisma.sql`${base} AND ("title" IS NULL OR "title" !~* '^E-')`;
 
   try {

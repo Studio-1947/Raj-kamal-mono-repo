@@ -40,7 +40,7 @@ function fmtINR(n: number): string {
 }
 const fmtAxis = (n: number) => (Math.abs(n) >= 1e7 ? `${(n / 1e7).toFixed(1)}Cr` : Math.abs(n) >= 1e5 ? `${(n / 1e5).toFixed(1)}L` : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : `${n}`);
 
-const FICTION_COLORS: Record<string, string> = { Fiction: '#4F46E5', 'Non-Fiction': '#0D9488', Other: '#9CA3AF' };
+const FICTION_COLORS: Record<string, string> = { Fiction: '#4F46E5', 'Non-Fiction': '#0D9488', 'Children Book': '#F59E0B', Other: '#9CA3AF' };
 const colorForFiction = (k: string) => FICTION_COLORS[k] ?? '#8B5CF6';
 
 interface Props {
@@ -48,6 +48,7 @@ interface Props {
   label: string;    // "Exhibition"
   color: string;
   fy?: string;
+  source?: 'live' | 'history';
   onClose: () => void;
 }
 
@@ -87,7 +88,7 @@ function Kpi({ icon, label, value, sub, tone }: { icon?: React.ReactNode; label:
   );
 }
 
-export default function BookFairSubFairDetail({ type, label, color, fy = '2025-26', onClose }: Props) {
+export default function BookFairSubFairDetail({ type, label, color, fy, source = 'history', onClose }: Props) {
   const [data, setData] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,13 +98,14 @@ export default function BookFairSubFairDetail({ type, label, color, fy = '2025-2
     setLoading(true);
     setError(null);
     setData(null);
+    const qs = `source=${source}&type=${encodeURIComponent(type)}${fy ? `&fy=${encodeURIComponent(fy)}` : ''}`;
     apiClient
-      .get<DetailResponse>(`bookfair-offline-sales/sub-fair-details?fy=${fy}&type=${encodeURIComponent(type)}`)
+      .get<DetailResponse>(`bookfair-offline-sales/sub-fair-details?${qs}`)
       .then(res => { if (!cancelled) { res.ok ? setData(res) : setError('Failed to load fair details'); } })
       .catch((e: any) => !cancelled && setError(e?.message || 'Failed to load fair details'))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [type, fy]);
+  }, [type, fy, source]);
 
   const monthsWithData = data?.monthly.filter(m => m.total !== 0).length ?? 0;
   const returnsPct = data && data.kpis.gross > 0 ? (data.kpis.returns / data.kpis.gross) * 100 : 0;
@@ -116,7 +118,7 @@ export default function BookFairSubFairDetail({ type, label, color, fy = '2025-2
           <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
           <div>
             <h3 className="text-xl font-semibold text-gray-900">{label}</h3>
-            <p className="text-xs text-gray-400">Book-fair deep dive · FY {fy} archive</p>
+            <p className="text-xs text-gray-400">Book-fair deep dive · {source === 'live' ? 'Live current-year data' : `FY ${fy} archive`}</p>
           </div>
         </div>
         <button onClick={onClose} className="rounded-full border border-gray-200 p-2 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700">
