@@ -28,6 +28,7 @@ import {
   PriceReprintAnalysisView,
   CategorySalesView,
 } from './total-offline-sales/components';
+import BookFairSubFairs from '../features/sales/client/BookFairSubFairs';
 
 type ChannelKey = 'all' | 'Delhi' | 'Mumbai' | 'Patna' | 'Online' | 'BookFair' | 'Lokbharti';
 
@@ -359,6 +360,13 @@ export default function TotalOfflineSales() {
               }
             />
           </div>
+
+          {/* 1.5. Individual Book Fairs — archive only carries per-fair sub-types */}
+          {fyMode === 'previous' && activeChannel === 'BookFair' && (
+            <div className="border-t border-gray-100 pt-8">
+              <BookFairSubFairs fy="2025-26" />
+            </div>
+          )}
 
           {/* 2. Channel KPI Strip */}
           {summary?.regionalBreakdown?.length > 0 && (

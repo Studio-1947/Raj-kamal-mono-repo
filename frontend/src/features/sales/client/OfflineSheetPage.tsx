@@ -18,6 +18,7 @@ import OfflineSheetKPI    from './OfflineSheetKPI';
 import OfflineSheetCharts from './OfflineSheetCharts';
 import OfflineSheetTable  from './OfflineSheetTable';
 import OfflineSheetProjection from './OfflineSheetProjection';
+import BookFairSubFairs from './BookFairSubFairs';
 import {
   useOfflineSheetCounts,
   useOfflineSheetSummary,
@@ -798,6 +799,12 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
               isLoading={countsQ.isLoading} 
             />
           </div>
+
+          {region === 'bookfair' && (
+            <div className="mb-12">
+              <BookFairSubFairs />
+            </div>
+          )}
 
           <div className="mb-12">
             <OfflineSheetProjection

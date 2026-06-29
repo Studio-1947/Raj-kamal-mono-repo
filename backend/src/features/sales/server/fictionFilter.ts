@@ -60,6 +60,17 @@ export function fictionWhere(cats: FictionCat[]): any | undefined {
 }
 
 /**
+ * Canonical bucket label as a raw-SQL expression, for GROUP BY in breakdown
+ * queries. Collapses the messy source column ("Fiction"/"fiction", "Other",
+ * "Children Book", nulls, …) into the same three buckets used everywhere else
+ * (see parseFictionParam), so case-duplicates never appear as separate slices.
+ */
+export const fictionBucketSql: Prisma.Sql = Prisma.sql`CASE
+  WHEN lower(trim("fictionType")) = 'fiction' THEN 'Fiction'
+  WHEN lower(trim("fictionType")) IN ('non-fiction','nonfiction','non fiction') THEN 'Non-Fiction'
+  ELSE 'Other' END`;
+
+/**
  * Raw-SQL fragment for the summary/counts endpoints (Prisma.sql conditions).
  * Returns `null` when no filtering is needed (none, or all three selected).
  */
