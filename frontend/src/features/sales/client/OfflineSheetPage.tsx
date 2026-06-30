@@ -53,9 +53,9 @@ const REGION_TO_CHANNEL: Record<string, string> = {
 // Per-region banner copy (title + kicker + optional decorative image) for the PageHero.
 // Drop PNGs in `frontend/public/hero/` to enable the right-side illustration.
 const REGION_HERO: Record<string, { title: string; kicker: string; image?: string }> = {
-  delhi:     { title: 'Delhi',     kicker: 'Offline Sales Data' },
-  mumbai:    { title: 'Mumbai',    kicker: 'Offline Sales Data' },
-  patna:     { title: 'Patna',     kicker: 'Offline Sales Data' },
+  delhi:     { title: 'Delhi',     kicker: 'Offline Sales Data', image: '/hero/delhi_lineart.svg' },
+  mumbai:    { title: 'Mumbai',    kicker: 'Offline Sales Data', image: '/hero/mumbai.svg' },
+  patna:     { title: 'Patna',     kicker: 'Offline Sales Data', image: '/hero/patna.svg' },
   online:    { title: 'Website',   kicker: 'Online Sales Data', image: '/hero/website.svg' },
   bookfair:  { title: 'BookFair',  kicker: 'Offline Sales Data' },
   lokbharti: { title: 'Lokbharti', kicker: 'Offline Sales Data' },
