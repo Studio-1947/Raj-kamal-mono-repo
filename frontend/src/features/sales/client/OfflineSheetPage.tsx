@@ -56,7 +56,7 @@ const REGION_HERO: Record<string, { title: string; kicker: string; image?: strin
   delhi:     { title: 'Delhi',     kicker: 'Offline Sales Data' },
   mumbai:    { title: 'Mumbai',    kicker: 'Offline Sales Data' },
   patna:     { title: 'Patna',     kicker: 'Offline Sales Data' },
-  online:    { title: 'Website',   kicker: 'Online Sales Data', image: '/hero/website.png' },
+  online:    { title: 'Website',   kicker: 'Online Sales Data', image: '/hero/website.svg' },
   bookfair:  { title: 'BookFair',  kicker: 'Offline Sales Data' },
   lokbharti: { title: 'Lokbharti', kicker: 'Offline Sales Data' },
 };
@@ -805,30 +805,34 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
               : { label: 'Live Data', tone: 'live' }
             }
             illustrationSrc={REGION_HERO[region].image}
+            belowTitle={
+              /* FY Toggle — lives inside the hero (left, under the title) so the
+                 sticky tabs can tuck directly under the navy card (preserves the
+                 sticky-note look) while leaving the right side free for line art. */
+              <div className="flex items-center gap-1 rounded-xl bg-white/10 p-1 ring-1 ring-white/20 w-fit">
+                <button
+                  onClick={() => handleFySwitch('current')}
+                  className={`rounded-lg px-5 py-2 text-sm font-normal transition-all ${
+                    fyMode === 'current'
+                      ? 'bg-teal-600 text-white shadow-md'
+                      : 'text-white/70 hover:bg-white/10'
+                  }`}
+                >
+                  FY 2026-27 (Live)
+                </button>
+                <button
+                  onClick={() => handleFySwitch('previous')}
+                  className={`rounded-lg px-5 py-2 text-sm font-normal transition-all ${
+                    fyMode === 'previous'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-white/70 hover:bg-white/10'
+                  }`}
+                >
+                  FY 2025-26 (Archive)
+                </button>
+              </div>
+            }
           />
-          {/* FY Toggle */}
-          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 mt-3 w-fit">
-            <button
-              onClick={() => handleFySwitch('current')}
-              className={`rounded-lg px-5 py-2 text-sm font-normal transition-all ${
-                fyMode === 'current'
-                  ? 'bg-teal-600 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              FY 2026-27 (Live)
-            </button>
-            <button
-              onClick={() => handleFySwitch('previous')}
-              className={`rounded-lg px-5 py-2 text-sm font-normal transition-all ${
-                fyMode === 'previous'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              FY 2025-26 (Archive)
-            </button>
-          </div>
         </div>
         <StickyTabs
           active={dashboardTab}

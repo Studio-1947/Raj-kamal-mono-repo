@@ -603,8 +603,12 @@ model OfflineSaleHistory {
   rowHash         String?
   createdAt       DateTime          @default(now())
 
-  @@index([channel, date], map: "osh_channel_date")
-  @@index([channel, title], map: "osh_channel_title")
+  // Every archive query filters channel + financialYear (getChannelSource scopes by
+  // both), so the FY must be in the index prefix — otherwise adding a 2nd archived
+  // year forces a scan of all years' rows per channel. These supersede the old
+  // (channel,date)/(channel,title) indexes.
+  @@index([channel, financialYear, date], map: "osh_channel_fy_date")
+  @@index([channel, financialYear, title], map: "osh_channel_fy_title")
   @@map("offline_sales_history")
 }
 
