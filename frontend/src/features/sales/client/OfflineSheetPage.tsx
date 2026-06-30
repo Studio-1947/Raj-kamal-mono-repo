@@ -56,7 +56,7 @@ const REGION_HERO: Record<string, { title: string; kicker: string; image?: strin
   delhi:     { title: 'Delhi',     kicker: 'Offline Sales Data' },
   mumbai:    { title: 'Mumbai',    kicker: 'Offline Sales Data' },
   patna:     { title: 'Patna',     kicker: 'Offline Sales Data' },
-  online:    { title: 'Website',   kicker: 'Online Sales Data', image: '/hero/website.png' },
+  online:    { title: 'Website',   kicker: 'Online Sales Data', image: '/hero/website.svg' },
   bookfair:  { title: 'BookFair',  kicker: 'Offline Sales Data' },
   lokbharti: { title: 'Lokbharti', kicker: 'Offline Sales Data' },
 };
