@@ -139,5 +139,12 @@ export function useOfflineSheetFilters() {
     return !!(filters.q || filters.state || filters.city || filters.publisher || filters.author || filters.isbn || filters.customerName || filters.binding || filters.minAmount || filters.maxAmount || filters.startDate || filters.title || filters.type || filters.fictionType);
   }, [filters]);
 
-  return { filters, setDays, setDateRange, clearDateRange, setQ, setPage, updateFilter, updateFilters, clearAll, isFiltered };
+  // True only when the user explicitly set a date param (days / startDate / endDate).
+  // When false the startDate/endDate on `filters` are the computed FYTD defaults and
+  // should NOT be forwarded to history-mode queries (which cover a different FY).
+  const hasExplicitDateFilter = useMemo(() => {
+    return !!(s.get('days') || s.get('startDate') || s.get('endDate'));
+  }, [s]);
+
+  return { filters, setDays, setDateRange, clearDateRange, setQ, setPage, updateFilter, updateFilters, clearAll, isFiltered, hasExplicitDateFilter };
 }

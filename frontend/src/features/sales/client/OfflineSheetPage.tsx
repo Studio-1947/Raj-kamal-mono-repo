@@ -25,6 +25,9 @@ import {
   useOfflineSheetList,
   useTriggerSync,
   useOfflineSheetOptions,
+  useHistoryChannelList,
+  useHistoryChannelCounts,
+  useHistoryChannelOptions,
 } from './offlineSheetService';
 import { useOfflineSheetFilters, getFinancialYearStartDate } from './useOfflineSheetFilters';
 import type { OfflineSheetFilters } from './offlineSheetTypes';
@@ -113,6 +116,8 @@ interface FilterBarProps {
   isSyncing: boolean;
   lastSyncResult?: string | null;
   region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti';
+  historyMode?: boolean;
+  optionsOverride?: any;
 }
 
 function FilterField({ id, label, placeholder, value, onChange, type = "text", width = "w-48" }: any) {
@@ -257,6 +262,8 @@ function FilterBar({
   isSyncing,
   lastSyncResult,
   region = 'delhi',
+  historyMode = false,
+  optionsOverride,
 }: FilterBarProps) {
   const [searchParams] = useSearchParams();
   const [isExpanded, setIsExpanded] = React.useState(false);
@@ -264,7 +271,8 @@ function FilterBar({
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
-  const { data: optData } = useOfflineSheetOptions(region);
+  const liveOptions = useOfflineSheetOptions(region);
+  const optData = optionsOverride ?? liveOptions.data;
  
   const displayStartDate = React.useMemo(() => {
     if (filters.startDate) return filters.startDate.slice(0, 10);
@@ -344,9 +352,12 @@ function FilterBar({
       .slice(0, 15);
   }, [optData, debouncedSuggestQuery]);
 
-  // Helper to count active filters excluding defaults
+  // Helper to count active filters excluding defaults.
+  // In history mode, startDate/endDate are the FYTD auto-defaults (not user-set),
+  // so exclude them so the chip count and chip strip don't show misleading 2026 dates.
   const activeFilters = Object.entries(filters).filter(([key, value]) => {
     if (key === 'page' || key === 'limit') return false;
+    if (historyMode && (key === 'startDate' || key === 'endDate')) return false;
     return value !== undefined && value !== '' && value !== null;
   });
 
@@ -433,7 +444,7 @@ function FilterBar({
           <div className="mt-4 flex items-center gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
             <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-200 pr-4">Quick Binding:</span>
             <div className="flex flex-wrap items-center gap-4">
-              {(useOfflineSheetOptions(region).data?.bindings ?? ['Paperback', 'Hardbound']).slice(0, 6).map((b) => {
+              {(optData?.bindings ?? ['Paperback', 'Hardbound']).slice(0, 6).map((b: string) => {
                 const isActive = (filters.binding ?? '').split(',').includes(b);
                 return (
                   <button
@@ -515,75 +526,88 @@ function FilterBar({
           )}
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-normal text-black uppercase tracking-wider">Quick Period</span>
-          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-            {[
-              { label: 'FYTD', value: 'fytd' },
-              { label: '1M', value: 30 },
-              { label: '3M', value: 90 },
-              { label: '6M', value: 180 },
-              { label: '1Y', value: 365 },
-              { label: 'All', value: 10000 }
-            ].map((p) => {
-              const isSelected = p.value === 'fytd'
-                ? (!filters.days && !searchParams.get('startDate') && !searchParams.get('endDate'))
-                : (filters.days === p.value && !searchParams.get('startDate'));
-              return (
-                <button
-                  key={p.label}
-                  onClick={() => {
-                    if (p.value === 'fytd') {
-                      clearDateRange();
-                    } else {
-                      setDays(p.value as number);
+        {historyMode ? (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-normal text-black uppercase tracking-wider">Archive Period</span>
+            <div className="flex items-center gap-3 rounded-xl border-2 border-indigo-200 bg-indigo-50 px-5 py-3">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500 shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span className="text-sm font-normal text-indigo-700">01 Apr 2025 – 31 Mar 2026 (full FY 2025-26)</span>
+              <span className="ml-2 text-[10px] font-medium uppercase tracking-wider text-indigo-500 bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md">Fixed Archive</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-normal text-black uppercase tracking-wider">Quick Period</span>
+              <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+                {[
+                  { label: 'FYTD', value: 'fytd' },
+                  { label: '1M', value: 30 },
+                  { label: '3M', value: 90 },
+                  { label: '6M', value: 180 },
+                  { label: '1Y', value: 365 },
+                  { label: 'All', value: 10000 }
+                ].map((p) => {
+                  const isSelected = p.value === 'fytd'
+                    ? (!filters.days && !searchParams.get('startDate') && !searchParams.get('endDate'))
+                    : (filters.days === p.value && !searchParams.get('startDate'));
+                  return (
+                    <button
+                      key={p.label}
+                      onClick={() => {
+                        if (p.value === 'fytd') {
+                          clearDateRange();
+                        } else {
+                          setDays(p.value as number);
+                        }
+                      }}
+                      className={`rounded-lg px-4 py-2 text-sm font-normal transition-all ${
+                        isSelected
+                          ? 'bg-teal-600 text-white shadow-lg'
+                          : 'text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-normal text-black uppercase tracking-wider">Date Range</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  title="Start Date"
+                  aria-label="Start Date"
+                  className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
+                  value={displayStartDate}
+                  onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setDateRange(new Date(e.target.value).toISOString(), displayEndDate === new Date().toISOString().slice(0, 10) ? new Date().toISOString() : new Date(displayEndDate).toISOString());
                     }
                   }}
-                  className={`rounded-lg px-4 py-2 text-sm font-normal transition-all ${
-                    isSelected
-                      ? 'bg-teal-600 text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-normal text-black uppercase tracking-wider">Date Range</span>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              title="Start Date"
-              aria-label="Start Date"
-              className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
-              value={displayStartDate}
-              onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setDateRange(new Date(e.target.value).toISOString(), displayEndDate === new Date().toISOString().slice(0, 10) ? new Date().toISOString() : new Date(displayEndDate).toISOString());
-                }
-              }}
-            />
-            <span className="text-gray-400 font-normal">→</span>
-            <input
-              type="date"
-              title="End Date"
-              aria-label="End Date"
-              className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
-              value={displayEndDate}
-              onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setDateRange(displayStartDate === getFinancialYearStartDate().toISOString().slice(0, 10) ? getFinancialYearStartDate().toISOString() : new Date(displayStartDate).toISOString(), new Date(e.target.value).toISOString());
-                }
-              }}
-            />
-          </div>
-        </div>
+                />
+                <span className="text-gray-400 font-normal">→</span>
+                <input
+                  type="date"
+                  title="End Date"
+                  aria-label="End Date"
+                  className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2 text-base font-normal text-black border-black/10 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer h-[46px]"
+                  value={displayEndDate}
+                  onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err){} }}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setDateRange(displayStartDate === getFinancialYearStartDate().toISOString().slice(0, 10) ? getFinancialYearStartDate().toISOString() : new Date(displayStartDate).toISOString(), new Date(e.target.value).toISOString());
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="flex items-center gap-3 ml-auto">
           {lastSyncResult && (
@@ -596,18 +620,20 @@ function FilterBar({
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             SEARCH
           </button>
-          <button
-            onClick={onSync}
-            disabled={isSyncing}
-            title="Sync Data from Sheets"
-            className="flex items-center justify-center h-12 w-12 rounded-xl bg-black text-white shadow-lg hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
-          >
-            {isSyncing ? (
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-            )}
-          </button>
+          {!historyMode && (
+            <button
+              onClick={onSync}
+              disabled={isSyncing}
+              title="Sync Data from Sheets"
+              className="flex items-center justify-center h-12 w-12 rounded-xl bg-black text-white shadow-lg hover:bg-gray-800 active:scale-95 disabled:opacity-60 transition-all"
+            >
+              {isSyncing ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -615,50 +641,50 @@ function FilterBar({
       <div className={`space-y-6 overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
         {/* Second row: Spreadsheet-style Column Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-6 gap-y-4">
-          <FilterDropdown 
-            id="f-book" label="Book (Binding)" placeholder="Search Book & Binding..." 
+          <FilterDropdown
+            id="f-book" label="Book (Binding)" placeholder="Search Book & Binding..."
             value={filters.title} onChange={(v:any) => updateFilter('title', v)}
-            options={useOfflineSheetOptions(region).data?.bookTitles}
+            options={optData?.bookTitles}
           />
-          <FilterDropdown 
-            id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset" 
+          <FilterDropdown
+            id="f-cust" label="Customer Name" placeholder="e.g. Quick Offset"
             value={filters.customerName} onChange={(v:any) => updateFilter('customerName', v)}
-            options={useOfflineSheetOptions(region).data?.customerNames}
+            options={optData?.customerNames}
           />
-          <FilterDropdown 
-            id="f-pub" label="Publisher" placeholder="e.g. Lokbharti" 
+          <FilterDropdown
+            id="f-pub" label="Publisher" placeholder="e.g. Lokbharti"
             value={filters.publisher} onChange={(v:any) => updateFilter('publisher', v)}
-            options={useOfflineSheetOptions(region).data?.publishers}
+            options={optData?.publishers}
           />
-          <FilterDropdown 
-            id="f-auth" label="Author" placeholder="e.g. Premchand" 
+          <FilterDropdown
+            id="f-auth" label="Author" placeholder="e.g. Premchand"
             value={filters.author} onChange={(v:any) => updateFilter('author', v)}
-            options={useOfflineSheetOptions(region).data?.authors}
+            options={optData?.authors}
           />
-          <FilterField 
-            id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..." 
+          <FilterField
+            id="f-isbn" label="ISBN / Code" placeholder="Search ISBN..."
             value={filters.isbn} onChange={(v:any) => updateFilter('isbn', v)}
             width="w-full"
           />
-          <FilterDropdown 
-            id="f-state" label="State" placeholder="e.g. Delhi" 
+          <FilterDropdown
+            id="f-state" label="State" placeholder="e.g. Delhi"
             value={filters.state} onChange={(v:any) => updateFilter('state', v)}
-            options={useOfflineSheetOptions(region).data?.states}
+            options={optData?.states}
           />
-          <FilterDropdown 
-            id="f-city" label="City" placeholder="e.g. Varanasi" 
+          <FilterDropdown
+            id="f-city" label="City" placeholder="e.g. Varanasi"
             value={filters.city} onChange={(v:any) => updateFilter('city', v)}
-            options={useOfflineSheetOptions(region).data?.cities}
+            options={optData?.cities}
           />
-          <FilterDropdown 
-            id="f-binding" label="Binding" placeholder="Paperback/Hardcover" 
+          <FilterDropdown
+            id="f-binding" label="Binding" placeholder="Paperback/Hardcover"
             value={filters.binding} onChange={(v:any) => updateFilter('binding', v)}
-            options={useOfflineSheetOptions(region).data?.bindings}
+            options={optData?.bindings}
           />
-          <FilterDropdown 
-            id="f-type" label="Sale Type" placeholder="Offline/Online..." 
+          <FilterDropdown
+            id="f-type" label="Sale Type" placeholder="Offline/Online..."
             value={filters.type} onChange={(v:any) => updateFilter('type', v)}
-            options={useOfflineSheetOptions(region).data?.types}
+            options={optData?.types}
           />
         </div>
  
@@ -700,19 +726,22 @@ function FilterBar({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi' | 'mumbai' | 'patna' | 'online' | 'bookfair' | 'lokbharti' }) {
-  const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, updateFilters, setPage, clearAll } = useOfflineSheetFilters();
+  const { filters, setDays, setDateRange, clearDateRange, setQ, updateFilter, updateFilters, setPage, clearAll, hasExplicitDateFilter } = useOfflineSheetFilters();
   const [resetVersion, setResetVersion] = useState(0);
   const [dashboardTab, setDashboardTab] = useState<'sheet' | 'new-old' | 'focus' | 'yoy' | 'author' | 'price' | 'category'>('sheet');
+  const [fyMode, setFyMode] = useState<'current' | 'previous'>('current');
 
   const [summary, setSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
   const channelKey = REGION_TO_CHANNEL[region] || 'Delhi';
+  const fyParam = fyMode === 'previous' ? 'previous' : 'current';
 
-  const fetchChannelSummary = async () => {
+  const fetchChannelSummary = async (fy: string) => {
     setSummaryLoading(true);
     try {
-      const data = await apiClient.get<any>(`total-offline-sales/summary?range=fytd&channel=${channelKey}`);
+      const range = fy === 'previous' ? 'all' : 'fytd';
+      const data = await apiClient.get<any>(`total-offline-sales/summary?range=${range}&channel=${channelKey}&fy=${fy}`);
       if (data.ok) {
         setSummary(data);
       }
@@ -724,20 +753,37 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
   };
 
   useEffect(() => {
-    fetchChannelSummary();
-  }, [region]);
+    fetchChannelSummary(fyParam);
+  }, [region, fyParam]);
+
+  // Reset date range when switching FY modes
+  const handleFySwitch = (mode: 'current' | 'previous') => {
+    setFyMode(mode);
+    clearAll();
+  };
 
   const handleGlobalClear = () => {
     clearAll();
     setResetVersion(v => v + 1);
   };
 
-  const countsQ  = useOfflineSheetCounts(filters, region);
-  const summaryQ = useOfflineSheetSummary(filters, region);
-  const listQ    = useOfflineSheetList(filters, region);
-  const syncMut  = useTriggerSync(region);
+  // Live mode hooks
+  const liveCountsQ  = useOfflineSheetCounts(filters, region);
+  const liveSummaryQ = useOfflineSheetSummary(filters, region);
+  const liveListQ    = useOfflineSheetList(filters, region);
+  const syncMut      = useTriggerSync(region);
 
-  const allRows = listQ.data?.items ?? [];
+  // History mode hooks — pass hasExplicitDateFilter so the default FYTD window
+  // (April 2026 → today) is not forwarded to archive queries (data is in FY2025-26).
+  const histCountsQ  = useHistoryChannelCounts(filters, region, 'previous', hasExplicitDateFilter);
+  const histListQ    = useHistoryChannelList(filters, region, 'previous', hasExplicitDateFilter);
+  const histOptions  = useHistoryChannelOptions(region);
+
+  const countsQ    = fyMode === 'previous' ? histCountsQ  : liveCountsQ;
+  const listQ      = fyMode === 'previous' ? histListQ    : liveListQ;
+  const summaryQ   = fyMode === 'previous' ? null : liveSummaryQ;
+
+  const allRows    = listQ.data?.items ?? [];
   const totalCount = listQ.data?.totalCount ?? 0;
 
   const syncMsg = syncMut.isSuccess
@@ -748,15 +794,41 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
 
   return (
     <AppLayout>
-      {/* ── Page Hero + Sticky Tabs (tabs rise up behind the hero) ──────── */}
+      {/* ── Page Hero + FY Toggle + Sticky Tabs ─────────────────────────── */}
       <div className="pt-6 mb-8">
         <div className="relative z-10">
           <PageHero
             kicker={REGION_HERO[region].kicker}
             title={REGION_HERO[region].title}
-            badge={{ label: 'Live Data', tone: 'live' }}
+            badge={fyMode === 'previous'
+              ? { label: 'FY 2025-26 Archive', tone: 'archive' as any }
+              : { label: 'Live Data', tone: 'live' }
+            }
             illustrationSrc={REGION_HERO[region].image}
           />
+          {/* FY Toggle */}
+          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 mt-3 w-fit">
+            <button
+              onClick={() => handleFySwitch('current')}
+              className={`rounded-lg px-5 py-2 text-sm font-normal transition-all ${
+                fyMode === 'current'
+                  ? 'bg-teal-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              FY 2026-27 (Live)
+            </button>
+            <button
+              onClick={() => handleFySwitch('previous')}
+              className={`rounded-lg px-5 py-2 text-sm font-normal transition-all ${
+                fyMode === 'previous'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              FY 2025-26 (Archive)
+            </button>
+          </div>
         </div>
         <StickyTabs
           active={dashboardTab}
@@ -790,49 +862,56 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
               isSyncing={syncMut.isPending}
               lastSyncResult={syncMsg}
               region={region}
+              historyMode={fyMode === 'previous'}
+              optionsOverride={fyMode === 'previous' ? histOptions.data : undefined}
             />
           </div>
 
           <div className="mb-8">
-            <OfflineSheetKPI 
-              data={countsQ.data} 
-              isLoading={countsQ.isLoading} 
+            <OfflineSheetKPI
+              data={countsQ.data}
+              isLoading={countsQ.isLoading}
             />
           </div>
 
           {region === 'bookfair' && (
             <div className="mb-12">
-              <BookFairSubFairs source="live" />
+              <BookFairSubFairs source={fyMode === 'previous' ? 'history' : 'live'} />
+            </div>
+          )}
+
+          {fyMode === 'current' && summaryQ && (
+            <div className="mb-12">
+              <OfflineSheetProjection
+                data={summaryQ.data}
+                isLoading={summaryQ.isLoading}
+              />
             </div>
           )}
 
           <div className="mb-12">
-            <OfflineSheetProjection
-              data={summaryQ.data}
-              isLoading={summaryQ.isLoading}
-            />
-          </div>
-
-          <div className="mb-12">
-            <OfflineSheetCharts 
-              filters={filters} 
+            <OfflineSheetCharts
+              filters={filters}
               resetVersion={resetVersion}
               onApplyDateRange={setDateRange}
               region={region}
+              fy={fyMode}
             />
           </div>
 
           <div className="mb-8">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-2xl font-normal text-black border-b-4 border-black pb-1 inline-block uppercase">Recent Transactions</h3>
+              <h3 className="text-2xl font-normal text-black border-b-4 border-black pb-1 inline-block uppercase">
+                {fyMode === 'previous' ? 'Archive Transactions (FY 2025-26)' : 'Recent Transactions'}
+              </h3>
               <span className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-lg">
                 {totalCount.toLocaleString()} TOTAL ROWS
               </span>
             </div>
-            <OfflineSheetTable 
-              rows={allRows} 
-              filters={filters} 
-              onFilterChange={updateFilter} 
+            <OfflineSheetTable
+              rows={allRows}
+              filters={filters}
+              onFilterChange={updateFilter}
             />
             <Pagination
               currentPage={filters.page || 1}
@@ -857,23 +936,31 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
               )}
 
               {dashboardTab === 'focus' && (
-                <FocusTabGrowthView channel={channelKey} />
+                <FocusTabGrowthView channel={channelKey} fy={fyParam} />
               )}
 
               {dashboardTab === 'yoy' && (
-                <YoYComparisonView channel={channelKey} />
+                <>
+                  {fyMode === 'previous' && (
+                    <div className="mb-4 flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      <span>YoY Comparison always shows <strong>FY 2025-26 vs FY 2026-27</strong> — this tab is not affected by the archive toggle and includes live FY 2026-27 data for context.</span>
+                    </div>
+                  )}
+                  <YoYComparisonView channel={channelKey} />
+                </>
               )}
 
               {dashboardTab === 'author' && (
-                <AuthorPerformanceView channel={channelKey} />
+                <AuthorPerformanceView channel={channelKey} fy={fyParam} />
               )}
 
               {dashboardTab === 'price' && (
-                <PriceReprintAnalysisView channel={channelKey} />
+                <PriceReprintAnalysisView channel={channelKey} fy={fyParam} />
               )}
 
               {dashboardTab === 'category' && (
-                <CategorySalesView channel={channelKey} />
+                <CategorySalesView channel={channelKey} fy={fyParam} />
               )}
             </>
           )}

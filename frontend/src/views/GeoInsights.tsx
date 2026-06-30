@@ -46,15 +46,20 @@ export default function GeoInsights() {
   const [activeTab, setActiveTab]         = useState<'revenue' | 'volume'>('revenue');
   const [dateRange, setDateRange]         = useState<string>('fytd');
   const [activeChannel, setActiveChannel] = useState<ChannelKey>('all');
+  const [fyMode, setFyMode]               = useState<'current' | 'previous'>('current');
 
-  async function fetchData(rangeStr = dateRange, channelStr: ChannelKey = activeChannel) {
+  const isArchive = fyMode === 'previous';
+
+  async function fetchData(rangeStr = dateRange, channelStr: ChannelKey = activeChannel, fy = fyMode) {
     setLoading(true);
     setError(null);
     try {
-      // Shares the exact same summary endpoint as the Total Sales dashboard.
-      const data = await apiClient.get<any>(
-        `total-offline-sales/summary?range=${rangeStr}&channel=${channelStr}`
-      );
+      const isArch = fy === 'previous';
+      // In archive mode skip date range — the archive is a full FY, use range=all.
+      const qs = isArch
+        ? `total-offline-sales/summary?range=all&channel=${channelStr}&fy=previous`
+        : `total-offline-sales/summary?range=${rangeStr}&channel=${channelStr}`;
+      const data = await apiClient.get<any>(qs);
       if (data.ok) setSummary(data);
     } catch (err: any) {
       console.error('Failed to load geo insights:', err);
@@ -64,7 +69,7 @@ export default function GeoInsights() {
     }
   }
 
-  useEffect(() => { fetchData(dateRange, activeChannel); }, [dateRange, activeChannel]);
+  useEffect(() => { fetchData(dateRange, activeChannel, fyMode); }, [dateRange, activeChannel, fyMode]);
 
   const hasData = useMemo(
     () => !!summary?.topStatesByChannel && Object.keys(summary.topStatesByChannel).length > 0,
@@ -92,6 +97,21 @@ export default function GeoInsights() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full xl:w-auto">
+          {/* FY toggle */}
+          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
+            {(['current', 'previous'] as const).map((fy) => (
+              <button
+                key={fy}
+                onClick={() => setFyMode(fy)}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
+                  fyMode === fy ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200/60'
+                }`}
+              >
+                {fy === 'current' ? 'FY 2026-27' : 'FY 2025-26'}
+              </button>
+            ))}
+          </div>
+
           {/* Revenue / Volume toggle */}
           <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
             {(['revenue', 'volume'] as const).map((m) => (
@@ -107,26 +127,34 @@ export default function GeoInsights() {
             ))}
           </div>
 
-          {/* Period selector */}
-          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
-            {DATE_RANGES.map((p) => {
-              const isSelected = dateRange === p.value;
-              return (
-                <button
-                  key={p.label}
-                  onClick={() => setDateRange(p.value)}
-                  className={`rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
-                    isSelected ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200/60'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Period selector — hidden in archive mode (full FY is always shown) */}
+          {!isArchive && (
+            <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200/40 shadow-sm">
+              {DATE_RANGES.map((p) => {
+                const isSelected = dateRange === p.value;
+                return (
+                  <button
+                    key={p.label}
+                    onClick={() => setDateRange(p.value)}
+                    className={`rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
+                      isSelected ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200/60'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {isArchive && (
+            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 font-medium">
+              Archive: Apr 2025 – Mar 2026
+            </div>
+          )}
 
           <button
-            onClick={() => fetchData(dateRange, activeChannel)}
+            onClick={() => fetchData(dateRange, activeChannel, fyMode)}
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 text-sm font-normal text-white shadow-md shadow-indigo-200 transition-all hover:shadow-lg hover:shadow-indigo-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 shrink-0"
           >

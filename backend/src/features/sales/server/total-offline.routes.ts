@@ -1,6 +1,7 @@
 import express from 'express';
 import { prisma } from '../../../lib/prisma.js';
 import { ARCHIVE_FYS, CURRENT_FY, resolveFy, fyEndDate } from './fyConfig.js';
+import { parseFictionParam, fictionWhere } from './fictionFilter.js';
 
 const router = express.Router();
 
@@ -356,6 +357,90 @@ router.get('/summary', async (req, res) => {
     // All channel data fetched in one parallel burst
     const results = await Promise.all(channels.map(ch => fetchChannelData(ch, isHistory, fy, where, bookWhere)));
 
+    // For single-channel requests, also fetch top customers / binding / type breakdown.
+    // Skipped for multi-channel (expensive × 6 channels) — those callers don't use these fields.
+    let topCustomersByChannel: Record<string, { customerName: string; total: number }[]> = {};
+    let revenueByBindingByChannel: Record<string, { binding: string; total: number; qty: number }[]> = {};
+    let revenueByTypeByChannel: Record<string, { type: string; total: number }[]> = {};
+
+    let topItemsByQtyByChannel:  Record<string, { title: string; total: number; qty: number }[]> = {};
+    let bottomItemsByChannel:    Record<string, { title: string; total: number; qty: number }[]> = {};
+
+    if (channels.length === 1) {
+      const ch = channels[0] as ChannelKey;
+      const { model, base } = getChannelSource(ch, isHistory, fy);
+      const w  = { ...base, ...where };
+      const bw = { ...base, ...bookWhere };
+
+      const [custRows, bindRows, typeRows, qtyRows, bottomRows] = await Promise.all([
+        model.groupBy({
+          by: ['customerName'],
+          _sum: { amount: true, inAmount: true },
+          where: { ...w, customerName: { not: null } },
+          orderBy: { _sum: { amount: 'desc' } },
+          take: 10,
+        }),
+        model.groupBy({
+          by: ['binding'],
+          _sum: { amount: true, inAmount: true, qty: true, inQty: true },
+          where: { ...w, binding: { not: null } },
+          orderBy: { _sum: { amount: 'desc' } },
+        }),
+        model.groupBy({
+          by: ['type'],
+          _sum: { amount: true, inAmount: true },
+          where: { ...w, type: { not: null } },
+          orderBy: { _sum: { amount: 'desc' } },
+        }),
+        // Top by quantity (copies dispatched)
+        model.groupBy({
+          by: ['title'],
+          _sum: { amount: true, inAmount: true, qty: true, inQty: true },
+          where: bw,
+          orderBy: { _sum: { qty: 'desc' } },
+          take: 10,
+        }),
+        // Least selling — lowest gross revenue titles that had at least one sale.
+        // Exclude amount=0 rows up front (pure-return entries) so they don't
+        // consume all 50 slots and leave nothing after the net>0 filter.
+        model.groupBy({
+          by: ['title'],
+          _sum: { amount: true, inAmount: true, qty: true, inQty: true },
+          where: { ...bw, amount: { gt: 0 } },
+          orderBy: { _sum: { amount: 'asc' } },
+          take: 50,
+        }),
+      ]);
+
+      topCustomersByChannel[ch] = custRows.map((c: any) => ({
+        customerName: c.customerName,
+        total: Math.round((toNum(c._sum.amount) - toNum(c._sum.inAmount)) * 100) / 100,
+      }));
+      revenueByBindingByChannel[ch] = bindRows.map((b: any) => ({
+        binding: b.binding,
+        total:   Math.round((toNum(b._sum.amount) - toNum(b._sum.inAmount)) * 100) / 100,
+        qty:     toNum(b._sum.qty) - toNum(b._sum.inQty),
+      }));
+      revenueByTypeByChannel[ch] = typeRows.map((t: any) => ({
+        type:  t.type,
+        total: Math.round((toNum(t._sum.amount) - toNum(t._sum.inAmount)) * 100) / 100,
+      }));
+      topItemsByQtyByChannel[ch] = qtyRows
+        .map((r: any) => ({
+          title: (r.title || '').trim(),
+          total: Math.round((toNum(r._sum.amount) - toNum(r._sum.inAmount)) * 100) / 100,
+          qty:   toNum(r._sum.qty) - toNum(r._sum.inQty),
+        }))
+        .filter((r: any) => r.qty > 0);
+      bottomItemsByChannel[ch] = bottomRows
+        .map((r: any) => ({
+          title: (r.title || '').trim(),
+          total: Math.round((toNum(r._sum.amount) - toNum(r._sum.inAmount)) * 100) / 100,
+          qty:   toNum(r._sum.qty) - toNum(r._sum.inQty),
+        }))
+        .filter((r: any) => r.total > 0);  // keep only positive-net items (frontend also filters)
+    }
+
     // ── Grand totals ──────────────────────────────────────────────────────────
     const totalRevenue        = results.reduce((s, r) => s + r.revenue,        0);  // net OUT-IN
     const totalQty            = results.reduce((s, r) => s + r.qty,            0);  // net OUT-IN copies
@@ -514,6 +599,11 @@ router.get('/summary', async (req, res) => {
       topStatesByChannel,
       topCitiesByChannel,
       topPublishersByChannel,
+      topCustomersByChannel,
+      revenueByBindingByChannel,
+      revenueByTypeByChannel,
+      topItemsByQtyByChannel,
+      bottomItemsByChannel,
     };
 
     setCached(cacheKey, responseData);
@@ -1501,6 +1591,235 @@ router.get('/price-analysis', async (req, res) => {
   } catch (err: any) {
     console.error('Price and reprint analysis failed:', err);
     return res.status(500).json({ ok: false, error: 'Failed to compute price analysis' });
+  }
+});
+
+// ─── GET /api/total-offline-sales/channel-list ────────────────────────────────
+// Paginated, filterable transaction list for a single channel.
+// Supports both current FY (live table) and previous FY (offline_sales_history).
+router.get('/channel-list', async (req, res) => {
+  try {
+    const channelParam = (req.query.channel as string) || '';
+    const ch = ALL_CHANNELS.find(c => c.toLowerCase() === channelParam.toLowerCase()) as ChannelKey | undefined;
+    if (!ch) return res.status(400).json({ ok: false, error: 'Invalid channel' });
+
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
+    const { model, base } = getChannelSource(ch, isHistory, fy);
+
+    const limit  = Math.min(parseInt((req.query.limit  as string) || '100', 10), 5000);
+    const offset = parseInt((req.query.offset as string) || '0', 10);
+
+    const where: any = { ...base };
+
+    const q = req.query.q as string | undefined;
+    if (q) {
+      const tokens = q.split(/[\s()\[\]{}\-\/.,]+/).filter(t => t.length > 0);
+      if (tokens.length > 0) {
+        where.AND = tokens.map(t => ({
+          OR: [
+            { title:        { contains: t, mode: 'insensitive' } },
+            { customerName: { contains: t, mode: 'insensitive' } },
+            { state:        { contains: t, mode: 'insensitive' } },
+            { city:         { contains: t, mode: 'insensitive' } },
+            { publisher:    { contains: t, mode: 'insensitive' } },
+            { author:       { contains: t, mode: 'insensitive' } },
+            { isbn:         { contains: t, mode: 'insensitive' } },
+            { binding:      { contains: t, mode: 'insensitive' } },
+          ],
+        }));
+      }
+    }
+    if (req.query.state)        where.state        = { contains: req.query.state as string,        mode: 'insensitive' };
+    if (req.query.city)         where.city         = { contains: req.query.city as string,         mode: 'insensitive' };
+    if (req.query.publisher)    where.publisher    = { contains: req.query.publisher as string,    mode: 'insensitive' };
+    if (req.query.author)       where.author       = { contains: req.query.author as string,       mode: 'insensitive' };
+    if (req.query.isbn)         where.isbn         = { contains: req.query.isbn as string,         mode: 'insensitive' };
+    if (req.query.customerName) where.customerName = { contains: req.query.customerName as string, mode: 'insensitive' };
+    if (req.query.title)        where.title        = { contains: req.query.title as string,        mode: 'insensitive' };
+    if (req.query.type)         where.type         = { contains: req.query.type as string,         mode: 'insensitive' };
+
+    if (req.query.binding) {
+      const bts = (req.query.binding as string).split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length === 1) where.binding = { contains: bts[0], mode: 'insensitive' };
+      else if (bts.length > 1) where.OR = bts.map(b => ({ binding: { contains: b, mode: 'insensitive' } }));
+    }
+
+    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+    const endDate   = req.query.endDate   ? new Date(req.query.endDate   as string) : undefined;
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = startDate;
+      if (endDate)   where.date.lte = endDate;
+    }
+
+    const minAmount = req.query.minAmount ? Number(req.query.minAmount) : undefined;
+    const maxAmount = req.query.maxAmount ? Number(req.query.maxAmount) : undefined;
+    if (minAmount != null || maxAmount != null) {
+      where.amount = {};
+      if (minAmount != null) where.amount.gte = minAmount;
+      if (maxAmount != null) where.amount.lte = maxAmount;
+    }
+
+    const ficCond = fictionWhere(parseFictionParam(req.query.fictionType as string));
+    if (ficCond) where.AND = [...(Array.isArray(where.AND) ? where.AND : []), ficCond];
+
+    const [items, totalCount] = await Promise.all([
+      model.findMany({ where, take: limit, skip: offset, orderBy: [{ date: 'desc' }, { id: 'desc' }] }),
+      model.count({ where }),
+    ]);
+
+    const data = items.map((it: any) => ({
+      ...it,
+      id:     it.id.toString(),
+      qty:    it.qty    != null ? toNum(it.qty)    - toNum(it.inQty    ?? 0) : null,
+      amount: it.amount != null ? Math.round((toNum(it.amount) - toNum(it.inAmount ?? 0)) * 100) / 100 : null,
+      rate:   it.rate   != null ? Math.round(toNum(it.rate) * 100) / 100 : null,
+    }));
+
+    return res.json({ ok: true, items: data, totalCount });
+  } catch (err: any) {
+    console.error('channel-list failed:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to fetch channel list' });
+  }
+});
+
+// ─── GET /api/total-offline-sales/channel-counts ──────────────────────────────
+// KPI counts for a single channel (history-aware).
+router.get('/channel-counts', async (req, res) => {
+  try {
+    const channelParam = (req.query.channel as string) || '';
+    const ch = ALL_CHANNELS.find(c => c.toLowerCase() === channelParam.toLowerCase()) as ChannelKey | undefined;
+    if (!ch) return res.status(400).json({ ok: false, error: 'Invalid channel' });
+
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
+    const { model, base } = getChannelSource(ch, isHistory, fy);
+
+    const where: any = { ...base };
+
+    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+    const endDate   = req.query.endDate   ? new Date(req.query.endDate   as string) : undefined;
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = startDate;
+      if (endDate)   where.date.lte = endDate;
+    }
+    if (req.query.state)        where.state        = { contains: req.query.state        as string, mode: 'insensitive' };
+    if (req.query.city)         where.city         = { contains: req.query.city         as string, mode: 'insensitive' };
+    if (req.query.publisher)    where.publisher    = { contains: req.query.publisher    as string, mode: 'insensitive' };
+    if (req.query.author)       where.author       = { contains: req.query.author       as string, mode: 'insensitive' };
+    if (req.query.customerName) where.customerName = { contains: req.query.customerName as string, mode: 'insensitive' };
+    if (req.query.binding) {
+      const bts = (req.query.binding as string).split(',').map(b => b.trim()).filter(Boolean);
+      if (bts.length === 1) where.binding = { contains: bts[0], mode: 'insensitive' };
+      else if (bts.length > 1) where.OR = bts.map(b => ({ binding: { contains: b, mode: 'insensitive' } }));
+    }
+    if (req.query.title) where.title = { contains: req.query.title as string, mode: 'insensitive' };
+    if (req.query.type)  where.type  = { contains: req.query.type  as string, mode: 'insensitive' };
+    if (req.query.isbn)  where.isbn  = { contains: req.query.isbn  as string, mode: 'insensitive' };
+    if (req.query.minAmount) where.amount = { ...(where.amount ?? {}), gte: Number(req.query.minAmount) };
+    if (req.query.maxAmount) where.amount = { ...(where.amount ?? {}), lte: Number(req.query.maxAmount) };
+    if (req.query.q) {
+      const qTokens = (req.query.q as string).trim().split(/\s+/).filter(Boolean);
+      const qAnds = qTokens.map((t: string) => ({
+        OR: [
+          { title:        { contains: t, mode: 'insensitive' as const } },
+          { customerName: { contains: t, mode: 'insensitive' as const } },
+          { state:        { contains: t, mode: 'insensitive' as const } },
+          { city:         { contains: t, mode: 'insensitive' as const } },
+          { publisher:    { contains: t, mode: 'insensitive' as const } },
+          { author:       { contains: t, mode: 'insensitive' as const } },
+          { binding:      { contains: t, mode: 'insensitive' as const } },
+        ],
+      }));
+      where.AND = [...(where.AND ?? []), ...qAnds];
+    }
+
+    const ficCond = fictionWhere(parseFictionParam(req.query.fictionType as string));
+    if (ficCond) where.AND = [...(where.AND ?? []), ficCond];
+
+    const refundWhere = {
+      ...where,
+      OR: [{ inQty: { gt: 0 } }, { inAmount: { gt: 0 } }],
+    };
+
+    const [agg, topBindingRows, customerGroups, refundCount] = await Promise.all([
+      model.aggregate({
+        where,
+        _count: { id: true },
+        _sum:   { amount: true, inAmount: true, qty: true, inQty: true },
+      }),
+      model.groupBy({
+        by: ['binding'],
+        _count: { id: true },
+        where: { ...where, binding: { not: null } },
+        orderBy: { _count: { id: 'desc' } },
+        take: 1,
+      }),
+      model.groupBy({
+        by: ['customerName'],
+        where: { ...where, customerName: { not: null } },
+      }),
+      model.count({ where: refundWhere }),
+    ]);
+
+    const totalAmount  = Math.round((toNum(agg._sum.amount) - toNum(agg._sum.inAmount)) * 100) / 100;
+    const grossAmount  = Math.round(toNum(agg._sum.amount) * 100) / 100;
+    const inAmount     = Math.round(toNum(agg._sum.inAmount) * 100) / 100;
+
+    return res.json({
+      ok:              true,
+      totalCount:      Number(agg._count.id),
+      totalAmount,
+      grossAmount,
+      inAmount,
+      grossQty:        Number(toNum(agg._sum.qty)),
+      inQty:           Number(toNum(agg._sum.inQty)),
+      refundCount,
+      uniqueCustomers: customerGroups.length,
+      topBinding:      topBindingRows[0]?.binding ?? 'N/A',
+    });
+  } catch (err: any) {
+    console.error('channel-counts failed:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to fetch channel counts' });
+  }
+});
+
+// ─── GET /api/total-offline-sales/channel-options ─────────────────────────────
+// Dropdown filter options for a single channel (history-aware).
+router.get('/channel-options', async (req, res) => {
+  try {
+    const channelParam = (req.query.channel as string) || '';
+    const ch = ALL_CHANNELS.find(c => c.toLowerCase() === channelParam.toLowerCase()) as ChannelKey | undefined;
+    if (!ch) return res.status(400).json({ ok: false, error: 'Invalid channel' });
+
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
+    const { model, base } = getChannelSource(ch, isHistory, fy);
+
+    const [titles, customers, publishers, authors, states, cities, bindings, types] = await Promise.all([
+      model.findMany({ select: { title: true }, distinct: ['title'], where: base, take: 10000, orderBy: { title: 'asc' } }),
+      model.findMany({ select: { customerName: true }, distinct: ['customerName'], where: base, take: 10000, orderBy: { customerName: 'asc' } }),
+      model.findMany({ select: { publisher: true }, distinct: ['publisher'], where: base, take: 5000, orderBy: { publisher: 'asc' } }),
+      model.findMany({ select: { author: true }, distinct: ['author'], where: base, take: 5000, orderBy: { author: 'asc' } }),
+      model.findMany({ select: { state: true }, distinct: ['state'], where: base, take: 100, orderBy: { state: 'asc' } }),
+      model.findMany({ select: { city: true }, distinct: ['city'], where: base, take: 1000, orderBy: { city: 'asc' } }),
+      model.findMany({ select: { binding: true }, distinct: ['binding'], where: base, take: 100, orderBy: { binding: 'asc' } }),
+      model.findMany({ select: { type: true }, distinct: ['type'], where: base, take: 100, orderBy: { type: 'asc' } }),
+    ]);
+
+    return res.json({
+      ok:            true,
+      bookTitles:    titles.map((t: any) => t.title).filter(Boolean),
+      customerNames: customers.map((c: any) => c.customerName).filter(Boolean),
+      publishers:    publishers.map((p: any) => p.publisher).filter(Boolean),
+      authors:       authors.map((a: any) => a.author).filter(Boolean),
+      states:        states.map((s: any) => s.state).filter(Boolean),
+      cities:        cities.map((c: any) => c.city).filter(Boolean),
+      bindings:      bindings.map((b: any) => b.binding).filter(Boolean),
+      types:         types.map((t: any) => t.type).filter(Boolean),
+    });
+  } catch (err: any) {
+    console.error('channel-options failed:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to fetch channel options' });
   }
 });
 
