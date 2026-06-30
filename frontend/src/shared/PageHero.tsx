@@ -9,6 +9,8 @@ type PageHeroProps = {
   badge?: { label: string; tone?: "live" | "neutral" };
   /** Optional controls / actions rendered on the right side of the banner */
   right?: React.ReactNode;
+  /** Optional controls rendered on the left, directly beneath the title */
+  belowTitle?: React.ReactNode;
   /** Optional decorative PNG/illustration shown on the far right of the banner */
   illustrationSrc?: string;
 };
@@ -17,7 +19,7 @@ type PageHeroProps = {
  * Reusable page banner — navy card with a status pill, kicker, large title,
  * an optional right-hand controls slot and an optional decorative image.
  */
-export default function PageHero({ kicker, title, badge, right, illustrationSrc }: PageHeroProps) {
+export default function PageHero({ kicker, title, badge, right, belowTitle, illustrationSrc }: PageHeroProps) {
   return (
     <div className="relative overflow-hidden rounded-[36px] border border-[#02376B] bg-[#02376B] px-7 py-12 sm:px-9 sm:py-14">
       {/* Decorative image (e.g. device mockups) bleeding to the right edge */}
@@ -59,6 +61,7 @@ export default function PageHero({ kicker, title, badge, right, illustrationSrc 
           <h1 className="mt-1 truncate text-4xl font-normal tracking-tight text-white sm:text-5xl">
             {title}
           </h1>
+          {belowTitle && <div className="mt-4">{belowTitle}</div>}
         </div>
 
         {right && <div className="flex shrink-0 flex-wrap items-center gap-4">{right}</div>}
