@@ -239,6 +239,15 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
+  // True while a touch gesture (pinch or one-finger pan) is in progress —
+  // used to skip the transform transition and drop-shadow filters so each
+  // frame is a cheap transform-only update instead of a full repaint.
+  const [touching, setTouching] = useState(false);
+  const touchRef = useRef<
+    | { mode: 'pan'; x: number; y: number }
+    | { mode: 'pinch'; dist: number; scale: number; tx: number; ty: number; cx: number; cy: number }
+    | null
+  >(null);
 
   // Load local GeoJSON
   useEffect(() => {
@@ -410,13 +419,75 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
   // Tooltip element
   const tipRef = useRef<HTMLDivElement | null>(null);
 
+  const touchPoint = (svg: SVGSVGElement, t: React.Touch) => {
+    const rect = svg.getBoundingClientRect();
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  };
+
+  const onTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    setTouching(true);
+    if (e.touches.length === 2) {
+      const p1 = touchPoint(svg, e.touches[0]);
+      const p2 = touchPoint(svg, e.touches[1]);
+      touchRef.current = {
+        mode: 'pinch',
+        dist: Math.hypot(p2.x - p1.x, p2.y - p1.y),
+        scale,
+        tx,
+        ty,
+        cx: (p1.x + p2.x) / 2,
+        cy: (p1.y + p2.y) / 2,
+      };
+    } else if (e.touches.length === 1) {
+      const p = touchPoint(svg, e.touches[0]);
+      touchRef.current = { mode: 'pan', x: p.x, y: p.y };
+    }
+  };
+
+  const onTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    const st = touchRef.current;
+    if (!st) return;
+    const svg = e.currentTarget;
+    if (st.mode === 'pinch' && e.touches.length === 2) {
+      const p1 = touchPoint(svg, e.touches[0]);
+      const p2 = touchPoint(svg, e.touches[1]);
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      if (dist < 1 || st.dist < 1) return;
+      const ns = Math.min(8, Math.max(1, st.scale * (dist / st.dist)));
+      setScale(ns);
+      setTx(st.cx - (st.cx - st.tx) * (ns / st.scale));
+      setTy(st.cy - (st.cy - st.ty) * (ns / st.scale));
+    } else if (st.mode === 'pan' && e.touches.length === 1) {
+      const p = touchPoint(svg, e.touches[0]);
+      setTx((v) => v + (p.x - st.x));
+      setTy((v) => v + (p.y - st.y));
+      touchRef.current = { ...st, x: p.x, y: p.y };
+    }
+  };
+
+  const onTouchEnd = (e: React.TouchEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    if (e.touches.length === 0) {
+      touchRef.current = null;
+      setTouching(false);
+    } else if (e.touches.length === 1) {
+      // Pinch released down to one finger — hand off to pan instead of resetting.
+      const p = touchPoint(svg, e.touches[0]);
+      touchRef.current = { mode: 'pan', x: p.x, y: p.y };
+    }
+  };
+
+  const interacting = !!drag || touching;
+
   return (
     <div className={`${className} relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-50/40 via-white to-slate-50 shadow-sm border border-gray-100`} style={{ height: '600px' }}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(99,102,241,0.06),transparent_55%)] pointer-events-none" />
 
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className="w-full h-full cursor-move"
+        className="w-full h-full cursor-move touch-none"
+        style={{ touchAction: 'none' }}
         onWheel={(e) => {
           e.preventDefault();
           const svg = e.currentTarget;
@@ -437,6 +508,10 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
         }}
         onMouseUp={() => setDrag(null)}
         onMouseLeave={() => setDrag(null)}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
       >
         <defs>
           {/* Soft, premium drop shadow for markers (replaces harsh glow) */}
@@ -464,7 +539,7 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
 
         <g
           transform={`translate(${tx} ${ty}) scale(${scale})`}
-          style={{ transition: drag ? 'none' : 'transform 0.45s cubic-bezier(0.22,1,0.36,1)' }}
+          style={{ transition: interacting ? 'none' : 'transform 0.45s cubic-bezier(0.22,1,0.36,1)' }}
         >
           {/* Map background */}
           {geo ? (
@@ -531,7 +606,7 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
                   cx={m.x}
                   cy={m.y}
                   r={r}
-                  filter="url(#markerShadow)"
+                  filter={interacting ? undefined : 'url(#markerShadow)'}
                   fill={fillUrl}
                   stroke="#ffffff"
                   strokeWidth={1.75 / scale}
@@ -564,7 +639,7 @@ export default function IndiaMap({ points, topN = 10, className, onPointClick, f
                   fill="#ffffff"
                   stroke="#e2e8f0"
                   strokeWidth={0.75 / scale}
-                  filter="url(#markerShadow)"
+                  filter={interacting ? undefined : 'url(#markerShadow)'}
                 />
                 <text
                   x={m.x}
