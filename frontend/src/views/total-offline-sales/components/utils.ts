@@ -41,13 +41,17 @@ export function formatLakhsAndCrores(n: number): string {
 }
 
 export function formatChartValue(n: number): string {
-  if (n >= 10000000) {
-    return `${(n / 10000000).toFixed(1)}Cr`;
-  } else if (n >= 100000) {
-    const val = n / 100000;
-    return `${val % 1 === 0 ? val : val.toFixed(1)}L`;
-  } else if (n >= 1000) {
-    return `${(n / 1000).toFixed(1)}K`;
+  // Abbreviate on magnitude and re-apply the sign, so negatives (e.g. net-return
+  // months) render as "-13L" rather than a raw "-1300000".
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (abs >= 10000000) {
+    return `${sign}${(abs / 10000000).toFixed(1)}Cr`;
+  } else if (abs >= 100000) {
+    const val = abs / 100000;
+    return `${sign}${val % 1 === 0 ? val : val.toFixed(1)}L`;
+  } else if (abs >= 1000) {
+    return `${sign}${(abs / 1000).toFixed(1)}K`;
   } else {
     return Math.round(n).toString();
   }

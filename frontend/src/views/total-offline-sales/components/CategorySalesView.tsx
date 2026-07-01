@@ -319,16 +319,21 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, f
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="bg-white border border-gray-50 p-4 rounded-2xl shadow-xl space-y-2 text-left">
-                          <p className="text-[10px] font-semibold text-gray-400 border-b border-gray-50 pb-1">Month: {payload[0].payload.month}</p>
-                          {payload.map((p: any, idx: number) => (
-                            <div key={idx} className="flex flex-col">
-                              <span className="text-[10px] text-gray-400 font-medium">{p.name}</span>
-                              <span className="text-xs font-semibold text-gray-800 mt-0.5" style={{ color: p.color }}>
-                                {metric === 'revenue' ? formatINR(p.value) : `${p.value.toLocaleString('en-IN')} copies`}
-                              </span>
-                            </div>
-                          ))}
+                        <div className="bg-white border border-gray-100 p-3 rounded-xl shadow-xl text-left min-w-[180px]">
+                          <p className="text-[10px] font-semibold text-gray-400 border-b border-gray-50 pb-1.5 mb-1.5">{payload[0].payload.month}</p>
+                          <div className="space-y-1">
+                            {payload.map((p: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between gap-4">
+                                <span className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                                  {p.name}
+                                </span>
+                                <span className="text-[11px] font-semibold text-gray-800">
+                                  {metric === 'revenue' ? formatINR(p.value) : `${p.value.toLocaleString('en-IN')} copies`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       );
                     }
