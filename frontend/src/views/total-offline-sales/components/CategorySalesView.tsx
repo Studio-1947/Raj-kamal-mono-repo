@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { formatINR, formatChartValue, formatLakhsAndCrores } from './utils';
-import { FiTrendingUp, FiShoppingBag, FiInfo, FiActivity, FiLayers, FiBookOpen } from 'react-icons/fi';
+import { FiInfo, FiLayers, FiBookOpen, FiSmile, FiGrid } from 'react-icons/fi';
 import { apiClient } from '../../../lib/apiClient';
 
 interface CategoryDetail {
@@ -10,16 +10,46 @@ interface CategoryDetail {
   topBooks: { title: string; revenue: number; qty: number }[];
 }
 
+interface MonthlyPoint {
+  month: string;
+  fiction: number;
+  nonFiction: number;
+  childrenBook?: number;
+  other?: number;
+}
+
 interface CategorySalesData {
   fiction: CategoryDetail;
   nonFiction: CategoryDetail;
-  monthlySeries: { month: string; fiction: number; nonFiction: number }[];
+  childrenBook?: CategoryDetail;
+  other?: CategoryDetail;
+  monthlySeries: MonthlyPoint[];
 }
 
 interface CategorySalesViewProps {
   channel: string;
   fy?: string;
 }
+
+// Segment metadata drives every card / chart / table below so adding or
+// tweaking a category is a one-line change here.
+type SegmentKey = 'fiction' | 'nonFiction' | 'childrenBook' | 'other';
+interface SegmentConfig {
+  key: SegmentKey;
+  name: string;
+  color: string;
+  gradientId: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+}
+
+const SEGMENTS: SegmentConfig[] = [
+  { key: 'fiction', name: 'Fiction', color: '#6366F1', gradientId: 'colorFiction', icon: FiBookOpen },        // Indigo
+  { key: 'nonFiction', name: 'Non-Fiction', color: '#0D9488', gradientId: 'colorNonFiction', icon: FiLayers }, // Teal
+  { key: 'childrenBook', name: 'Children Book', color: '#F59E0B', gradientId: 'colorChildren', icon: FiSmile }, // Amber
+  { key: 'other', name: 'Other', color: '#94A3B8', gradientId: 'colorOther', icon: FiGrid },                    // Slate
+];
+
+const EMPTY_DETAIL: CategoryDetail = { revenue: 0, qty: 0, topBooks: [] };
 
 export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, fy = 'current' }) => {
   const [loading, setLoading] = useState(false);
@@ -51,54 +81,61 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, f
     fetchData();
   }, [channel, fy]);
 
-  // Derived values for category share
-  const totals = useMemo(() => {
-    if (!data) return { totalRevenue: 0, totalQty: 0, fictionRevPct: 0, nonFictionRevPct: 0, fictionQtyPct: 0, nonFictionQtyPct: 0 };
-    const fictionRev = data.fiction.revenue;
-    const nonFictionRev = data.nonFiction.revenue;
-    const fictionQty = data.fiction.qty;
-    const nonFictionQty = data.nonFiction.qty;
+  const detailFor = (key: SegmentKey): CategoryDetail =>
+    (data ? (data as any)[key] : undefined) ?? EMPTY_DETAIL;
 
-    const totalRevenue = fictionRev + nonFictionRev;
-    const totalQty = fictionQty + nonFictionQty;
-
+  // Per-segment totals + share (revenue and qty) across all categories.
+  const segments = useMemo(() => {
+    const rows = SEGMENTS.map((seg) => {
+      const detail = detailFor(seg.key);
+      return { ...seg, revenue: detail.revenue, qty: detail.qty, topBooks: detail.topBooks };
+    });
+    const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+    const totalQty = rows.reduce((s, r) => s + r.qty, 0);
     return {
       totalRevenue,
       totalQty,
-      fictionRevPct: totalRevenue > 0 ? (fictionRev / totalRevenue) * 100 : 0,
-      nonFictionRevPct: totalRevenue > 0 ? (nonFictionRev / totalRevenue) * 100 : 0,
-      fictionQtyPct: totalQty > 0 ? (fictionQty / totalQty) * 100 : 0,
-      nonFictionQtyPct: totalQty > 0 ? (nonFictionQty / totalQty) * 100 : 0
+      rows: rows.map((r) => ({
+        ...r,
+        revPct: totalRevenue > 0 ? (r.revenue / totalRevenue) * 100 : 0,
+        qtyPct: totalQty > 0 ? (r.qty / totalQty) * 100 : 0,
+      })),
     };
   }, [data]);
 
+  // Only render cards/tables for categories that actually have sales.
+  const activeRows = useMemo(
+    () => segments.rows.filter((r) => r.revenue > 0 || r.qty > 0),
+    [segments]
+  );
+
   const pieData = useMemo(() => {
-    if (!data) return [];
-    return [
-      {
-        name: 'Fiction',
-        value: metric === 'revenue' ? data.fiction.revenue : data.fiction.qty,
-        percentage: metric === 'revenue' ? totals.fictionRevPct : totals.fictionQtyPct,
-        color: '#6366F1' // Indigo
-      },
-      {
-        name: 'Non-Fiction',
-        value: metric === 'revenue' ? data.nonFiction.revenue : data.nonFiction.qty,
-        percentage: metric === 'revenue' ? totals.nonFictionRevPct : totals.nonFictionQtyPct,
-        color: '#0D9488' // Teal
-      }
-    ].filter(d => d.value > 0);
-  }, [data, metric, totals]);
+    return segments.rows
+      .map((r) => ({
+        name: r.name,
+        value: metric === 'revenue' ? r.revenue : r.qty,
+        percentage: metric === 'revenue' ? r.revPct : r.qtyPct,
+        color: r.color,
+      }))
+      .filter((d) => d.value > 0);
+  }, [segments, metric]);
 
   const formattedChartData = useMemo(() => {
     if (!data?.monthlySeries) return [];
-    // Transform monthly totals into selected metric (revenue or qty)
-    return data.monthlySeries.map(pt => ({
+    return data.monthlySeries.map((pt) => ({
       month: pt.month,
-      Fiction: pt.fiction,
-      'Non-Fiction': pt.nonFiction
+      Fiction: pt.fiction ?? 0,
+      'Non-Fiction': pt.nonFiction ?? 0,
+      'Children Book': pt.childrenBook ?? 0,
+      Other: pt.other ?? 0,
     }));
-  }, [data, metric]);
+  }, [data]);
+
+  // Skip drawing an area/legend entry for a segment that has no revenue at all.
+  const chartSegments = useMemo(
+    () => segments.rows.filter((r) => r.revenue > 0),
+    [segments]
+  );
 
   if (loading) {
     return (
@@ -124,49 +161,41 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, f
 
   return (
     <div className="space-y-6">
-      {/* KPI cohort cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Fiction Card */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-300" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full flex items-center gap-1">
-              <FiBookOpen className="h-3 w-3" />
-              Fiction Segment
-            </span>
-          </div>
-          <h3 className="text-3xl font-semibold text-gray-900 mt-5">{formatINR(data.fiction.revenue)}</h3>
-          <p className="text-xs text-indigo-500 font-semibold mt-1">
-            {totals.fictionRevPct.toFixed(1)}% of Revenue share
-          </p>
-          <div className="mt-5 pt-4 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500">
-            <span>Physical Copies Sold:</span>
-            <span className="font-semibold text-gray-800">
-              {data.fiction.qty.toLocaleString('en-IN')} ({totals.fictionQtyPct.toFixed(1)}%)
-            </span>
-          </div>
-        </div>
-
-        {/* Non-Fiction Card */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-300" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full flex items-center gap-1">
-              <FiLayers className="h-3 w-3" />
-              Non-Fiction Segment
-            </span>
-          </div>
-          <h3 className="text-3xl font-semibold text-gray-900 mt-5">{formatINR(data.nonFiction.revenue)}</h3>
-          <p className="text-xs text-teal-600 font-semibold mt-1">
-            {totals.nonFictionRevPct.toFixed(1)}% of Revenue share
-          </p>
-          <div className="mt-5 pt-4 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500">
-            <span>Physical Copies Sold:</span>
-            <span className="font-semibold text-gray-800">
-              {data.nonFiction.qty.toLocaleString('en-IN')} ({totals.nonFictionQtyPct.toFixed(1)}%)
-            </span>
-          </div>
-        </div>
+      {/* KPI cohort cards — one per active category */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+        {activeRows.map((r) => {
+          const Icon = r.icon;
+          return (
+            <div
+              key={r.key}
+              className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300"
+            >
+              <div
+                className="absolute top-0 right-0 w-24 h-24 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-300"
+                style={{ backgroundColor: `${r.color}1A` }}
+              />
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1"
+                  style={{ color: r.color, backgroundColor: `${r.color}1A` }}
+                >
+                  <Icon className="h-3 w-3" />
+                  {r.name}
+                </span>
+              </div>
+              <h3 className="text-3xl font-semibold text-gray-900 mt-5">{formatINR(r.revenue)}</h3>
+              <p className="text-xs font-semibold mt-1" style={{ color: r.color }}>
+                {r.revPct.toFixed(1)}% of Revenue share
+              </p>
+              <div className="mt-5 pt-4 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500">
+                <span>Physical Copies Sold:</span>
+                <span className="font-semibold text-gray-800">
+                  {r.qty.toLocaleString('en-IN')} ({r.qtyPct.toFixed(1)}%)
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Visual Charts section */}
@@ -216,18 +245,18 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, f
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            
+
             {/* Center Summary Label */}
             <div className="absolute text-center z-0 pointer-events-none">
               <span className="text-[9px] text-gray-400 uppercase tracking-widest block font-bold">Total Sales</span>
               <span className="text-xl font-bold text-black block mt-0.5 tracking-tight">
-                {metric === 'revenue' ? formatLakhsAndCrores(totals.totalRevenue) : totals.totalQty.toLocaleString('en-IN')}
+                {metric === 'revenue' ? formatLakhsAndCrores(segments.totalRevenue) : segments.totalQty.toLocaleString('en-IN')}
               </span>
             </div>
           </div>
 
           {/* Donut Legend */}
-          <div className="flex justify-center gap-6 border-t border-gray-50 pt-4 text-center">
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-gray-50 pt-4 text-center">
             {pieData.map((d, index) => (
               <div key={index} className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
@@ -243,7 +272,7 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, f
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <div>
               <h3 className="text-base font-normal text-gray-800">Monthly Sales Trends by Segment</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Seasonal pattern comparison of Fiction vs Non-Fiction</p>
+              <p className="text-xs text-gray-400 mt-0.5">Seasonal pattern comparison across genres</p>
             </div>
 
             {/* Toggle metric */}
@@ -271,14 +300,12 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, f
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={formattedChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                 <defs>
-                  <linearGradient id="colorFiction" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorNonFiction" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0D9488" stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor="#0D9488" stopOpacity={0}/>
-                  </linearGradient>
+                  {SEGMENTS.map((seg) => (
+                    <linearGradient key={seg.gradientId} id={seg.gradientId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={seg.color} stopOpacity={0.15} />
+                      <stop offset="95%" stopColor={seg.color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F9FAFB" vertical={false} />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} />
@@ -309,97 +336,75 @@ export const CategorySalesView: React.FC<CategorySalesViewProps> = ({ channel, f
                   }}
                 />
                 <Legend iconType="circle" iconSize={8} />
-                <Area type="monotone" dataKey="Fiction" stroke="#6366F1" strokeWidth={2} fillOpacity={1} fill="url(#colorFiction)" />
-                <Area type="monotone" dataKey="Non-Fiction" stroke="#0D9488" strokeWidth={2} fillOpacity={1} fill="url(#colorNonFiction)" />
+                {chartSegments.map((seg) => (
+                  <Area
+                    key={seg.key}
+                    type="monotone"
+                    dataKey={seg.name}
+                    stroke={seg.color}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill={`url(#${seg.gradientId})`}
+                  />
+                ))}
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Top 5 Bestsellers split grid */}
+      {/* Top 5 Bestsellers per active category */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 border-t border-gray-100 pt-6">
-        {/* Top Fiction Books */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between min-h-[380px]">
-          <div>
-            <h3 className="text-base font-normal text-gray-800 flex items-center gap-1.5">
-              <FiBookOpen className="text-indigo-500" />
-              Top Fiction Books
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Top-performing fiction titles by revenue</p>
-          </div>
-
-          <div className="mt-4 flex-1 overflow-x-auto">
-            {data.fiction.topBooks.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-gray-400 py-10">
-                No fiction titles found.
+        {activeRows.map((r) => {
+          const Icon = r.icon;
+          return (
+            <div
+              key={r.key}
+              className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between min-h-[380px]"
+            >
+              <div>
+                <h3 className="text-base font-normal text-gray-800 flex items-center gap-1.5">
+                  <Icon className="shrink-0" style={{ color: r.color }} />
+                  Top {r.name} Books
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">Top-performing {r.name.toLowerCase()} titles by revenue</p>
               </div>
-            ) : (
-              <table className="min-w-full divide-y divide-gray-50 text-xs">
-                <thead>
-                  <tr className="text-gray-400 font-semibold text-[10px] uppercase text-left">
-                    <th className="pb-3">Title</th>
-                    <th className="pb-3 text-right">Copies Sold</th>
-                    <th className="pb-3 text-right">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 text-gray-700">
-                  {data.fiction.topBooks.slice(0, 5).map((b, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/20">
-                      <td className="py-3 font-semibold text-gray-900 line-clamp-1 pr-4">{b.title}</td>
-                      <td className="py-3 text-right font-medium">{b.qty.toLocaleString('en-IN')}</td>
-                      <td className="py-3 text-right font-semibold text-gray-900">{formatINR(b.revenue)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
 
-        {/* Top Non-Fiction Books */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between min-h-[380px]">
-          <div>
-            <h3 className="text-base font-normal text-gray-800 flex items-center gap-1.5">
-              <FiLayers className="text-teal-500" />
-              Top Non-Fiction Books
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Top-performing non-fiction titles by revenue</p>
-          </div>
-
-          <div className="mt-4 flex-1 overflow-x-auto">
-            {data.nonFiction.topBooks.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-gray-400 py-10">
-                No non-fiction titles found.
+              <div className="mt-4 flex-1 overflow-x-auto">
+                {r.topBooks.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-xs text-gray-400 py-10">
+                    No {r.name.toLowerCase()} titles found.
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-50 text-xs">
+                    <thead>
+                      <tr className="text-gray-400 font-semibold text-[10px] uppercase text-left">
+                        <th className="pb-3">Title</th>
+                        <th className="pb-3 text-right">Copies Sold</th>
+                        <th className="pb-3 text-right">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-gray-700">
+                      {r.topBooks.slice(0, 5).map((b, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50/20">
+                          <td className="py-3 font-semibold text-gray-900 line-clamp-1 pr-4">{b.title}</td>
+                          <td className="py-3 text-right font-medium">{b.qty.toLocaleString('en-IN')}</td>
+                          <td className="py-3 text-right font-semibold text-gray-900">{formatINR(b.revenue)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
-            ) : (
-              <table className="min-w-full divide-y divide-gray-50 text-xs">
-                <thead>
-                  <tr className="text-gray-400 font-semibold text-[10px] uppercase text-left">
-                    <th className="pb-3">Title</th>
-                    <th className="pb-3 text-right">Copies Sold</th>
-                    <th className="pb-3 text-right">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 text-gray-700">
-                  {data.nonFiction.topBooks.slice(0, 5).map((b, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/20">
-                      <td className="py-3 font-semibold text-gray-900 line-clamp-1 pr-4">{b.title}</td>
-                      <td className="py-3 text-right font-medium">{b.qty.toLocaleString('en-IN')}</td>
-                      <td className="py-3 text-right font-semibold text-gray-900">{formatINR(b.revenue)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+            </div>
+          );
+        })}
       </div>
-      
+
       <div className="bg-gray-50 p-4 rounded-3xl border border-gray-100 flex items-start gap-2.5 text-xs text-gray-500 leading-normal">
         <FiInfo className="h-5 w-5 text-gray-400 shrink-0 mt-0.5" />
         <span>
-          <strong>Categorization Methodology</strong>: Segments use the explicit <em>Fiction / Non-Fiction</em> label imported from the source sheet. Where that label is blank or marked "Other", the item falls back to SKU mapping from the catalog, then title keyword patterns (e.g. poetry, novels, biographies) and a stable hash to maintain complete coverage.
+          <strong>Categorization Methodology</strong>: Segments use the explicit <em>Fiction / Non-Fiction / Children Book / Other</em> label imported from the source sheet. Where that label is blank or unrecognized, the item falls back to SKU mapping from the catalog, then title keyword patterns (e.g. poetry, biographies, children's rhymes) and a stable hash to maintain complete coverage.
         </span>
       </div>
     </div>

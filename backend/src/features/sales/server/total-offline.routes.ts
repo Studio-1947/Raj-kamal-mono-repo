@@ -1306,17 +1306,23 @@ router.get('/category-sales', async (req, res) => {
       title: r.title, isbn: r.isbn, fictionType: r.ft, mon: Number(r.mon), rev: toNum(r.rev), qty: toNum(r.qty),
     }));
 
-    // 3. Classification helper inside route
-    const classifyCategory = (title: string, isbn: string | null, fictionType: string | null): 'Fiction' | 'Non-Fiction' => {
-      // PRIMARY: explicit "Fiction/ Non-Fiction" label imported from the source sheet.
+    // 3. Classification helper inside route.
+    //    The source sheet's "Fiction/ Non-Fiction" column actually carries four
+    //    distinct labels — Fiction, Non-Fiction, Children Book and Other — so the
+    //    classifier now resolves to all four rather than collapsing into two.
+    type Category = 'Fiction' | 'Non-Fiction' | 'Children Book' | 'Other';
+    const classifyCategory = (title: string, isbn: string | null, fictionType: string | null): Category => {
+      // PRIMARY: explicit label imported from the source sheet.
       if (fictionType) {
         const ft = fictionType.trim().toLowerCase();
+        if (ft.includes('child') || ft.includes('kids')) return 'Children Book'; // "Children Book"
         if (ft.includes('non')) return 'Non-Fiction';     // "Non-Fiction"
         if (ft === 'fiction') return 'Fiction';           // "Fiction" / "fiction"
         // Other explicit non-fiction genre labels that appear in the column.
         const nonFictionLabels = ['history', 'biography', 'autobiography', 'essay', 'criticism', 'philosophy', 'politics', 'science', 'academic', 'reference'];
         if (nonFictionLabels.some(l => ft.includes(l))) return 'Non-Fiction';
-        // "Other" / "#N/A" / unrecognized → fall through to heuristics below.
+        if (ft === 'other') return 'Other';               // explicit "Other" bucket
+        // "#N/A" / blank / unrecognized → fall through to heuristics below.
       }
 
       const cleanTitle = (title || '').trim().toLowerCase();
@@ -1325,18 +1331,24 @@ router.get('/category-sales', async (req, res) => {
         const mappedCat = productMap.get(cleanIsbn);
         if (mappedCat) {
           const c = mappedCat.toLowerCase();
+          if (c.includes('child') || c.includes('kids')) return 'Children Book';
           if (c.includes('fiction') && !c.includes('non')) return 'Fiction';
           if (c.includes('non-fiction') || c.includes('nonfiction')) return 'Non-Fiction';
         }
       }
 
       // Keyword Heuristics
+      const childrenKeywords = [
+        'children', 'bal katha', 'bal kahani', 'baal', 'kids', 'nursery',
+        'panchatantra', 'fairy', 'picture book', 'colouring', 'coloring', 'rhymes'
+      ];
+
       const fictionKeywords = [
         'novel', 'upanyas', 'kahani', 'katha', 'bestseller fiction',
         'poetry', 'kavita', 'shayari', 'geet', 'ghazal', 'natak', 'drama',
         'story', 'stories', 'premchand', 'raghuvir', 'fiction', 'upanyasa'
       ];
-      
+
       const nonFictionKeywords = [
         'history', 'itihas', 'biography', 'jeevani', 'aatmakatha', 'autobiography',
         'criticism', 'alochna', 'essay', 'nibandh', 'sahitya', 'vichar', 'samiksha',
@@ -1344,10 +1356,12 @@ router.get('/category-sales', async (req, res) => {
         'vigyan', 'economy', 'arthashastra', 'non-fiction', 'academic', 'research'
       ];
 
+      if (childrenKeywords.some(k => cleanTitle.includes(k))) return 'Children Book';
       if (fictionKeywords.some(k => cleanTitle.includes(k))) return 'Fiction';
       if (nonFictionKeywords.some(k => cleanTitle.includes(k))) return 'Non-Fiction';
 
-      // Stable hash fallback
+      // Stable hash fallback — split unlabeled/unmatched items between the two
+      // primary genres (unchanged behaviour) so coverage stays complete.
       let hash = 0;
       for (let i = 0; i < cleanTitle.length; i++) {
         hash = cleanTitle.charCodeAt(i) + ((hash << 5) - hash);
@@ -1355,21 +1369,18 @@ router.get('/category-sales', async (req, res) => {
       return Math.abs(hash) % 2 === 0 ? 'Fiction' : 'Non-Fiction';
     };
 
-    // 4. Aggregate metrics. Classification is memoised per (title, isbn, fictionType)
-    //    so each distinct book is classified once, not once per group/row.
-    let fictionRevenue = 0;
-    let fictionQty = 0;
-    let nonFictionRevenue = 0;
-    let nonFictionQty = 0;
+    // 4. Aggregate metrics per category. Classification is memoised per
+    //    (title, isbn, fictionType) so each distinct book is classified once.
+    const CATEGORIES: Category[] = ['Fiction', 'Non-Fiction', 'Children Book', 'Other'];
+    type Bucket = { revenue: number; qty: number; books: Map<string, { revenue: number; qty: number }>; monthly: number[] };
+    const buckets: Record<Category, Bucket> = {
+      'Fiction': { revenue: 0, qty: 0, books: new Map(), monthly: Array(12).fill(0) },
+      'Non-Fiction': { revenue: 0, qty: 0, books: new Map(), monthly: Array(12).fill(0) },
+      'Children Book': { revenue: 0, qty: 0, books: new Map(), monthly: Array(12).fill(0) },
+      'Other': { revenue: 0, qty: 0, books: new Map(), monthly: Array(12).fill(0) },
+    };
 
-    const fictionBookMap = new Map<string, { revenue: number; qty: number }>();
-    const nonFictionBookMap = new Map<string, { revenue: number; qty: number }>();
-
-    // 12 calendar months array (index 0 = Jan, 11 = Dec)
-    const fictionMonthly = Array(12).fill(0);
-    const nonFictionMonthly = Array(12).fill(0);
-
-    const catCache = new Map<string, 'Fiction' | 'Non-Fiction'>();
+    const catCache = new Map<string, Category>();
     const classifyMemo = (title: string, isbn: string | null, ft: string | null) => {
       const key = `${title}|${isbn ?? ''}|${ft ?? ''}`;
       let c = catCache.get(key);
@@ -1383,19 +1394,18 @@ router.get('/category-sales', async (req, res) => {
       const qty = g.qty;
       const cat = classifyMemo(g.title, g.isbn, g.fictionType);
       const title = g.title.trim();
-      const bookMap = cat === 'Fiction' ? fictionBookMap : nonFictionBookMap;
+      const bucket = buckets[cat];
 
-      if (cat === 'Fiction') { fictionRevenue += rev; fictionQty += qty; }
-      else { nonFictionRevenue += rev; nonFictionQty += qty; }
+      bucket.revenue += rev;
+      bucket.qty += qty;
 
-      const existing = bookMap.get(title) ?? { revenue: 0, qty: 0 };
+      const existing = bucket.books.get(title) ?? { revenue: 0, qty: 0 };
       existing.revenue += rev;
       existing.qty += qty;
-      bookMap.set(title, existing);
+      bucket.books.set(title, existing);
 
       if (g.mon >= 1 && g.mon <= 12) {
-        if (cat === 'Fiction') fictionMonthly[g.mon - 1] += rev;
-        else nonFictionMonthly[g.mon - 1] += rev;
+        bucket.monthly[g.mon - 1] = (bucket.monthly[g.mon - 1] ?? 0) + rev;
       }
     }
 
@@ -1406,25 +1416,29 @@ router.get('/category-sales', async (req, res) => {
         .slice(0, 10);
     };
 
+    const detailOf = (cat: Category) => ({
+      revenue: buckets[cat].revenue,
+      qty: buckets[cat].qty,
+      topBooks: sortAndSlice(buckets[cat].books),
+    });
+
     const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthlySeries = MONTH_NAMES.map((name, i) => ({
       month: name,
-      fiction: fictionMonthly[i],
-      nonFiction: nonFictionMonthly[i]
+      fiction: buckets['Fiction'].monthly[i],
+      nonFiction: buckets['Non-Fiction'].monthly[i],
+      childrenBook: buckets['Children Book'].monthly[i],
+      other: buckets['Other'].monthly[i],
     }));
 
     const responseData = {
       ok: true,
-      fiction: {
-        revenue: fictionRevenue,
-        qty: fictionQty,
-        topBooks: sortAndSlice(fictionBookMap)
-      },
-      nonFiction: {
-        revenue: nonFictionRevenue,
-        qty: nonFictionQty,
-        topBooks: sortAndSlice(nonFictionBookMap)
-      },
+      // Legacy keys kept for backward compatibility with existing clients.
+      fiction: detailOf('Fiction'),
+      nonFiction: detailOf('Non-Fiction'),
+      childrenBook: detailOf('Children Book'),
+      other: detailOf('Other'),
+      categories: CATEGORIES,
       monthlySeries
     };
 
