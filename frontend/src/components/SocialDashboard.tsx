@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useLang } from "../modules/lang/LangContext";
 import InstagramView from "./InstagramView";
 import FacebookView from "./FacebookView";
-import { LoadingSpinner } from "./LoadingSkeletons";
+import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
+import {
+    metaAdsOverviewMock,
+    metaAdsTimeseriesMock,
+    metaAdsCampaignsMock,
+} from "./socialMockData";
 import {
     fetchAdsCampaigns,
     fetchAdsOverview,
@@ -105,7 +110,7 @@ export default function SocialDashboard() {
     const [activeNetwork, setActiveNetwork] = useState<PlatformKey>("facebook");
 
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [adsUsingMock, setAdsUsingMock] = useState(false);
 
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
@@ -123,7 +128,7 @@ export default function SocialDashboard() {
 
         async function loadCritical() {
             setLoading(true);
-            setError(null);
+            setAdsUsingMock(false);
             try {
                 const { from, to } = computeRangeDates(range);
 
@@ -175,7 +180,12 @@ export default function SocialDashboard() {
                     const overviewRes = await fetchAdsOverview({ from, to });
 
                     if (!cancelled) {
-                        setAdsOverview(overviewRes.data ?? null);
+                        const adsData = overviewRes.data;
+                        const emptyAds =
+                            !adsData ||
+                            (!adsData.spend && !adsData.impressions && !adsData.reach && !adsData.clicks);
+                        setAdsOverview(emptyAds ? metaAdsOverviewMock : adsData);
+                        if (emptyAds) setAdsUsingMock(true);
                         setOverview(null);
                         setGrowth(null);
                         setPosts([]);
@@ -192,21 +202,41 @@ export default function SocialDashboard() {
                             fetchAdsCampaigns(),
                         ]).then(([timeseriesRes, campaignsResRaw]) => {
                             if (cancelled) return;
-                            setAdsTimeseries(timeseriesRes.data ?? null);
                             const campaignsRes: any = campaignsResRaw;
-                            setAdsCampaigns(
+                            const campaigns =
                                 campaignsRes?.data?.items ??
                                 campaignsRes?.data?.data ??
                                 campaignsRes?.data ??
                                 campaignsRes ??
-                                []
-                            );
-                        }).catch(err => console.warn("Secondary ads data fetch failed", err));
+                                [];
+                            const tsContainer =
+                                timeseriesRes.data?.series ?? timeseriesRes.data?.data?.series ?? timeseriesRes.data;
+                            const emptyTs = !tsContainer?.spend && !tsContainer?.impressions && !tsContainer?.clicks;
+                            const emptyCampaigns = !Array.isArray(campaigns) || campaigns.length === 0;
+                            setAdsTimeseries(emptyTs ? metaAdsTimeseriesMock(range) : timeseriesRes.data);
+                            setAdsCampaigns(emptyCampaigns ? metaAdsCampaignsMock : campaigns);
+                            if (emptyTs || emptyCampaigns) setAdsUsingMock(true);
+                        }).catch(() => {
+                            if (cancelled) return;
+                            setAdsTimeseries(metaAdsTimeseriesMock(range));
+                            setAdsCampaigns(metaAdsCampaignsMock);
+                            setAdsUsingMock(true);
+                        });
                     }
                 }
-            } catch (err: any) {
+            } catch {
+                // Live data failed (offline backend, rate limit, not connected):
+                // handle silently and fall back to sample data so the layout still
+                // previews correctly — never surface the raw error to users.
                 if (!cancelled) {
-                    setError(err?.message || "Failed to load Metricool metrics.");
+                    if (activeNetwork === "meta_ads") {
+                        setAdsOverview(metaAdsOverviewMock);
+                        setAdsTimeseries(metaAdsTimeseriesMock(range));
+                        setAdsCampaigns(metaAdsCampaignsMock);
+                        setAdsUsingMock(true);
+                    }
+                    // Facebook/Instagram render via their own child views, which
+                    // already fall back to sample data on failure.
                     setLoading(false);
                 }
             }
@@ -262,14 +292,6 @@ export default function SocialDashboard() {
             </div>
 
             {
-                error && (
-                    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {error}
-                    </div>
-                )
-            }
-
-            {
                 loading && (
                     <LoadingSpinner
                         size="lg"
@@ -294,6 +316,15 @@ export default function SocialDashboard() {
             {
                 activeNetwork === "meta_ads" && (
                     <div className="space-y-6">
+                        {!loading && adsUsingMock && (
+                            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-800">
+                                <SampleDataBadge />
+                                <span>
+                                    Live Meta Ads metrics aren't available right now — showing sample
+                                    data so you can preview how this section looks.
+                                </span>
+                            </div>
+                        )}
                         <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                             <header className="flex items-center justify-between">
                                 <div>
@@ -354,7 +385,10 @@ export default function SocialDashboard() {
                                                 tickMargin={6}
                                             />
                                             <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                            <Tooltip />
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                            />
                                             <Line
                                                 dataKey="value"
                                                 data={toChartPoints(normalizeSeries(adsTimeseries, "spend"))}

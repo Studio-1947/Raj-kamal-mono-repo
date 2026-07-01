@@ -81,6 +81,18 @@ export function SectionSkeleton() {
     );
 }
 
+export function SampleDataBadge({ className = "" }: { className?: string }) {
+    return (
+        <span
+            className={`inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 ${className}`}
+            title="Live data is unavailable right now, so sample data is shown to preview the layout."
+        >
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            Sample data
+        </span>
+    );
+}
+
 export function LoadingSpinner({
     size = "md",
     message = "Loading..."

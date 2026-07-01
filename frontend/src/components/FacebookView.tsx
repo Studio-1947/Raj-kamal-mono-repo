@@ -23,7 +23,18 @@ import {
     Cell,
 } from "recharts";
 import { ImageWithHover } from "./ImageWithHover";
-import { LoadingSpinner } from "./LoadingSkeletons";
+import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
+import {
+    facebookOverviewMock,
+    facebookGrowthMock,
+    facebookClicksMock,
+    facebookDemographicsCountriesMock,
+    facebookDemographicsCitiesMock,
+    facebookPostsMock,
+    facebookReelsMock,
+    facebookStoriesMock,
+    facebookCompetitorsMock,
+} from "./socialMockData";
 
 type TimeRangeKey = "7d" | "30d" | "90d";
 type FacebookSection = "page_overview" | "demographics" | "clicks_on_page" | "posts" | "reels" | "stories" | "competitors";
@@ -211,6 +222,26 @@ function getCountryName(code: string): string {
 
 const chartColors = ["#2563eb", "#16a34a", "#f97316", "#e11d48", "#9333ea"];
 
+// Emptiness checks used to decide when to fall back to sample data.
+function overviewIsEmpty(data: any) {
+    return (
+        !data ||
+        (!data.followers && !data.likes && !data.reach && !data.impressions && !data.pageVisits)
+    );
+}
+
+function growthIsEmpty(data: any) {
+    const container = data?.series ?? data?.data?.series ?? data;
+    return (
+        normalizeSeries(container, "impressions").length === 0 &&
+        normalizeSeries(container, "followers").length === 0
+    );
+}
+
+function listIsEmpty(list: any[]) {
+    return !Array.isArray(list) || list.length === 0;
+}
+
 interface FacebookViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
@@ -220,6 +251,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
     const [activeSection, setActiveSection] = useState<FacebookSection>("page_overview");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [usingMock, setUsingMock] = useState(false);
 
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
@@ -247,6 +279,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
         async function load() {
             setLoading(true);
             setError(null);
+            setUsingMock(false);
             try {
                 const { from, to } = computeRangeDates(range);
 
@@ -258,8 +291,11 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     ]);
 
                     if (!cancelled) {
-                        setOverview(overviewRes.data ?? null);
-                        setGrowth(growthRes.data ?? null);
+                        const emptyOverview = overviewIsEmpty(overviewRes.data);
+                        const emptyGrowth = growthIsEmpty(growthRes.data);
+                        setOverview(emptyOverview ? facebookOverviewMock(range) : overviewRes.data);
+                        setGrowth(emptyGrowth ? facebookGrowthMock(range) : growthRes.data ?? null);
+                        if (emptyOverview || emptyGrowth) setUsingMock(true);
                     }
                 } else if (activeSection === "demographics") {
                     const [countriesRes, citiesRes] = await Promise.all([
@@ -268,12 +304,17 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     ]);
 
                     if (!cancelled) {
+                        const countries = countriesRes.data?.data ?? countriesRes.data ?? [];
+                        const cities = citiesRes.data?.data ?? citiesRes.data ?? [];
+                        const emptyCountries = listIsEmpty(countries);
+                        const emptyCities = listIsEmpty(cities);
                         setDemographicsCountries(
-                            countriesRes.data?.data ?? countriesRes.data ?? []
+                            emptyCountries ? facebookDemographicsCountriesMock : countries
                         );
                         setDemographicsCities(
-                            citiesRes.data?.data ?? citiesRes.data ?? []
+                            emptyCities ? facebookDemographicsCitiesMock : cities
                         );
+                        if (emptyCountries || emptyCities) setUsingMock(true);
                     }
                 } else if (activeSection === "clicks_on_page") {
                     const [clicksRes, overviewRes, growthRes] = await Promise.all([
@@ -283,20 +324,14 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     ]);
 
                     if (!cancelled) {
-                        setClicksData(clicksRes.data ?? null);
-                        setOverview(overviewRes.data ?? null);
-                        setGrowth(growthRes.data ?? null);
-                        console.log("Facebook Clicks Data Loaded:", clicksRes.data);
-                        // Log the structure to understand what's available
-                        if (clicksRes.data) {
-                            console.log("Clicks Data Structure:", {
-                                hasSeries: !!clicksRes.data.series,
-                                hasDataSeries: !!clicksRes.data?.data?.series,
-                                hasValues: !!clicksRes.data.values,
-                                hasDataValues: !!clicksRes.data?.data?.values,
-                                topLevelKeys: Object.keys(clicksRes.data)
-                            });
-                        }
+                        const emptyClicks =
+                            normalizeSeries(clicksRes.data, "clicks").length === 0 &&
+                            !(Array.isArray(clicksRes.data?.values) && clicksRes.data.values.length);
+                        const emptyOverview = overviewIsEmpty(overviewRes.data);
+                        setClicksData(emptyClicks ? facebookClicksMock(range) : clicksRes.data);
+                        setOverview(emptyOverview ? facebookOverviewMock(range) : overviewRes.data);
+                        setGrowth(growthIsEmpty(growthRes.data) ? facebookGrowthMock(range) : growthRes.data ?? null);
+                        if (emptyClicks || emptyOverview) setUsingMock(true);
                     }
                 } else if (activeSection === "posts") {
                     const postsResRaw = await fetchPosts("facebook", { from, to, pageSize: 10 });
@@ -309,49 +344,68 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                             postsRes?.data ??
                             postsRes ??
                             [];
-                        setPosts(postItems);
-                        console.log("Facebook Posts Data Loaded:", postItems);
-                        // Log first item to see actual structure
-                        if (postItems.length > 0) {
-                            console.log("First Post Item Structure:", postItems[0]);
-                            console.log("Available fields:", Object.keys(postItems[0]));
+                        if (listIsEmpty(postItems)) {
+                            setPosts(facebookPostsMock);
+                            setUsingMock(true);
+                        } else {
+                            setPosts(postItems);
                         }
                     }
                 } else if (activeSection === "reels") {
                     const reelsRes = await fetchFacebookReels({ from, to, pageSize: 10 });
 
                     if (!cancelled) {
-                        setReelsData(reelsRes.data ?? null);
-                        console.log("Facebook Reels Data Loaded:", reelsRes.data);
-                        // Log first item to see actual structure
-                        if (reelsRes.data?.items?.length > 0) {
-                            console.log("First Reel Item Structure:", reelsRes.data.items[0]);
-                            console.log("Available fields:", Object.keys(reelsRes.data.items[0]));
+                        if (listIsEmpty(reelsRes.data?.items)) {
+                            setReelsData(facebookReelsMock);
+                            setUsingMock(true);
+                        } else {
+                            setReelsData(reelsRes.data ?? null);
                         }
                     }
                 } else if (activeSection === "stories") {
                     const storiesRes = await fetchFacebookStories({ from, to, pageSize: 10 });
 
                     if (!cancelled) {
-                        setStoriesData(storiesRes.data ?? null);
-                        console.log("Facebook Stories Data Loaded:", storiesRes.data);
-                        // Log first item to see actual structure
-                        if (storiesRes.data?.items?.length > 0) {
-                            console.log("First Story Item Structure:", storiesRes.data.items[0]);
-                            console.log("Available fields:", Object.keys(storiesRes.data.items[0]));
+                        if (listIsEmpty(storiesRes.data?.items)) {
+                            setStoriesData(facebookStoriesMock);
+                            setUsingMock(true);
+                        } else {
+                            setStoriesData(storiesRes.data ?? null);
                         }
                     }
                 } else if (activeSection === "competitors") {
                     const competitorsRes = await fetchFacebookCompetitors({ from, to });
 
                     if (!cancelled) {
-                        setCompetitorsData(competitorsRes.data ?? null);
-                        console.log("Facebook Competitors Data Loaded:", competitorsRes.data);
+                        if (listIsEmpty(competitorsRes.data?.items)) {
+                            setCompetitorsData(facebookCompetitorsMock);
+                            setUsingMock(true);
+                        } else {
+                            setCompetitorsData(competitorsRes.data ?? null);
+                        }
                     }
                 }
             } catch (err: any) {
+                // Live data failed (offline backend, rate limit, not connected):
+                // fall back to sample data so the layout still previews correctly.
                 if (!cancelled) {
-                    setError(err?.message || "Failed to load Facebook metrics.");
+                    setUsingMock(true);
+                    if (activeSection === "page_overview" || activeSection === "clicks_on_page") {
+                        setOverview(facebookOverviewMock(range));
+                        setGrowth(facebookGrowthMock(range));
+                        setClicksData(facebookClicksMock(range));
+                    } else if (activeSection === "demographics") {
+                        setDemographicsCountries(facebookDemographicsCountriesMock);
+                        setDemographicsCities(facebookDemographicsCitiesMock);
+                    } else if (activeSection === "posts") {
+                        setPosts(facebookPostsMock);
+                    } else if (activeSection === "reels") {
+                        setReelsData(facebookReelsMock);
+                    } else if (activeSection === "stories") {
+                        setStoriesData(facebookStoriesMock);
+                    } else if (activeSection === "competitors") {
+                        setCompetitorsData(facebookCompetitorsMock);
+                    }
                 }
             } finally {
                 if (!cancelled) {
@@ -480,6 +534,16 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 />
             )}
 
+            {!loading && usingMock && (
+                <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-800">
+                    <SampleDataBadge />
+                    <span>
+                        Live Facebook metrics aren't available right now — showing sample data so you
+                        can preview how this section looks.
+                    </span>
+                </div>
+            )}
+
             {/* PAGE OVERVIEW Section */}
             {activeSection === "page_overview" && (
                 <div className="space-y-6">
@@ -548,7 +612,10 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                                 tickMargin={6}
                                             />
                                             <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                            <Tooltip />
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                            />
                                             <Line
                                                 dataKey="value"
                                                 data={impressionsPoints}
@@ -606,7 +673,10 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                             tickMargin={6}
                                         />
                                         <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                        <Tooltip />
+                                        <Tooltip
+                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                            />
                                         <Line
                                             dataKey="value"
                                             data={newFollowersPoints}
@@ -882,7 +952,10 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                         tickMargin={6}
                                     />
                                     <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                    <Tooltip />
+                                    <Tooltip
+                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                            />
                                     {clicksPoints.length > 0 && (
                                         <Line
                                             dataKey="value"

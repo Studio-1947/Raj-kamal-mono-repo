@@ -20,7 +20,17 @@ import {
     ResponsiveContainer,
 } from "recharts";
 import { ImageWithHover } from "./ImageWithHover";
-import { LoadingSpinner } from "./LoadingSkeletons";
+import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
+import {
+    instagramOverviewMock,
+    instagramGrowthMock,
+    instagramPostsMock,
+    instagramReelsMock,
+    instagramStoriesMock,
+    instagramCommunityMock,
+    instagramCompetitorsMock,
+    instagramTimelineMock,
+} from "./socialMockData";
 
 type TimeRangeKey = "7d" | "30d" | "90d";
 
@@ -68,6 +78,33 @@ function toChartPoints(points: any[]) {
     }));
 }
 
+// Emptiness checks used to decide when to fall back to sample data.
+function overviewIsEmpty(data: any) {
+    return (
+        !data ||
+        (!data.followers && !data.likes && !data.reach && !data.impressions && !data.pageVisits)
+    );
+}
+
+function growthIsEmpty(data: any) {
+    const container = data?.series ?? data?.data?.series ?? data;
+    const imp = container?.impressions?.values ?? container?.impressions;
+    const fol = container?.followers?.values ?? container?.followers;
+    return !(Array.isArray(imp) && imp.length) && !(Array.isArray(fol) && fol.length);
+}
+
+function sectionDataIsEmpty(data: any) {
+    return !data || !Array.isArray(data.items) || data.items.length === 0;
+}
+
+const instagramSectionMock: Record<string, any> = {
+    community: instagramCommunityMock,
+    posts: instagramPostsMock,
+    reels: instagramReelsMock,
+    stories: instagramStoriesMock,
+    competitors: instagramCompetitorsMock,
+};
+
 interface InstagramViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
@@ -77,6 +114,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
     const [activeSection, setActiveSection] = useState<InstagramSection>("account");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [usingMock, setUsingMock] = useState(false);
     const [sectionData, setSectionData] = useState<any>(null);
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
@@ -96,6 +134,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
         async function load() {
             setLoading(true);
             setError(null);
+            setUsingMock(false);
             try {
                 const { from, to } = computeRangeDates(range);
 
@@ -108,9 +147,12 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                     ]);
 
                     if (!cancelled) {
-                        setOverview(overviewRes.data ?? null);
-                        setGrowth(growthRes.data ?? null);
+                        const emptyOverview = overviewIsEmpty(overviewRes.data);
+                        const emptyGrowth = growthIsEmpty(growthRes.data);
+                        setOverview(emptyOverview ? instagramOverviewMock(range) : overviewRes.data);
+                        setGrowth(emptyGrowth ? instagramGrowthMock(range) : growthRes.data ?? null);
                         setSectionData(null); // Clear section data for overview
+                        if (emptyOverview || emptyGrowth) setUsingMock(true);
                     }
                 } else {
                     // Fetch section-specific data
@@ -133,20 +175,42 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                             break;
                     }
 
-                    if (!cancelled && result) {
-                        setSectionData(result.data);
+                    if (!cancelled) {
+                        const data = result?.data;
+                        if (sectionDataIsEmpty(data)) {
+                            const mock = instagramSectionMock[activeSection];
+                            setSectionData(
+                                activeSection === "competitors"
+                                    ? mock
+                                    : { ...mock, timeline: instagramTimelineMock(range) }
+                            );
+                            setUsingMock(true);
+                        } else {
+                            setSectionData(data);
+                        }
                         setOverview(null); // Clear overview data for other sections
                         setGrowth(null);
-                        console.log(`Instagram ${activeSection} Data Loaded:`, result.data);
-                        if (result.data?.items?.length > 0) {
-                            console.log(`First ${activeSection} Item:`, result.data.items[0]);
-                            console.log("Available fields:", Object.keys(result.data.items[0]));
-                        }
                     }
                 }
             } catch (err: any) {
+                // Live data failed (offline backend, rate limit, not connected):
+                // fall back to sample data so the layout still previews correctly.
                 if (!cancelled) {
-                    setError(err?.message || "Failed to load Instagram metrics.");
+                    setUsingMock(true);
+                    if (activeSection === "account") {
+                        setOverview(instagramOverviewMock(range));
+                        setGrowth(instagramGrowthMock(range));
+                        setSectionData(null);
+                    } else {
+                        const mock = instagramSectionMock[activeSection];
+                        setSectionData(
+                            activeSection === "competitors"
+                                ? mock
+                                : { ...mock, timeline: instagramTimelineMock(range) }
+                        );
+                        setOverview(null);
+                        setGrowth(null);
+                    }
                 }
             } finally {
                 if (!cancelled) {
@@ -279,6 +343,16 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                 />
             )}
 
+            {!loading && usingMock && (
+                <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-800">
+                    <SampleDataBadge />
+                    <span>
+                        Live Instagram metrics aren't available right now — showing sample data so you
+                        can preview how this section looks.
+                    </span>
+                </div>
+            )}
+
             {/* ACCOUNT OVERVIEW Section */}
             {activeSection === "account" && (
                 <div className="space-y-6">
@@ -347,7 +421,10 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                                 tickMargin={6}
                                             />
                                             <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                            <Tooltip />
+                                            <Tooltip
+                                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                                        labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                    />
                                             <Line
                                                 dataKey="value"
                                                 data={impressionsPoints}
@@ -405,7 +482,10 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                             tickMargin={6}
                                         />
                                         <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                        <Tooltip />
+                                        <Tooltip
+                                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                                        labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                    />
                                         <Line
                                             dataKey="value"
                                             data={newFollowersPoints}
@@ -456,7 +536,10 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                                         tickMargin={6}
                                     />
                                     <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                    <Tooltip />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                                        labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                    />
                                     <Line
                                         dataKey="value"
                                         data={timelinePoints}
