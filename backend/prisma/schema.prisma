@@ -22,10 +22,35 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  orders  Order[]
-  reviews Review[]
+  orders   Order[]
+  reviews  Review[]
+  sessions Session[]
 
   @@map("users")
+}
+
+// Server-side login sessions. Each successful login creates one row; the JWT carries
+// this row's id as its `sessionId` claim. The auth middleware rejects any token whose
+// session is missing, revoked, or expired — this is what makes remote "log out" work
+// despite JWTs being otherwise stateless.
+model Session {
+  id           String    @id @default(cuid())
+  userId       String
+  ipAddress    String?
+  userAgent    String?   @db.Text // raw UA string, kept for auditing
+  browser      String? // parsed, for display (e.g. "Chrome")
+  os           String? // parsed, for display (e.g. "Windows")
+  device       String? // "Desktop" | "Mobile" | "Tablet"
+  createdAt    DateTime  @default(now())
+  lastActiveAt DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 model Product {

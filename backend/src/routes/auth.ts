@@ -5,8 +5,48 @@ import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/authPrisma.js';
 import { prisma } from '../lib/prisma.js';
 import { Role } from '@prisma/client';
+import { getClientIp, parseUserAgent } from '../lib/requestContext.js';
 
 const router = Router();
+
+// JWT / session lifetime — keep these two in lockstep so the token's `exp` and the
+// Session row's `expiresAt` always agree.
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+/**
+ * Create a server-side Session row for this login and sign a JWT that carries the
+ * session's id (`sessionId`). The middleware later checks that this session still
+ * exists and isn't revoked/expired — that's what lets us revoke a login remotely.
+ */
+async function issueSession(
+  user: { id: string; email: string; role: Role },
+  req: Request
+): Promise<string> {
+  const secret = process.env.JWT_SECRET as string;
+  if (!secret) throw new Error('JWT_SECRET not configured');
+
+  const ua = parseUserAgent(req.headers['user-agent']);
+  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
+
+  const session = await prisma.session.create({
+    data: {
+      userId: user.id,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent']?.slice(0, 1024) ?? null,
+      browser: ua.browser,
+      os: ua.os,
+      device: ua.device,
+      expiresAt,
+    },
+    select: { id: true },
+  });
+
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role, sessionId: session.id },
+    secret,
+    { expiresIn: SESSION_TTL_SECONDS }
+  );
+}
 
 // Validation schemas
 const registerSchema = z.object({
@@ -104,13 +144,7 @@ router.post('/register', async (req: Request, res: Response): Promise<any> => {
       select: { id: true, email: true, name: true, role: true }
     });
 
-    const secret = process.env.JWT_SECRET as string;
-    if (!secret) throw new Error('JWT_SECRET not configured');
-    const token = jwt.sign(
-      { id: newUser.id, email: newUser.email, role: newUser.role },
-      secret,
-      { expiresIn: 60 * 60 * 24 * 7 }
-    );
+    const token = await issueSession(newUser, req);
 
     return res.status(201).json({
       success: true,
@@ -195,13 +229,7 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
       });
     }
 
-    const secret = process.env.JWT_SECRET as string;
-    if (!secret) throw new Error('JWT_SECRET not configured');
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      secret,
-      { expiresIn: 60 * 60 * 24 * 7 }
-    );
+    const token = await issueSession(user, req);
 
     return res.json({
       success: true,
@@ -278,8 +306,26 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Pr
  *       200:
  *         description: Logged out successfully
  */
-// Logout endpoint (client-side token removal)
-router.post('/logout', (req: Request, res: Response): any => {
+// Logout endpoint. The client discards the token, and we also revoke this login's
+// server-side session so the token can't be replayed before it expires. Best-effort:
+// a missing/invalid token still returns success (nothing to revoke).
+router.post('/logout', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const token = req.headers['authorization']?.split(' ')[1];
+    const secret = process.env.JWT_SECRET;
+    if (token && secret) {
+      const decoded = jwt.verify(token, secret) as { sessionId?: string };
+      if (decoded.sessionId) {
+        await prisma.session.updateMany({
+          where: { id: decoded.sessionId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+    }
+  } catch {
+    // Invalid/expired token — nothing to revoke, fall through to success.
+  }
+
   return res.json({
     success: true,
     message: 'Logged out successfully'

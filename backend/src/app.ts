@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.js";
+import sessionRoutes from "./routes/sessions.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import inventoryRoutes from "./routes/inventory.js";
 import rankingsRoutes from "./routes/rankings.js";
@@ -193,6 +194,8 @@ app.get("/", (_req, res) => {
 });
 
 // API routes
+// Mounted before the generic /api/auth router so this more specific path wins.
+app.use("/api/auth/sessions", sessionRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/sync-logs", syncLogsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
