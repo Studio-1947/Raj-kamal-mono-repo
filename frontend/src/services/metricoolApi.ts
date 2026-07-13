@@ -332,6 +332,82 @@ export async function fetchClicks(
   return { data: clicks };
 }
 
+function sumSeriesValues(payload: any): number {
+  return extractSeriesValues(payload).reduce(
+    (sum, point) => sum + (typeof point.value === "number" ? point.value : 0),
+    0,
+  );
+}
+
+export type FacebookEngagement = {
+  reactions: number;
+  interactions: number;
+  postsCount: number;
+};
+
+// page_actions_post_reactions_total/postsInteractions/postsCount aren't in
+// timelineMetricAliases.facebook — they're already the real Metricool metric
+// names (confirmed against the live API), no aliasing needed.
+export async function fetchFacebookEngagement(
+  params?: Record<string, unknown>,
+): Promise<{ data: FacebookEngagement }> {
+  const [reactions, interactions, postsCount] = await Promise.all([
+    fetchTimelineSeries("facebook", "page_actions_post_reactions_total", params),
+    fetchTimelineSeries("facebook", "postsInteractions", params),
+    fetchTimelineSeries("facebook", "postsCount", params),
+  ]);
+
+  return {
+    data: {
+      reactions: sumSeriesValues(reactions),
+      interactions: sumSeriesValues(interactions),
+      postsCount: sumSeriesValues(postsCount),
+    },
+  };
+}
+
+export async function fetchInstagramAccountsEngaged(
+  params?: Record<string, unknown>,
+): Promise<{ data: { total: number } }> {
+  const payload = await fetchTimelineSeries("instagram", "accounts_engaged", params);
+  return { data: { total: sumSeriesValues(payload) } };
+}
+
+// Instagram demographics: gender/age/postsTypes are real Metricool distribution
+// metrics (confirmed against the live API) with no existing UI surfacing them.
+// `subject: "account"` must be explicit — the backend's subject-guessing
+// heuristic matches metric names containing "post" to subject=posts, which
+// misfires on "postsTypes" (an account-level metric, not a posts-subject one).
+export async function fetchInstagramGenderDistribution(
+  params?: Record<string, unknown>,
+): Promise<{ data: any }> {
+  const data = await fetchDistributionMetric("instagram", "gender", {
+    subject: "account",
+    ...params,
+  });
+  return { data };
+}
+
+export async function fetchInstagramAgeDistribution(
+  params?: Record<string, unknown>,
+): Promise<{ data: any }> {
+  const data = await fetchDistributionMetric("instagram", "age", {
+    subject: "account",
+    ...params,
+  });
+  return { data };
+}
+
+export async function fetchInstagramContentTypes(
+  params?: Record<string, unknown>,
+): Promise<{ data: any }> {
+  const data = await fetchDistributionMetric("instagram", "postsTypes", {
+    subject: "account",
+    ...params,
+  });
+  return { data };
+}
+
 // YouTube: Metricool only exposes channel-level timeline metrics for this
 // network (no per-video list, no demographics — confirmed against the live
 // API: /analytics/posts/youtube returns [] and /analytics/distribution
@@ -350,13 +426,6 @@ async function fetchYoutubeTimeline(
     timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
     ...rest,
   });
-}
-
-function sumSeriesValues(payload: any): number {
-  return extractSeriesValues(payload).reduce(
-    (sum, point) => sum + (typeof point.value === "number" ? point.value : 0),
-    0,
-  );
 }
 
 export type YoutubeOverview = {

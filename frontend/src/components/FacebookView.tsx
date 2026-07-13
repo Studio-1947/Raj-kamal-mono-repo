@@ -9,6 +9,8 @@ import {
     fetchFacebookReels,
     fetchFacebookStories,
     fetchFacebookCompetitors,
+    fetchFacebookEngagement,
+    type FacebookEngagement,
 } from "../services/metricoolApi";
 import {
     LineChart,
@@ -263,6 +265,8 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
     const [reelsData, setReelsData] = useState<any>(null);
     const [storiesData, setStoriesData] = useState<any>(null);
     const [competitorsData, setCompetitorsData] = useState<any>(null);
+    const [engagement, setEngagement] = useState<FacebookEngagement | null>(null);
+    const [hasCompetitors, setHasCompetitors] = useState(false);
 
     const sections: { key: FacebookSection; label: string }[] = [
         { key: "page_overview", label: "PAGE OVERVIEW" },
@@ -271,8 +275,35 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
         { key: "posts", label: "POSTS" },
         { key: "reels", label: "REELS" },
         { key: "stories", label: "STORIES" },
-        { key: "competitors", label: "COMPETITORS" },
+        ...(hasCompetitors ? [{ key: "competitors" as const, label: "COMPETITORS" }] : []),
     ];
+
+    // Competitors only shows up once Metricool actually has competitor pages
+    // configured for this brand (a Metricool-side setup step, not a code
+    // issue) — checked independently of activeSection so the tab itself is
+    // hidden/shown correctly, not just its content.
+    useEffect(() => {
+        let cancelled = false;
+        async function checkCompetitors() {
+            try {
+                const { from, to } = computeRangeDates(range);
+                const res = await fetchFacebookCompetitors({ from, to, blogId });
+                if (!cancelled) setHasCompetitors(!listIsEmpty(res.data?.items));
+            } catch {
+                if (!cancelled) setHasCompetitors(false);
+            }
+        }
+        checkCompetitors();
+        return () => {
+            cancelled = true;
+        };
+    }, [range, blogId]);
+
+    useEffect(() => {
+        if (!hasCompetitors && activeSection === "competitors") {
+            setActiveSection("page_overview");
+        }
+    }, [hasCompetitors, activeSection]);
 
     useEffect(() => {
         let cancelled = false;
@@ -286,14 +317,16 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
 
                 // Load data based on active section to reduce parallel API calls
                 if (activeSection === "page_overview") {
-                    const [overviewRes, growthRes] = await Promise.all([
+                    const [overviewRes, growthRes, engagementRes] = await Promise.all([
                         fetchOverview("facebook", { from, to, blogId }),
                         fetchGrowth("facebook", { from, to, blogId }),
+                        fetchFacebookEngagement({ from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
                         const emptyOverview = overviewIsEmpty(overviewRes.data);
                         const emptyGrowth = growthIsEmpty(growthRes.data);
+                        setEngagement(engagementRes.data);
                         setOverview(emptyOverview ? facebookOverviewMock(range) : overviewRes.data);
                         setGrowth(emptyGrowth ? facebookGrowthMock(range) : growthRes.data ?? null);
                         if (emptyOverview || emptyGrowth) setUsingMock(true);
@@ -575,12 +608,15 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
                         </header>
                         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                             {[
-                                { label: "Likes", value: overview?.likes ?? 0 },
+                                // "Likes" (the raw `likes` metric) is permanently empty on this
+                                // account — Meta doesn't populate it — so we show Reactions
+                                // (page_actions_post_reactions_total) instead, which is real.
+                                { label: "Reactions", value: engagement?.reactions ?? 0 },
                                 { label: "Followers", value: overview?.followers ?? 0 },
                                 { label: "Reach", value: overview?.reach ?? 0 },
-                                // { label: "Impressions", value: overview?.impressions ?? overview?.views ?? 0 },
                                 { label: "Page visits", value: overview?.pageVisits ?? overview?.pageViews ?? 0 },
-                                { label: "Total content", value: overview?.totalContent ?? 0 },
+                                { label: "Total content", value: engagement?.postsCount ?? overview?.totalContent ?? 0 },
+                                { label: "Interactions", value: engagement?.interactions ?? 0 },
                             ].map((card) => (
                                 <div
                                     key={card.label}

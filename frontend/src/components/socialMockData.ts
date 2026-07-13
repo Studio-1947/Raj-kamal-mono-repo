@@ -169,6 +169,7 @@ export function instagramOverviewMock(range: "7d" | "30d" | "90d") {
         pageViews: 12640,
         totalContent: 208,
         followersChange: 540,
+        accountsEngaged: 5230,
         from,
         to,
     };
@@ -212,6 +213,28 @@ export const instagramCompetitorsMock = {
     ],
     timeline: null as any,
 };
+
+export const instagramGenderMock = [
+    { key: "M", value: 62.0 },
+    { key: "F", value: 22.0 },
+    { key: "U", value: 16.0 },
+];
+
+export const instagramAgeMock = [
+    { key: "25-34", value: 42.0 },
+    { key: "18-24", value: 24.0 },
+    { key: "35-44", value: 18.0 },
+    { key: "45-54", value: 9.0 },
+    { key: "13-17", value: 4.0 },
+    { key: "55-64", value: 2.0 },
+    { key: "65+", value: 1.0 },
+];
+
+export const instagramContentTypesMock = [
+    { key: "FEED_CAROUSEL_ALBUM", value: 48.0 },
+    { key: "FEED_IMAGE", value: 30.0 },
+    { key: "FEED_VIDEO", value: 22.0 },
+];
 
 /* -------------------------------------------------------------------------- */
 /*  YouTube                                                                   */

@@ -8,16 +8,23 @@ import {
     fetchInstagramReels,
     fetchInstagramStories,
     fetchInstagramCompetitors,
+    fetchInstagramAccountsEngaged,
+    fetchInstagramGenderDistribution,
+    fetchInstagramAgeDistribution,
+    fetchInstagramContentTypes,
     type InstagramSection,
 } from "../services/metricoolApi";
 import {
     LineChart,
     Line,
+    BarChart,
+    Bar,
     XAxis,
     YAxis,
     Tooltip,
     CartesianGrid,
     ResponsiveContainer,
+    Cell,
 } from "recharts";
 import { ImageWithHover } from "./ImageWithHover";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
@@ -30,6 +37,9 @@ import {
     instagramCommunityMock,
     instagramCompetitorsMock,
     instagramTimelineMock,
+    instagramGenderMock,
+    instagramAgeMock,
+    instagramContentTypesMock,
 } from "./socialMockData";
 
 type TimeRangeKey = "7d" | "30d" | "90d";
@@ -103,6 +113,20 @@ function sectionDataIsEmpty(data: any) {
     return !data || !Array.isArray(data.items) || data.items.length === 0;
 }
 
+function listIsEmpty(list: any[]) {
+    return !Array.isArray(list) || list.length === 0;
+}
+
+const chartColors = ["#a855f7", "#ec4899", "#f97316", "#0ea5e9", "#16a34a"];
+
+const GENDER_LABELS: Record<string, string> = { M: "Male", F: "Female", U: "Unknown" };
+const CONTENT_TYPE_LABELS: Record<string, string> = {
+    FEED_CAROUSEL_ALBUM: "Carousel",
+    FEED_IMAGE: "Image",
+    FEED_VIDEO: "Video",
+    REEL: "Reel",
+};
+
 const instagramSectionMock: Record<string, any> = {
     community: instagramCommunityMock,
     posts: instagramPostsMock,
@@ -111,6 +135,11 @@ const instagramSectionMock: Record<string, any> = {
     competitors: instagramCompetitorsMock,
 };
 
+// "demographics" isn't part of the shared InstagramSection type (that type
+// drives fetchInstagramSection's subject/metric maps, which demographics
+// doesn't use — it has its own dedicated fetchers instead).
+type LocalInstagramSection = InstagramSection | "demographics";
+
 interface InstagramViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
@@ -118,22 +147,55 @@ interface InstagramViewProps {
 }
 
 export default function InstagramView({ range, onRangeChange, blogId }: InstagramViewProps) {
-    const [activeSection, setActiveSection] = useState<InstagramSection>("account");
+    const [activeSection, setActiveSection] = useState<LocalInstagramSection>("account");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [usingMock, setUsingMock] = useState(false);
     const [sectionData, setSectionData] = useState<any>(null);
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
+    const [accountsEngaged, setAccountsEngaged] = useState<number | null>(null);
+    const [genderData, setGenderData] = useState<any[]>([]);
+    const [ageData, setAgeData] = useState<any[]>([]);
+    const [contentTypesData, setContentTypesData] = useState<any[]>([]);
+    const [hasCompetitors, setHasCompetitors] = useState(false);
 
-    const sections: { key: InstagramSection; label: string }[] = [
+    const sections: { key: LocalInstagramSection; label: string }[] = [
         { key: "account", label: "ACCOUNT OVERVIEW" },
+        { key: "demographics", label: "DEMOGRAPHICS" },
         { key: "community", label: "COMMUNITY" },
         { key: "posts", label: "POSTS" },
         { key: "reels", label: "REELS" },
         { key: "stories", label: "STORIES" },
-        { key: "competitors", label: "COMPETITORS" },
+        ...(hasCompetitors ? [{ key: "competitors" as const, label: "COMPETITORS" }] : []),
     ];
+
+    // Competitors only shows up once Metricool actually has competitor pages
+    // configured for this brand (a Metricool-side setup step, not a code
+    // issue) — checked independently of activeSection so the tab itself is
+    // hidden/shown correctly, not just its content.
+    useEffect(() => {
+        let cancelled = false;
+        async function checkCompetitors() {
+            try {
+                const { from, to } = computeRangeDates(range);
+                const res = await fetchInstagramCompetitors({ from, to, blogId });
+                if (!cancelled) setHasCompetitors(!listIsEmpty(res.data?.items));
+            } catch {
+                if (!cancelled) setHasCompetitors(false);
+            }
+        }
+        checkCompetitors();
+        return () => {
+            cancelled = true;
+        };
+    }, [range, blogId]);
+
+    useEffect(() => {
+        if (!hasCompetitors && activeSection === "competitors") {
+            setActiveSection("account");
+        }
+    }, [hasCompetitors, activeSection]);
 
     useEffect(() => {
         let cancelled = false;
@@ -148,9 +210,10 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
                 // Load data based on active section
                 if (activeSection === "account") {
                     // Fetch overview and growth data for account overview
-                    const [overviewRes, growthRes] = await Promise.all([
+                    const [overviewRes, growthRes, accountsEngagedRes] = await Promise.all([
                         fetchOverview("instagram", { from, to, blogId }),
                         fetchGrowth("instagram", { from, to, blogId }),
+                        fetchInstagramAccountsEngaged({ from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
@@ -158,8 +221,31 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
                         const emptyGrowth = growthIsEmpty(growthRes.data);
                         setOverview(emptyOverview ? instagramOverviewMock(range) : overviewRes.data);
                         setGrowth(emptyGrowth ? instagramGrowthMock(range) : growthRes.data ?? null);
+                        setAccountsEngaged(accountsEngagedRes.data.total);
                         setSectionData(null); // Clear section data for overview
                         if (emptyOverview || emptyGrowth) setUsingMock(true);
+                    }
+                } else if (activeSection === "demographics") {
+                    const [genderRes, ageRes, contentTypesRes] = await Promise.all([
+                        fetchInstagramGenderDistribution({ from, to, blogId }),
+                        fetchInstagramAgeDistribution({ from, to, blogId }),
+                        fetchInstagramContentTypes({ from, to, blogId }),
+                    ]);
+
+                    if (!cancelled) {
+                        const gender = genderRes.data?.data ?? genderRes.data ?? [];
+                        const age = ageRes.data?.data ?? ageRes.data ?? [];
+                        const contentTypes = contentTypesRes.data?.data ?? contentTypesRes.data ?? [];
+                        const emptyGender = listIsEmpty(gender);
+                        const emptyAge = listIsEmpty(age);
+                        const emptyContentTypes = listIsEmpty(contentTypes);
+                        setGenderData(emptyGender ? instagramGenderMock : gender);
+                        setAgeData(emptyAge ? instagramAgeMock : age);
+                        setContentTypesData(emptyContentTypes ? instagramContentTypesMock : contentTypes);
+                        setOverview(null);
+                        setGrowth(null);
+                        setSectionData(null);
+                        if (emptyGender && emptyAge && emptyContentTypes) setUsingMock(true);
                     }
                 } else {
                     // Fetch section-specific data
@@ -207,6 +293,13 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
                     if (activeSection === "account") {
                         setOverview(instagramOverviewMock(range));
                         setGrowth(instagramGrowthMock(range));
+                        setSectionData(null);
+                    } else if (activeSection === "demographics") {
+                        setGenderData(instagramGenderMock);
+                        setAgeData(instagramAgeMock);
+                        setContentTypesData(instagramContentTypesMock);
+                        setOverview(null);
+                        setGrowth(null);
                         setSectionData(null);
                     } else {
                         const mock = instagramSectionMock[activeSection];
@@ -396,6 +489,7 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
                                 { label: "Impressions", value: overview?.impressions ?? overview?.views ?? 0 },
                                 { label: "Profile visits", value: overview?.pageVisits ?? overview?.pageViews ?? 0 },
                                 { label: "Total content", value: overview?.totalContent ?? 0 },
+                                { label: "Accounts engaged", value: accountsEngaged ?? 0 },
                             ].map((card) => (
                                 <div
                                     key={card.label}
@@ -519,8 +613,139 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
                 </div>
             )}
 
+            {/* DEMOGRAPHICS Section */}
+            {activeSection === "demographics" && (
+                <div className="space-y-6">
+                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
+                        <header className="mb-4">
+                            <p className="text-sm font-normal text-gray-900">Audience Gender</p>
+                            <p className="text-xs text-gray-900">Share of followers by gender</p>
+                        </header>
+                        {genderData.length > 0 ? (
+                            <div className="space-y-3">
+                                {genderData
+                                    .slice()
+                                    .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                    .map((item, index) => (
+                                        <div key={item?.key ?? index} className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-normal text-gray-900">
+                                                    {GENDER_LABELS[item?.key] ?? item?.key ?? "—"}
+                                                </span>
+                                                <span className="text-sm font-normal text-gray-900">
+                                                    {(item?.value ?? 0).toFixed(1)}%
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full"
+                                                    style={{
+                                                        width: `${item?.value ?? 0}%`,
+                                                        backgroundColor: chartColors[index % chartColors.length],
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-900">No gender data available.</p>
+                        )}
+                    </section>
+
+                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
+                        <header className="mb-4">
+                            <p className="text-sm font-normal text-gray-900">Audience Age</p>
+                            <p className="text-xs text-gray-900">Share of followers by age bracket</p>
+                        </header>
+                        <div className="h-80">
+                            {ageData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={ageData
+                                            .slice()
+                                            .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                            .map((item) => ({
+                                                name: item?.key ?? "Unknown",
+                                                value: item?.value ?? 0,
+                                            }))}
+                                        layout="vertical"
+                                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis type="number" tick={{ fontSize: 11 }} />
+                                        <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={60} />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    return (
+                                                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
+                                                            <p className="text-xs font-normal text-gray-900">
+                                                                {payload[0].payload.name}
+                                                            </p>
+                                                            <p className="text-xs text-purple-600 font-normal">
+                                                                {payload[0].payload.value.toFixed(1)}% of followers
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+                                            {ageData.map((_, index) => (
+                                                <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <p className="text-sm text-gray-900">No age data available.</p>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
+                        <header className="mb-4">
+                            <p className="text-sm font-normal text-gray-900">Content Types</p>
+                            <p className="text-xs text-gray-900">Share of posts by media type</p>
+                        </header>
+                        {contentTypesData.length > 0 ? (
+                            <div className="space-y-3">
+                                {contentTypesData
+                                    .slice()
+                                    .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                    .map((item, index) => (
+                                        <div key={item?.key ?? index} className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-normal text-gray-900">
+                                                    {CONTENT_TYPE_LABELS[item?.key] ?? item?.key ?? "—"}
+                                                </span>
+                                                <span className="text-sm font-normal text-gray-900">
+                                                    {(item?.value ?? 0).toFixed(1)}%
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full"
+                                                    style={{
+                                                        width: `${item?.value ?? 0}%`,
+                                                        backgroundColor: chartColors[index % chartColors.length],
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-900">No content type data available.</p>
+                        )}
+                    </section>
+                </div>
+            )}
+
             {/* Timeline Chart - Only show for non-account sections */}
-            {activeSection !== "account" && (
+            {activeSection !== "account" && activeSection !== "demographics" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
                         <p className="text-sm font-normal text-gray-900 capitalize">
@@ -567,7 +792,7 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
 
 
             {/* Items List - Only show for non-account sections */}
-            {activeSection !== "account" && (
+            {activeSection !== "account" && activeSection !== "demographics" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
                         <p className="text-sm font-normal text-gray-900 capitalize">
