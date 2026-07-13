@@ -230,6 +230,32 @@ export const instagramAgeMock = [
     { key: "65+", value: 1.0 },
 ];
 
+export const instagramDemographicsCountriesMock = [
+    { key: "IN", value: 68.2 },
+    { key: "NP", value: 8.4 },
+    { key: "US", value: 5.1 },
+    { key: "AE", value: 3.2 },
+    { key: "GB", value: 2.6 },
+    { key: "PK", value: 2.1 },
+    { key: "BD", value: 1.8 },
+    { key: "CA", value: 1.4 },
+    { key: "SG", value: 1.1 },
+    { key: "AU", value: 0.9 },
+];
+
+export const instagramDemographicsCitiesMock = [
+    { key: "Mumbai, Maharashtra", value: 5240 },
+    { key: "Delhi", value: 4380 },
+    { key: "Bengaluru, Karnataka", value: 3120 },
+    { key: "Kolkata, West Bengal", value: 2640 },
+    { key: "Patna, Bihar", value: 2010 },
+    { key: "Pune, Maharashtra", value: 1720 },
+    { key: "Jaipur, Rajasthan", value: 1380 },
+    { key: "Ahmedabad, Gujarat", value: 1140 },
+    { key: "Lucknow, Uttar Pradesh", value: 960 },
+    { key: "Chennai, Tamil Nadu", value: 820 },
+];
+
 export const instagramContentTypesMock = [
     { key: "FEED_CAROUSEL_ALBUM", value: 48.0 },
     { key: "FEED_IMAGE", value: 30.0 },

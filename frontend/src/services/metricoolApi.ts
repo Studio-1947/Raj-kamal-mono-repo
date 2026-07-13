@@ -366,11 +366,38 @@ export async function fetchFacebookEngagement(
   };
 }
 
-export async function fetchInstagramAccountsEngaged(
+export type InstagramEngagement = {
+  accountsEngaged: number;
+  postsCount: number;
+};
+
+export async function fetchInstagramEngagement(
   params?: Record<string, unknown>,
-): Promise<{ data: { total: number } }> {
-  const payload = await fetchTimelineSeries("instagram", "accounts_engaged", params);
-  return { data: { total: sumSeriesValues(payload) } };
+): Promise<{ data: InstagramEngagement }> {
+  const [accountsEngaged, postsCount] = await Promise.all([
+    fetchTimelineSeries("instagram", "accounts_engaged", params),
+    fetchTimelineSeries("instagram", "postsCount", params),
+  ]);
+
+  return {
+    data: {
+      accountsEngaged: sumSeriesValues(accountsEngaged),
+      postsCount: sumSeriesValues(postsCount),
+    },
+  };
+}
+
+// postsTypes is a real Metricool distribution metric for Facebook too (content
+// type breakdown), confirmed against the live API — same subject-guessing
+// pitfall as Instagram's, so subject: "account" must be explicit here as well.
+export async function fetchFacebookContentTypes(
+  params?: Record<string, unknown>,
+): Promise<{ data: any }> {
+  const data = await fetchDistributionMetric("facebook", "postsTypes", {
+    subject: "account",
+    ...params,
+  });
+  return { data };
 }
 
 // Instagram demographics: gender/age/postsTypes are real Metricool distribution

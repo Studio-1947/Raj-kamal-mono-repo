@@ -10,6 +10,7 @@ import {
     fetchFacebookStories,
     fetchFacebookCompetitors,
     fetchFacebookEngagement,
+    fetchFacebookContentTypes,
     type FacebookEngagement,
 } from "../services/metricoolApi";
 import {
@@ -25,6 +26,7 @@ import {
     Cell,
 } from "recharts";
 import { ImageWithHover } from "./ImageWithHover";
+import { getCountryName } from "../lib/countryNames";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import {
     facebookOverviewMock,
@@ -104,124 +106,6 @@ function toChartPoints(points: any[]) {
     }));
 }
 
-// Map country codes to full country names
-function getCountryName(code: string): string {
-    const countryMap: Record<string, string> = {
-        // Common countries
-        "IN": "India",
-        "US": "United States",
-        "GB": "United Kingdom",
-        "CA": "Canada",
-        "AU": "Australia",
-        "DE": "Germany",
-        "FR": "France",
-        "IT": "Italy",
-        "ES": "Spain",
-        "NL": "Netherlands",
-        "BE": "Belgium",
-        "CH": "Switzerland",
-        "AT": "Austria",
-        "SE": "Sweden",
-        "NO": "Norway",
-        "DK": "Denmark",
-        "FI": "Finland",
-        "IE": "Ireland",
-        "PT": "Portugal",
-        "PL": "Poland",
-        "CZ": "Czech Republic",
-        "RO": "Romania",
-        "HU": "Hungary",
-        "GR": "Greece",
-        "BG": "Bulgaria",
-        "HR": "Croatia",
-        "SK": "Slovakia",
-        "SI": "Slovenia",
-        "LT": "Lithuania",
-        "LV": "Latvia",
-        "EE": "Estonia",
-        // Asia
-        "CN": "China",
-        "JP": "Japan",
-        "KR": "South Korea",
-        "SG": "Singapore",
-        "MY": "Malaysia",
-        "TH": "Thailand",
-        "ID": "Indonesia",
-        "PH": "Philippines",
-        "VN": "Vietnam",
-        "BD": "Bangladesh",
-        "PK": "Pakistan",
-        "NP": "Nepal",
-        "LK": "Sri Lanka",
-        "MM": "Myanmar",
-        "KH": "Cambodia",
-        "LA": "Laos",
-        "BN": "Brunei",
-        "TW": "Taiwan",
-        "HK": "Hong Kong",
-        "MO": "Macau",
-        // Middle East
-        "AE": "United Arab Emirates",
-        "SA": "Saudi Arabia",
-        "QA": "Qatar",
-        "KW": "Kuwait",
-        "BH": "Bahrain",
-        "OM": "Oman",
-        "IL": "Israel",
-        "TR": "Turkey",
-        "IR": "Iran",
-        "IQ": "Iraq",
-        "JO": "Jordan",
-        "LB": "Lebanon",
-        "SY": "Syria",
-        "YE": "Yemen",
-        // Africa
-        "ZA": "South Africa",
-        "EG": "Egypt",
-        "NG": "Nigeria",
-        "KE": "Kenya",
-        "GH": "Ghana",
-        "ET": "Ethiopia",
-        "TZ": "Tanzania",
-        "UG": "Uganda",
-        "MA": "Morocco",
-        "DZ": "Algeria",
-        "TN": "Tunisia",
-        "LY": "Libya",
-        // Americas
-        "MX": "Mexico",
-        "BR": "Brazil",
-        "AR": "Argentina",
-        "CL": "Chile",
-        "CO": "Colombia",
-        "PE": "Peru",
-        "VE": "Venezuela",
-        "EC": "Ecuador",
-        "BO": "Bolivia",
-        "PY": "Paraguay",
-        "UY": "Uruguay",
-        // Europe (continued)
-        "RU": "Russia",
-        "UA": "Ukraine",
-        "BY": "Belarus",
-        "MD": "Moldova",
-        "RS": "Serbia",
-        "BA": "Bosnia and Herzegovina",
-        "MK": "North Macedonia",
-        "AL": "Albania",
-        "ME": "Montenegro",
-        "XK": "Kosovo",
-        // Oceania
-        "NZ": "New Zealand",
-        "FJ": "Fiji",
-        "PG": "Papua New Guinea",
-        "NC": "New Caledonia",
-        "PF": "French Polynesia",
-    };
-
-    return countryMap[code.toUpperCase()] || code;
-}
-
 const chartColors = ["#2563eb", "#16a34a", "#f97316", "#e11d48", "#9333ea"];
 
 // Emptiness checks used to decide when to fall back to sample data.
@@ -261,6 +145,7 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
     const [posts, setPosts] = useState<any[]>([]);
     const [demographicsCountries, setDemographicsCountries] = useState<any[]>([]);
     const [demographicsCities, setDemographicsCities] = useState<any[]>([]);
+    const [contentTypesData, setContentTypesData] = useState<any[]>([]);
     const [clicksData, setClicksData] = useState<any>(null);
     const [reelsData, setReelsData] = useState<any>(null);
     const [storiesData, setStoriesData] = useState<any>(null);
@@ -332,14 +217,16 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
                         if (emptyOverview || emptyGrowth) setUsingMock(true);
                     }
                 } else if (activeSection === "demographics") {
-                    const [countriesRes, citiesRes] = await Promise.all([
+                    const [countriesRes, citiesRes, contentTypesRes] = await Promise.all([
                         fetchDemographicsCountries("facebook", { from, to, blogId }),
                         fetchDemographicsCities("facebook", { from, to, blogId }),
+                        fetchFacebookContentTypes({ from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
                         const countries = countriesRes.data?.data ?? countriesRes.data ?? [];
                         const cities = citiesRes.data?.data ?? citiesRes.data ?? [];
+                        const contentTypes = contentTypesRes.data?.data ?? contentTypesRes.data ?? [];
                         const emptyCountries = listIsEmpty(countries);
                         const emptyCities = listIsEmpty(cities);
                         setDemographicsCountries(
@@ -348,6 +235,7 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
                         setDemographicsCities(
                             emptyCities ? facebookDemographicsCitiesMock : cities
                         );
+                        setContentTypesData(contentTypes);
                         if (emptyCountries || emptyCities) setUsingMock(true);
                     }
                 } else if (activeSection === "page_views") {
@@ -934,6 +822,43 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
                                 </div>
                             )}
                         </div>
+                    </section>
+
+                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
+                        <header className="mb-4">
+                            <p className="text-sm font-normal text-gray-900">Content Types</p>
+                            <p className="text-xs text-gray-900">Share of posts by media type</p>
+                        </header>
+                        {contentTypesData.length > 0 ? (
+                            <div className="space-y-3">
+                                {contentTypesData
+                                    .slice()
+                                    .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                    .map((item, index) => (
+                                        <div key={item?.key ?? index} className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm font-normal text-gray-900">
+                                                    {item?.key ?? "—"}
+                                                </span>
+                                                <span className="text-sm font-normal text-gray-900">
+                                                    {(item?.value ?? 0).toFixed(1)}%
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full"
+                                                    style={{
+                                                        width: `${item?.value ?? 0}%`,
+                                                        backgroundColor: chartColors[index % chartColors.length],
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-900">No content type data available.</p>
+                        )}
                     </section>
                 </div>
             )}
