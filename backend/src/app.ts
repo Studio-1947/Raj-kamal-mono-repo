@@ -25,6 +25,7 @@ import { mountLokbhartiOfflineSales } from "./features/sales/server/lokbharti-of
 import { mountTotalOfflineSales } from "./features/sales/server/total-offline.index.js";
 import { notFound } from "./middleware/notFound.js";
 import { getLastSyncStatus } from "./features/sales/server/syncScheduler.js";
+import { getMetricoolHealth } from "./config/metricool.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger.js";
 
@@ -137,12 +138,26 @@ app.get("/health", (_req, res) => {
   // finishedAt means none has run since process start — not an alarm on its own.
   const STALE_MS = 26 * 60 * 60 * 1000;
   const stale = lastSync.finishedAt != null && Date.now() - new Date(lastSync.finishedAt).getTime() > STALE_MS;
+
+  const metricool = getMetricoolHealth();
+  // "unknown" until the first real Metricool call resolves (boot-time check or
+  // a real user request) — distinct from "failing" so a fresh restart doesn't
+  // read as broken before it's had a chance to prove itself either way.
+  const metricoolStatus = !metricool.configured
+    ? "unconfigured"
+    : !metricool.lastSuccessAt && !metricool.lastFailureAt
+      ? "unknown"
+      : metricool.lastFailureAt && (!metricool.lastSuccessAt || metricool.lastFailureAt > metricool.lastSuccessAt)
+        ? "failing"
+        : "ok";
+
   res.status(200).json({
     status: "OK",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || "development",
     sync: { ...lastSync, stale },
+    metricool: { ...metricool, status: metricoolStatus },
   });
 });
 

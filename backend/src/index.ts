@@ -2,6 +2,7 @@ import app from './app.js';
 import { prisma } from './lib/prisma.js';
 import { startSyncScheduler, runScheduledSync } from './features/sales/server/syncScheduler.js';
 import { ensureSyncLogTable } from './features/sales/server/syncLogStore.js';
+import { runMetricoolStartupCheck } from './services/metricoolService.js';
 
 const PORT = process.env.PORT || 4000;
 
@@ -16,6 +17,10 @@ app.listen(PORT, () => {
   // (VPS only; no-op unless ENABLE_SCHEDULED_SYNC=true).
   ensureSyncLogTable().catch((e) => console.error("[sync-log] ensure table failed:", e?.message || e));
   startSyncScheduler();
+
+  // One real call to Metricool at boot so a bad/expired token is a loud
+  // console error immediately, not a silent fallback discovered weeks later.
+  runMetricoolStartupCheck().catch((e) => console.error('[Metricool] startup check crashed:', e?.message || e));
 
   // Boot-time sync so data is fresh after a deploy/restart. VPS-only (this file isn't
   // used on Vercel), routes through runScheduledSync so it invalidates caches + logs to

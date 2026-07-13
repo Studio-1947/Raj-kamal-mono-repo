@@ -37,7 +37,7 @@ import {
 } from "./socialMockData";
 
 type TimeRangeKey = "7d" | "30d" | "90d";
-type FacebookSection = "page_overview" | "demographics" | "clicks_on_page" | "posts" | "reels" | "stories" | "competitors";
+type FacebookSection = "page_overview" | "demographics" | "page_views" | "posts" | "reels" | "stories" | "competitors";
 
 function computeRangeDates(key: TimeRangeKey) {
     const to = new Date();
@@ -245,9 +245,10 @@ function listIsEmpty(list: any[]) {
 interface FacebookViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
+    blogId?: string;
 }
 
-export default function FacebookView({ range, onRangeChange }: FacebookViewProps) {
+export default function FacebookView({ range, onRangeChange, blogId }: FacebookViewProps) {
     const [activeSection, setActiveSection] = useState<FacebookSection>("page_overview");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -266,7 +267,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
     const sections: { key: FacebookSection; label: string }[] = [
         { key: "page_overview", label: "PAGE OVERVIEW" },
         { key: "demographics", label: "DEMOGRAPHICS" },
-        { key: "clicks_on_page", label: "CLICKS ON PAGE" },
+        { key: "page_views", label: "PAGE VIEWS" },
         { key: "posts", label: "POSTS" },
         { key: "reels", label: "REELS" },
         { key: "stories", label: "STORIES" },
@@ -286,8 +287,8 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 // Load data based on active section to reduce parallel API calls
                 if (activeSection === "page_overview") {
                     const [overviewRes, growthRes] = await Promise.all([
-                        fetchOverview("facebook", { from, to }),
-                        fetchGrowth("facebook", { from, to }),
+                        fetchOverview("facebook", { from, to, blogId }),
+                        fetchGrowth("facebook", { from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
@@ -299,8 +300,8 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     }
                 } else if (activeSection === "demographics") {
                     const [countriesRes, citiesRes] = await Promise.all([
-                        fetchDemographicsCountries("facebook", { from, to }),
-                        fetchDemographicsCities("facebook", { from, to }),
+                        fetchDemographicsCountries("facebook", { from, to, blogId }),
+                        fetchDemographicsCities("facebook", { from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
@@ -316,11 +317,11 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         );
                         if (emptyCountries || emptyCities) setUsingMock(true);
                     }
-                } else if (activeSection === "clicks_on_page") {
+                } else if (activeSection === "page_views") {
                     const [clicksRes, overviewRes, growthRes] = await Promise.all([
-                        fetchClicks("facebook", { from, to }),
-                        fetchOverview("facebook", { from, to }),
-                        fetchGrowth("facebook", { from, to }),
+                        fetchClicks("facebook", { from, to, blogId }),
+                        fetchOverview("facebook", { from, to, blogId }),
+                        fetchGrowth("facebook", { from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
@@ -334,7 +335,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         if (emptyClicks || emptyOverview) setUsingMock(true);
                     }
                 } else if (activeSection === "posts") {
-                    const postsResRaw = await fetchPosts("facebook", { from, to, pageSize: 10 });
+                    const postsResRaw = await fetchPosts("facebook", { from, to, pageSize: 10, blogId });
 
                     if (!cancelled) {
                         const postsRes: any = postsResRaw;
@@ -352,7 +353,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         }
                     }
                 } else if (activeSection === "reels") {
-                    const reelsRes = await fetchFacebookReels({ from, to, pageSize: 10 });
+                    const reelsRes = await fetchFacebookReels({ from, to, pageSize: 10, blogId });
 
                     if (!cancelled) {
                         if (listIsEmpty(reelsRes.data?.items)) {
@@ -363,7 +364,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         }
                     }
                 } else if (activeSection === "stories") {
-                    const storiesRes = await fetchFacebookStories({ from, to, pageSize: 10 });
+                    const storiesRes = await fetchFacebookStories({ from, to, pageSize: 10, blogId });
 
                     if (!cancelled) {
                         if (listIsEmpty(storiesRes.data?.items)) {
@@ -374,7 +375,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                         }
                     }
                 } else if (activeSection === "competitors") {
-                    const competitorsRes = await fetchFacebookCompetitors({ from, to });
+                    const competitorsRes = await fetchFacebookCompetitors({ from, to, blogId });
 
                     if (!cancelled) {
                         if (listIsEmpty(competitorsRes.data?.items)) {
@@ -390,7 +391,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 // fall back to sample data so the layout still previews correctly.
                 if (!cancelled) {
                     setUsingMock(true);
-                    if (activeSection === "page_overview" || activeSection === "clicks_on_page") {
+                    if (activeSection === "page_overview" || activeSection === "page_views") {
                         setOverview(facebookOverviewMock(range));
                         setGrowth(facebookGrowthMock(range));
                         setClicksData(facebookClicksMock(range));
@@ -418,7 +419,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
         return () => {
             cancelled = true;
         };
-    }, [range, activeSection]); // Added activeSection to trigger data fetch when tab changes
+    }, [range, activeSection, blogId]);
 
     const networkFrom = overview?.from ?? growth?.from ?? clicksData?.from ?? "unknown";
     const networkTo = overview?.to ?? growth?.to ?? clicksData?.to ?? "unknown";
@@ -901,12 +902,12 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                 </div>
             )}
 
-            {/* CLICKS ON PAGE Section */}
-            {activeSection === "clicks_on_page" && (
+            {/* PAGE VIEWS Section */}
+            {activeSection === "page_views" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
                     <header className="mb-4">
                         <p className="text-sm font-normal text-gray-900">
-                            Clicks on Page
+                            Page Views
                         </p>
                         <p className="text-xs text-gray-900">
                             {networkFrom} → {networkTo}
@@ -916,7 +917,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                         <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-center shadow-inner border border-emerald-100">
-                            <p className="text-xs font-normal text-gray-900">Total clicks</p>
+                            <p className="text-xs font-normal text-gray-900">Total page views</p>
                             <p className="text-2xl font-normal text-gray-900">
                                 {formatNumber(
                                     clicksPoints.reduce((sum, point) => sum + (point.value || 0), 0),
@@ -960,7 +961,7 @@ export default function FacebookView({ range, onRangeChange }: FacebookViewProps
                                         <Line
                                             dataKey="value"
                                             data={clicksPoints}
-                                            name="Clicks"
+                                            name="Page views"
                                             stroke="#f59e0b"
                                             strokeWidth={2}
                                             dot={false}

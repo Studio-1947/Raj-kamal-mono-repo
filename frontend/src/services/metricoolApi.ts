@@ -1,9 +1,8 @@
 import { apiClient } from "../lib/apiClient";
 
-export type PlatformKey = "facebook" | "instagram";
+export type PlatformKey = "facebook" | "instagram" | "youtube";
 
-export type ConnectedNetworks = {
-  brandLabel: string | null;
+export type NetworkFlags = {
   facebook: boolean;
   instagram: boolean;
   youtube: boolean;
@@ -15,6 +14,12 @@ export type ConnectedNetworks = {
   pinterest: boolean;
   gmb: boolean;
   bluesky: boolean;
+};
+
+export type Brand = NetworkFlags & {
+  blogId: string;
+  label: string | null;
+  picture: string | null;
 };
 
 type ApiEnvelope<T> = { success: boolean; data: T; error?: any };
@@ -57,7 +62,11 @@ const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
     newFollowers: "page_daily_follows_unique",
     lostFollowers: "page_daily_unfollows_unique",
     reach: "page_posts_impressions",
-    clicks: "page_total_actions",
+    // page_total_actions/ctaClicks/page_website_clicks_logged_in_unique are all
+    // permanently empty on this account (Meta deprecated those click-tracking
+    // fields broadly) — page_media_view is the click-adjacent metric Meta still
+    // populates, confirmed against the live API.
+    clicks: "page_media_view",
   },
   instagram: {
     likes: "postsInteractions",
@@ -69,17 +78,24 @@ const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
     reach: "reach",
     clicks: "website_clicks",
   },
+  // YouTube uses dedicated fetchYoutubeOverview/fetchYoutubeGrowth functions
+  // below instead of these generic aliases (see comment there for why).
+  youtube: {},
 };
 
 const distributionMetricAliases: Record<PlatformKey, DistributionMetricMap> = {
   facebook: {
-    country: "followersByCountry", // Facebook uses 'followersByCountry' for distribution
-    city: "followersByCity", // Facebook uses 'followersByCity' for distribution
+    // followersByCountry/followersByCity are accepted by the API but return
+    // permanently empty data on this account — page_follows_country/city return
+    // real values, confirmed against the live API.
+    country: "page_follows_country",
+    city: "page_follows_city",
   },
   instagram: {
     country: "country", // Instagram uses simple 'country' for distribution
     city: "city", // Instagram uses simple 'city' for distribution
   },
+  youtube: {}, // Metricool's distribution/demographics endpoint 500s for youtube.
 };
 
 function extractSeriesValues(payload: any): TimelinePoint[] {
@@ -180,8 +196,8 @@ async function fetchDistributionMetric(
   });
 }
 
-export async function fetchConnectedNetworks(): Promise<ConnectedNetworks> {
-  return getMetricool<ConnectedNetworks>("/metricool/connected-networks");
+export async function fetchBrands(): Promise<Brand[]> {
+  return getMetricool<Brand[]>("/metricool/brands");
 }
 
 export async function fetchOverview(
@@ -314,6 +330,83 @@ export async function fetchClicks(
 ): Promise<{ data: any }> {
   const clicks = await fetchTimelineSeries(platform, "clicks", params);
   return { data: clicks };
+}
+
+// YouTube: Metricool only exposes channel-level timeline metrics for this
+// network (no per-video list, no demographics — confirmed against the live
+// API: /analytics/posts/youtube returns [] and /analytics/distribution
+// 500s as "not implemented" for youtube). So unlike Facebook/Instagram this
+// isn't routed through the generic PlatformKey aliases — it has its own
+// metric names entirely: totalSubscribers, views, totalVideos,
+// subscribersGained, subscribersLost.
+async function fetchYoutubeTimeline(
+  metric: string,
+  params?: Record<string, unknown>,
+) {
+  const { timezone, ...rest } = params ?? {};
+  return getMetricool<any>("/metricool/youtube/timeline", {
+    metric,
+    subject: "account",
+    timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    ...rest,
+  });
+}
+
+function sumSeriesValues(payload: any): number {
+  return extractSeriesValues(payload).reduce(
+    (sum, point) => sum + (typeof point.value === "number" ? point.value : 0),
+    0,
+  );
+}
+
+export type YoutubeOverview = {
+  subscribers: number | null;
+  views: number | null;
+  totalVideos: number | null;
+  from?: string;
+  to?: string;
+};
+
+export async function fetchYoutubeOverview(
+  params?: Record<string, unknown>,
+): Promise<{ data: YoutubeOverview }> {
+  const [subscribers, views, totalVideos] = await Promise.all([
+    fetchYoutubeTimeline("totalSubscribers", params),
+    fetchYoutubeTimeline("views", params),
+    fetchYoutubeTimeline("totalVideos", params),
+  ]);
+
+  return {
+    data: {
+      subscribers: extractLatestValue(subscribers),
+      views: sumSeriesValues(views),
+      totalVideos: sumSeriesValues(totalVideos),
+      from: params?.from as string,
+      to: params?.to as string,
+    },
+  };
+}
+
+export async function fetchYoutubeGrowth(
+  params?: Record<string, unknown>,
+): Promise<{ data: any }> {
+  const [subscribers, views, subscribersGained, subscribersLost] = await Promise.all([
+    fetchYoutubeTimeline("totalSubscribers", params),
+    fetchYoutubeTimeline("views", params),
+    fetchYoutubeTimeline("subscribersGained", params),
+    fetchYoutubeTimeline("subscribersLost", params),
+  ]);
+
+  return {
+    data: {
+      series: {
+        subscribers: extractSeriesValues(subscribers),
+        views: extractSeriesValues(views),
+        subscribersGained: extractSeriesValues(subscribersGained),
+        subscribersLost: extractSeriesValues(subscribersLost),
+      },
+    },
+  };
 }
 
 // Instagram section-specific data fetchers

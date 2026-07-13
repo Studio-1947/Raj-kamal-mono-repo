@@ -18,6 +18,44 @@ export const METRICOOL_ANALYTICS_DISTRIBUTION_PATH =
   "/api/v2/analytics/distribution";
 export const METRICOOL_ANALYTICS_TIMELINES_PATH = "/api/v2/analytics/timelines";
 
+// Tracks the outcome of every real Metricool call so /health can report live
+// connectivity without making an extra network call on every poll — a broken
+// token/blogId should surface here within seconds of the first real request,
+// instead of only showing up as a subtle "Sample data" badge deep in the UI.
+export type MetricoolHealthState = {
+  configured: boolean;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastErrorStatus: number | null;
+  lastErrorMessage: string | null;
+};
+
+const metricoolHealth: Omit<MetricoolHealthState, "configured"> = {
+  lastSuccessAt: null,
+  lastFailureAt: null,
+  lastErrorStatus: null,
+  lastErrorMessage: null,
+};
+
+export function getMetricoolHealth(): MetricoolHealthState {
+  return {
+    configured: Boolean(
+      METRICOOL_BASE_URL && METRICOOL_API_TOKEN && METRICOOL_USER_ID && METRICOOL_BLOG_ID,
+    ),
+    ...metricoolHealth,
+  };
+}
+
+function recordMetricoolSuccess() {
+  metricoolHealth.lastSuccessAt = new Date().toISOString();
+}
+
+function recordMetricoolFailure(status: number | null, message: string) {
+  metricoolHealth.lastFailureAt = new Date().toISOString();
+  metricoolHealth.lastErrorStatus = status;
+  metricoolHealth.lastErrorMessage = message;
+}
+
 // Optimized queue-based rate limiting with batching
 let requestQueue: Array<() => Promise<any>> = [];
 let isProcessingQueue = false;
@@ -278,12 +316,17 @@ export async function metricoolRequest<T = unknown>(
         metricoolCache.set(url, payload);
       }
 
+      recordMetricoolSuccess();
       return payload as T;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         const timeoutError = new Error("Metricool request timed out");
         (timeoutError as any).status = 504;
+        recordMetricoolFailure(504, timeoutError.message);
         throw timeoutError;
+      }
+      if (error instanceof Error) {
+        recordMetricoolFailure((error as any).status ?? null, error.message);
       }
       throw error;
     } finally {

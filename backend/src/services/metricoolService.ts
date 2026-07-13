@@ -1,8 +1,11 @@
 import {
   METRICOOL_ANALYTICS_DISTRIBUTION_PATH,
   METRICOOL_ANALYTICS_TIMELINES_PATH,
+  METRICOOL_API_TOKEN,
+  METRICOOL_BASE_URL,
   METRICOOL_BLOG_ID,
   METRICOOL_DEFAULT_TIMEZONE,
+  METRICOOL_USER_ID,
   metricoolRequest,
   buildMetricoolBaseParams,
 } from "../config/metricool.js";
@@ -30,6 +33,7 @@ export type DistributionParams = {
   timezone?: string | undefined;
   subject?: string | undefined;
   scope?: string | undefined;
+  blogId?: string | undefined;
 };
 
 export async function fetchDistribution(params: DistributionParams) {
@@ -55,6 +59,7 @@ export async function fetchDistribution(params: DistributionParams) {
     from: normalizeDateParam(params.from, "from"),
     to: normalizeDateParam(params.to, "to"),
     timezone: params.timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    blogId: params.blogId,
   };
 
   return metricoolRequest({
@@ -70,6 +75,7 @@ export type TimelineParams = {
   to?: string | undefined;
   timezone?: string | undefined;
   subject?: string | undefined;
+  blogId?: string | undefined;
 };
 
 export async function fetchTimeline(params: TimelineParams) {
@@ -81,6 +87,7 @@ export async function fetchTimeline(params: TimelineParams) {
     from: normalizeDateParam(params.from, "from"),
     to: normalizeDateParam(params.to, "to"),
     timezone: params.timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    blogId: params.blogId,
   };
 
   return metricoolRequest({
@@ -97,6 +104,7 @@ export async function fetchPosts(
     page?: number | undefined;
     pageSize?: number | undefined;
     subject?: string | undefined;
+    blogId?: string | undefined;
   },
 ) {
   const endpoint = `${METRICOOL_ANALYTICS_POSTS_BASE_PATH}/${network}`;
@@ -107,6 +115,7 @@ export async function fetchPosts(
       to: normalizeDateParam(options?.to, "to"),
       page: options?.page?.toString(),
       pageSize: options?.pageSize?.toString(),
+      blogId: options?.blogId,
     }),
   });
 }
@@ -121,6 +130,7 @@ export async function fetchCompetitors(
     to?: string | undefined;
     timezone?: string | undefined;
     limit?: number | undefined;
+    blogId?: string | undefined;
   },
 ) {
   const endpoint = `${METRICOOL_ANALYTICS_COMPETITORS_BASE_PATH}/${network}`;
@@ -131,6 +141,7 @@ export async function fetchCompetitors(
       to: normalizeDateParam(options?.to, "to"),
       timezone: options?.timezone ?? METRICOOL_DEFAULT_TIMEZONE,
       limit: options?.limit?.toString() ?? "1000",
+      blogId: options?.blogId,
     }),
   });
 }
@@ -138,6 +149,7 @@ export async function fetchCompetitors(
 type PublicBlog = {
   id: number;
   label?: string | null;
+  picture?: string | null;
   facebook?: string | null;
   instagram?: string | null;
   youtube?: string | null;
@@ -151,8 +163,7 @@ type PublicBlog = {
   bluesky?: string | null;
 };
 
-export type ConnectedNetworks = {
-  brandLabel: string | null;
+export type NetworkFlags = {
   facebook: boolean;
   instagram: boolean;
   youtube: boolean;
@@ -166,30 +177,18 @@ export type ConnectedNetworks = {
   bluesky: boolean;
 };
 
-/**
- * Resolves which social networks are actually connected to the configured
- * Metricool brand (METRICOOL_BLOG_ID), straight from Metricool's own brand
- * list — so tab visibility tracks what's connected in Metricool instead of
- * a hardcoded guess.
- */
-export async function fetchConnectedNetworks(): Promise<ConnectedNetworks> {
-  const brands = await metricoolRequest<PublicBlog[]>({
-    endpoint: METRICOOL_ADMIN_SIMPLE_PROFILES_PATH,
-    searchParams: buildMetricoolBaseParams(),
-  });
+export type ConnectedNetworks = NetworkFlags & {
+  brandLabel: string | null;
+};
 
-  const brand = Array.isArray(brands)
-    ? brands.find((b) => String(b.id) === String(METRICOOL_BLOG_ID))
-    : undefined;
+export type Brand = NetworkFlags & {
+  blogId: string;
+  label: string | null;
+  picture: string | null;
+};
 
-  if (!brand) {
-    throw new Error(
-      `Configured METRICOOL_BLOG_ID (${METRICOOL_BLOG_ID}) was not found in this Metricool account's brand list`,
-    );
-  }
-
+function toNetworkFlags(brand: PublicBlog): NetworkFlags {
   return {
-    brandLabel: brand.label ?? null,
     facebook: Boolean(brand.facebook),
     instagram: Boolean(brand.instagram),
     youtube: Boolean(brand.youtube),
@@ -202,4 +201,81 @@ export async function fetchConnectedNetworks(): Promise<ConnectedNetworks> {
     gmb: Boolean(brand.gmb),
     bluesky: Boolean(brand.bluesky),
   };
+}
+
+// simpleProfiles is cached 5 minutes by metricoolRequest, so listing all
+// brands and resolving a single brand's connected networks share one cheap
+// underlying call instead of hammering Metricool per lookup.
+async function fetchAllBrands(): Promise<PublicBlog[]> {
+  const brands = await metricoolRequest<PublicBlog[]>({
+    endpoint: METRICOOL_ADMIN_SIMPLE_PROFILES_PATH,
+    searchParams: buildMetricoolBaseParams(),
+  });
+  return Array.isArray(brands) ? brands : [];
+}
+
+/** All brands on this Metricool account, with their connected networks and logo. */
+export async function listBrands(): Promise<Brand[]> {
+  const brands = await fetchAllBrands();
+  return brands.map((brand) => ({
+    blogId: String(brand.id),
+    label: brand.label ?? null,
+    picture: brand.picture ?? null,
+    ...toNetworkFlags(brand),
+  }));
+}
+
+/**
+ * Resolves which social networks are actually connected for a given brand
+ * (defaults to METRICOOL_BLOG_ID), straight from Metricool's own brand list —
+ * so tab visibility tracks what's connected in Metricool instead of a
+ * hardcoded guess.
+ */
+export async function fetchConnectedNetworks(
+  blogId: string = METRICOOL_BLOG_ID,
+): Promise<ConnectedNetworks> {
+  const brands = await fetchAllBrands();
+  const brand = brands.find((b) => String(b.id) === String(blogId));
+
+  if (!brand) {
+    throw new Error(
+      `blogId (${blogId}) was not found in this Metricool account's brand list`,
+    );
+  }
+
+  return {
+    brandLabel: brand.label ?? null,
+    ...toNetworkFlags(brand),
+  };
+}
+
+/**
+ * Verifies the Metricool integration actually works, once, at process
+ * startup — so a bad token/userId/blogId is a loud console error at boot
+ * instead of a silent "Sample data" badge nobody notices for weeks.
+ */
+export async function runMetricoolStartupCheck(): Promise<void> {
+  if (!METRICOOL_BASE_URL || !METRICOOL_API_TOKEN || !METRICOOL_USER_ID || !METRICOOL_BLOG_ID) {
+    console.error(
+      "[Metricool] NOT CONFIGURED — missing one of METRICOOL_BASE_URL / METRICOOL_API_TOKEN / " +
+        "METRICOOL_USER_ID / METRICOOL_BLOG_ID. The Social Media dashboard will show sample data only.",
+    );
+    return;
+  }
+
+  try {
+    const networks = await fetchConnectedNetworks();
+    const connected = (
+      ["facebook", "instagram", "youtube", "meta_ads", "linkedin", "tiktok", "twitter", "threads", "pinterest", "gmb", "bluesky"] as const
+    ).filter((key) => networks[key]);
+    console.log(
+      `[Metricool] OK — connected to brand "${networks.brandLabel}" (blogId ${METRICOOL_BLOG_ID}). ` +
+        `Networks: ${connected.join(", ") || "none"}`,
+    );
+  } catch (error: any) {
+    console.error(
+      `[Metricool] STARTUP CHECK FAILED — token/userId/blogId may be wrong or expired. ` +
+        `Status: ${error?.status ?? "unknown"}. Message: ${error?.message ?? error}`,
+    );
+  }
 }

@@ -7,6 +7,7 @@ import {
   fetchPosts,
   fetchCompetitors,
   fetchConnectedNetworks,
+  listBrands,
 } from "../services/metricoolService.js";
 
 const router = express.Router();
@@ -32,6 +33,7 @@ const distributionQuerySchema = z.object({
   timezone: z.string().optional(),
   subject: z.string().optional(),
   scope: z.string().optional(),
+  blogId: z.string().optional(),
 });
 
 const timelineQuerySchema = z.object({
@@ -40,6 +42,7 @@ const timelineQuerySchema = z.object({
   to: z.string().optional(),
   timezone: z.string().optional(),
   subject: z.string().optional(),
+  blogId: z.string().optional(),
 });
 
 const postsQuerySchema = z.object({
@@ -48,6 +51,7 @@ const postsQuerySchema = z.object({
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),
   subject: z.string().optional(),
+  blogId: z.string().optional(),
 });
 
 const competitorsQuerySchema = z.object({
@@ -55,11 +59,27 @@ const competitorsQuerySchema = z.object({
   to: z.string().optional(),
   timezone: z.string().optional(),
   limit: z.coerce.number().optional(),
+  blogId: z.string().optional(),
 });
 
-router.get("/connected-networks", async (_req, res, next) => {
+const connectedNetworksQuerySchema = z.object({
+  blogId: z.string().optional(),
+});
+
+router.get("/brands", async (_req, res, next) => {
   try {
-    const data = await fetchConnectedNetworks();
+    const data = await listBrands();
+    res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
+    res.json({ success: true, data, error: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/connected-networks", async (req, res, next) => {
+  try {
+    const query = connectedNetworksQuerySchema.parse(req.query);
+    const data = await fetchConnectedNetworks(query.blogId);
     res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
     res.json({ success: true, data, error: null });
   } catch (error) {

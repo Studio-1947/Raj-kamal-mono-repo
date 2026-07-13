@@ -114,9 +114,10 @@ const instagramSectionMock: Record<string, any> = {
 interface InstagramViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
+    blogId?: string;
 }
 
-export default function InstagramView({ range, onRangeChange }: InstagramViewProps) {
+export default function InstagramView({ range, onRangeChange, blogId }: InstagramViewProps) {
     const [activeSection, setActiveSection] = useState<InstagramSection>("account");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -148,8 +149,8 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                 if (activeSection === "account") {
                     // Fetch overview and growth data for account overview
                     const [overviewRes, growthRes] = await Promise.all([
-                        fetchOverview("instagram", { from, to }),
-                        fetchGrowth("instagram", { from, to }),
+                        fetchOverview("instagram", { from, to, blogId }),
+                        fetchGrowth("instagram", { from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
@@ -165,19 +166,19 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
                     let result;
                     switch (activeSection) {
                         case "community":
-                            result = await fetchInstagramCommunity({ from, to });
+                            result = await fetchInstagramCommunity({ from, to, blogId });
                             break;
                         case "posts":
-                            result = await fetchInstagramPosts({ from, to });
+                            result = await fetchInstagramPosts({ from, to, blogId });
                             break;
                         case "reels":
-                            result = await fetchInstagramReels({ from, to });
+                            result = await fetchInstagramReels({ from, to, blogId });
                             break;
                         case "stories":
-                            result = await fetchInstagramStories({ from, to });
+                            result = await fetchInstagramStories({ from, to, blogId });
                             break;
                         case "competitors":
-                            result = await fetchInstagramCompetitors({ from, to });
+                            result = await fetchInstagramCompetitors({ from, to, blogId });
                             break;
                     }
 
@@ -229,7 +230,7 @@ export default function InstagramView({ range, onRangeChange }: InstagramViewPro
         return () => {
             cancelled = true;
         };
-    }, [activeSection, range]);
+    }, [activeSection, range, blogId]);
 
     // Helper function to normalize series data
     function normalizeSeries(seriesContainer: any, key: string): any[] {

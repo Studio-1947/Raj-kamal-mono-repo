@@ -212,3 +212,30 @@ export const instagramCompetitorsMock = {
     ],
     timeline: null as any,
 };
+
+/* -------------------------------------------------------------------------- */
+/*  YouTube                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export function youtubeOverviewMock(range: "7d" | "30d" | "90d") {
+    const { from, to } = isoRange(range);
+    return {
+        subscribers: 15600,
+        views: 42800,
+        totalVideos: 6,
+        from,
+        to,
+    };
+}
+
+export function youtubeGrowthMock(range: "7d" | "30d" | "90d") {
+    const days = rangeDays(range);
+    return {
+        series: {
+            subscribers: buildSeries(days, 15500, 40, 3),
+            views: buildSeries(days, 1400, 400, 8),
+            subscribersGained: buildSeries(days, 8, 4),
+            subscribersLost: buildSeries(days, 2, 1),
+        },
+    };
+}
