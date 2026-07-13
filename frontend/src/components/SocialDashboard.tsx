@@ -1,254 +1,54 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLang } from "../modules/lang/LangContext";
 import InstagramView from "./InstagramView";
 import FacebookView from "./FacebookView";
-import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import {
-    metaAdsOverviewMock,
-    metaAdsTimeseriesMock,
-    metaAdsCampaignsMock,
-} from "./socialMockData";
-import {
-    fetchAdsCampaigns,
-    fetchAdsOverview,
-    fetchAdsTimeseries,
-    fetchClicks,
-    fetchDemographicsCities,
-    fetchDemographicsCountries,
-    fetchGrowth,
-    fetchOverview,
-    fetchPosts,
+    fetchConnectedNetworks,
+    type ConnectedNetworks,
     type PlatformKey,
 } from "../services/metricoolApi";
-import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    Tooltip,
-    CartesianGrid,
-    ResponsiveContainer,
-} from "recharts";
-
-type TimelinePoint = { dateTime?: string; value?: number };
-
-type PostItem = {
-    id?: string;
-    message?: string;
-    mediaType?: string;
-    network?: string;
-    impressions?: number;
-    reach?: number;
-    likes?: number;
-    comments?: number;
-    shares?: number;
-    clicks?: number;
-    publishedAt?: string;
-};
-
-type CampaignItem = {
-    id?: string;
-    campaignName?: string;
-    objective?: string;
-    spend?: number;
-    status?: string;
-    startDate?: string;
-    endDate?: string;
-};
 
 type TimeRangeKey = "7d" | "30d" | "90d";
 
-function computeRangeDates(key: TimeRangeKey) {
-    const to = new Date();
-    const from = new Date();
-    if (key === "7d") {
-        from.setDate(to.getDate() - 7);
-    } else if (key === "30d") {
-        from.setDate(to.getDate() - 30);
-    } else {
-        from.setDate(to.getDate() - 90);
-    }
-    const isoFrom = from.toISOString().slice(0, 10);
-    const isoTo = to.toISOString().slice(0, 10);
-    return { from: isoFrom, to: isoTo };
-}
-
-function formatNumber(value?: number, fallback = "—") {
-    if (value === undefined || value === null || Number.isNaN(value)) {
-        return fallback;
-    }
-    return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-}
-
-function normalizeSeries(seriesContainer: any, key: string): TimelinePoint[] {
-    if (!seriesContainer) return [];
-    const candidate =
-        seriesContainer?.series?.[key] ??
-        seriesContainer?.data?.series?.[key] ??
-        seriesContainer?.[key];
-    if (!candidate) return [];
-    if (Array.isArray(candidate?.values)) {
-        return candidate.values;
-    }
-    if (Array.isArray(candidate)) {
-        return candidate;
-    }
-    return [];
-}
-
-function toChartPoints(points: TimelinePoint[]) {
-    return points.map((point) => ({
-        date: point.dateTime?.slice(0, 10) ?? "",
-        value: typeof point.value === "number" ? point.value : 0,
-    }));
-}
+// Networks we have a real dashboard view for. Metricool may have other
+// networks connected (YouTube, LinkedIn, etc.) but we only show a tab once
+// there's an actual view built for it — no "Coming Soon" placeholders.
+const IMPLEMENTED_NETWORKS: PlatformKey[] = ["facebook", "instagram"];
 
 export default function SocialDashboard() {
     const { t } = useLang();
 
     const [range, setRange] = useState<TimeRangeKey>("30d");
     const [activeNetwork, setActiveNetwork] = useState<PlatformKey>("facebook");
-
-    const [loading, setLoading] = useState(false);
-    const [adsUsingMock, setAdsUsingMock] = useState(false);
-
-    const [overview, setOverview] = useState<any>(null);
-    const [growth, setGrowth] = useState<any>(null);
-    const [posts, setPosts] = useState<PostItem[]>([]);
-    const [demographicsCountries, setDemographicsCountries] = useState<any[]>([]);
-    const [demographicsCities, setDemographicsCities] = useState<any[]>([]);
-    const [clicksData, setClicksData] = useState<any>(null);
-
-    const [adsOverview, setAdsOverview] = useState<any>(null);
-    const [adsTimeseries, setAdsTimeseries] = useState<any>(null);
-    const [adsCampaigns, setAdsCampaigns] = useState<CampaignItem[]>([]);
+    const [connected, setConnected] = useState<ConnectedNetworks | null>(null);
 
     useEffect(() => {
         let cancelled = false;
-
-        async function loadCritical() {
-            setLoading(true);
-            setAdsUsingMock(false);
-            try {
-                const { from, to } = computeRangeDates(range);
-
-                if (activeNetwork === "facebook" || activeNetwork === "instagram") {
-                    // 1. Critical Phase: Overview & Growth (Top Cards)
-                    const [overviewRes, growthRes] = await Promise.all([
-                        fetchOverview(activeNetwork, { from, to }),
-                        fetchGrowth(activeNetwork, { from, to }),
-                    ]);
-
-                    if (!cancelled) {
-                        setOverview(overviewRes.data ?? null);
-                        setGrowth(growthRes.data ?? null);
-                        setAdsOverview(null);
-                        setAdsTimeseries(null);
-                        setAdsCampaigns([]);
-                        setLoading(false); // Stop loading spinner after critical data
-                    }
-
-                    // 2. Secondary Phase: Charts, Posts, Demographics (Background)
-                    if (!cancelled) {
-                        Promise.all([
-                            fetchPosts(activeNetwork, { from, to, pageSize: 10 }),
-                            fetchDemographicsCountries(activeNetwork, { from, to }),
-                            fetchDemographicsCities(activeNetwork, { from, to }),
-                            fetchClicks(activeNetwork, { from, to }),
-                        ]).then(([postsResRaw, countriesRes, citiesRes, clicksRes]) => {
-                            if (cancelled) return;
-                            const postsRes: any = postsResRaw;
-                            const postItems =
-                                postsRes?.data?.items ??
-                                postsRes?.data?.data ??
-                                postsRes?.data ??
-                                postsRes ??
-                                [];
-                            setPosts(postItems as PostItem[]);
-                            setDemographicsCountries(
-                                countriesRes.data?.data ?? countriesRes.data ?? []
-                            );
-                            setDemographicsCities(
-                                citiesRes.data?.data ?? citiesRes.data ?? []
-                            );
-                            setClicksData(clicksRes.data ?? null);
-                        }).catch(err => console.warn("Secondary data fetch failed", err));
-                    }
-
-                } else if (activeNetwork === "meta_ads") {
-                    // 1. Critical Phase: Overview (Top Cards)
-                    const overviewRes = await fetchAdsOverview({ from, to });
-
-                    if (!cancelled) {
-                        const adsData = overviewRes.data;
-                        const emptyAds =
-                            !adsData ||
-                            (!adsData.spend && !adsData.impressions && !adsData.reach && !adsData.clicks);
-                        setAdsOverview(emptyAds ? metaAdsOverviewMock : adsData);
-                        if (emptyAds) setAdsUsingMock(true);
-                        setOverview(null);
-                        setGrowth(null);
-                        setPosts([]);
-                        setDemographicsCountries([]);
-                        setDemographicsCities([]);
-                        setClicksData(null);
-                        setLoading(false); // Stop loading spinner after critical data
-                    }
-
-                    // 2. Secondary Phase: Timeseries & Campaigns (Background)
-                    if (!cancelled) {
-                        Promise.all([
-                            fetchAdsTimeseries({ from, to }),
-                            fetchAdsCampaigns(),
-                        ]).then(([timeseriesRes, campaignsResRaw]) => {
-                            if (cancelled) return;
-                            const campaignsRes: any = campaignsResRaw;
-                            const campaigns =
-                                campaignsRes?.data?.items ??
-                                campaignsRes?.data?.data ??
-                                campaignsRes?.data ??
-                                campaignsRes ??
-                                [];
-                            const tsContainer =
-                                timeseriesRes.data?.series ?? timeseriesRes.data?.data?.series ?? timeseriesRes.data;
-                            const emptyTs = !tsContainer?.spend && !tsContainer?.impressions && !tsContainer?.clicks;
-                            const emptyCampaigns = !Array.isArray(campaigns) || campaigns.length === 0;
-                            setAdsTimeseries(emptyTs ? metaAdsTimeseriesMock(range) : timeseriesRes.data);
-                            setAdsCampaigns(emptyCampaigns ? metaAdsCampaignsMock : campaigns);
-                            if (emptyTs || emptyCampaigns) setAdsUsingMock(true);
-                        }).catch(() => {
-                            if (cancelled) return;
-                            setAdsTimeseries(metaAdsTimeseriesMock(range));
-                            setAdsCampaigns(metaAdsCampaignsMock);
-                            setAdsUsingMock(true);
-                        });
-                    }
-                }
-            } catch {
-                // Live data failed (offline backend, rate limit, not connected):
-                // handle silently and fall back to sample data so the layout still
-                // previews correctly — never surface the raw error to users.
-                if (!cancelled) {
-                    if (activeNetwork === "meta_ads") {
-                        setAdsOverview(metaAdsOverviewMock);
-                        setAdsTimeseries(metaAdsTimeseriesMock(range));
-                        setAdsCampaigns(metaAdsCampaignsMock);
-                        setAdsUsingMock(true);
-                    }
-                    // Facebook/Instagram render via their own child views, which
-                    // already fall back to sample data on failure.
-                    setLoading(false);
-                }
-            }
-        }
-
-        loadCritical();
+        fetchConnectedNetworks()
+            .then((data) => {
+                if (!cancelled) setConnected(data);
+            })
+            .catch((err) => {
+                console.warn("Failed to load connected Metricool networks", err);
+                if (!cancelled) setConnected(null);
+            });
         return () => {
             cancelled = true;
         };
-    }, [activeNetwork, range]);
+    }, []);
 
-    const headerTabs: PlatformKey[] = ["facebook", "instagram", "meta_ads"];
+    // Fail open: if the connected-networks check itself fails, still show
+    // every implemented tab rather than blanking the dashboard.
+    const headerTabs: PlatformKey[] = connected
+        ? IMPLEMENTED_NETWORKS.filter((key) => connected[key])
+        : IMPLEMENTED_NETWORKS;
+
+    useEffect(() => {
+        if (headerTabs.length > 0 && !headerTabs.includes(activeNetwork)) {
+            setActiveNetwork(headerTabs[0]);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [headerTabs.join(",")]);
 
     return (
         <div className="flex flex-col gap-6">
@@ -258,7 +58,7 @@ export default function SocialDashboard() {
                         {t("social_media")}
                     </h1>
                     <p className="mt-1 text-sm text-gray-600">
-                        Metricool analytics for Facebook, Instagram, and Meta Ads.
+                        Metricool analytics for {connected?.brandLabel || "your connected accounts"}.
                     </p>
                 </div>
                 <div className="flex flex-col items-stretch gap-2 sm:items-end">
@@ -271,7 +71,7 @@ export default function SocialDashboard() {
                                 className={`px-3 py-1 rounded-full capitalize ${activeNetwork === key ? "bg-white shadow-sm" : ""
                                     }`}
                             >
-                                {key === "meta_ads" ? "Meta Ads" : key}
+                                {key}
                             </button>
                         ))}
                     </div>
@@ -291,184 +91,19 @@ export default function SocialDashboard() {
                 </div>
             </div>
 
-            {
-                loading && (
-                    <LoadingSpinner
-                        size="lg"
-                        message={`Loading ${activeNetwork} metrics...`}
-                    />
-                )
-            }
+            {headerTabs.length === 0 && (
+                <div className="rounded-3xl border border-black/5 bg-white shadow-sm p-6 text-sm text-gray-600">
+                    No connected social accounts were found for this brand in Metricool.
+                </div>
+            )}
 
-            {
-                activeNetwork === "instagram" && (
-                    <InstagramView range={range} onRangeChange={setRange} />
-                )
-            }
+            {headerTabs.includes(activeNetwork) && activeNetwork === "instagram" && (
+                <InstagramView range={range} onRangeChange={setRange} />
+            )}
 
-            {
-                activeNetwork === "facebook" && (
-                    <FacebookView range={range} onRangeChange={setRange} />
-                )
-            }
-
-
-            {
-                activeNetwork === "meta_ads" && (
-                    <div className="space-y-6">
-                        {!loading && adsUsingMock && (
-                            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-800">
-                                <SampleDataBadge />
-                                <span>
-                                    Live Meta Ads metrics aren't available right now — showing sample
-                                    data so you can preview how this section looks.
-                                </span>
-                            </div>
-                        )}
-                        <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                            <header className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-normal text-gray-900">
-                                        Meta Ads Overview
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                        Spend, impressions, reach, clicks, conversions
-                                    </p>
-                                </div>
-                                <p className="text-xs text-gray-500">{range.toUpperCase()}</p>
-                            </header>
-                            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                {[
-                                    { label: "Spend", value: adsOverview?.spend, suffix: "₹" },
-                                    { label: "Impressions", value: adsOverview?.impressions },
-                                    { label: "Reach", value: adsOverview?.reach },
-                                    { label: "Clicks", value: adsOverview?.clicks },
-                                    { label: "CTR", value: adsOverview?.ctr, suffix: "%" },
-                                    { label: "CPC", value: adsOverview?.cpc, suffix: "₹" },
-                                    { label: "Conversions", value: adsOverview?.conversions },
-                                    { label: "ROAS", value: adsOverview?.roas },
-                                ].map((card, index) => (
-                                    <div
-                                        key={index}
-                                        className="rounded-2xl bg-sky-50 px-4 py-3 text-center shadow-inner border border-sky-100"
-                                    >
-                                        <p className="text-xs font-normal text-gray-500">
-                                            {card.label}
-                                        </p>
-                                        <p className="text-xl font-normal text-gray-900">
-                                            {card.suffix
-                                                ? `${formatNumber(card.value)} ${card.suffix}`
-                                                : formatNumber(card.value)}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-
-                        <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5 space-y-4">
-                            <header className="flex items-center justify-between">
-                                <p className="text-sm font-normal text-gray-900">
-                                    Ads performance over time
-                                </p>
-                                <p className="text-xs text-gray-500">Spend vs impressions vs clicks</p>
-                            </header>
-                            <div className="h-64">
-                                {adsTimeseries ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                            <XAxis
-                                                dataKey="date"
-                                                type="category"
-                                                allowDuplicatedCategory={false}
-                                                tick={{ fontSize: 10 }}
-                                                tickMargin={6}
-                                            />
-                                            <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                            <Tooltip
-                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                            />
-                                            <Line
-                                                dataKey="value"
-                                                data={toChartPoints(normalizeSeries(adsTimeseries, "spend"))}
-                                                name="Spend"
-                                                stroke="#0ea5e9"
-                                                dot={false}
-                                            />
-                                            <Line
-                                                dataKey="value"
-                                                data={toChartPoints(
-                                                    normalizeSeries(adsTimeseries, "impressions")
-                                                )}
-                                                name="Impressions"
-                                                stroke="#f97316"
-                                                dot={false}
-                                            />
-                                            <Line
-                                                dataKey="value"
-                                                data={toChartPoints(normalizeSeries(adsTimeseries, "clicks"))}
-                                                name="Clicks"
-                                                stroke="#16a34a"
-                                                dot={false}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <p className="text-sm text-gray-500">No ads data yet.</p>
-                                )}
-                            </div>
-                        </section>
-
-                        <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                            <header className="flex items-center justify-between">
-                                <p className="text-sm font-normal text-gray-900">Campaigns</p>
-                                <p className="text-xs text-gray-500">Spend, objective, status overview</p>
-                            </header>
-                            <div className="overflow-x-auto mt-4">
-                                {adsCampaigns.length ? (
-                                    <table className="min-w-full text-xs">
-                                        <thead>
-                                            <tr className="text-left text-gray-500">
-                                                <th className="py-2 pr-2">Campaign</th>
-                                                <th className="py-2 pr-2">Objective</th>
-                                                <th className="py-2 pr-2 text-right">Spend</th>
-                                                <th className="py-2 pr-2">Status</th>
-                                                <th className="py-2 pr-2">Dates</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {adsCampaigns.map((campaign) => (
-                                                <tr key={campaign.id} className="border-t border-gray-100">
-                                                    <td className="py-2 pr-2 text-gray-900">
-                                                        {campaign.campaignName || campaign.id}
-                                                    </td>
-                                                    <td className="py-2 pr-2 text-gray-700">
-                                                        {campaign.objective || "—"}
-                                                    </td>
-                                                    <td className="py-2 pr-2 text-right">
-                                                        {formatNumber(campaign.spend)}
-                                                    </td>
-                                                    <td className="py-2 pr-2 text-gray-700">
-                                                        {campaign.status || "—"}
-                                                    </td>
-                                                    <td className="py-2 pr-2 text-gray-500">
-                                                        {campaign.startDate || "?"} - {campaign.endDate || "?"}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                ) : (
-                                    <p className="text-sm text-gray-500">
-                                        No campaigns returned by Meta Ads API.
-                                    </p>
-                                )}
-                            </div>
-                        </section>
-                    </div>
-                )
-            }
+            {headerTabs.includes(activeNetwork) && activeNetwork === "facebook" && (
+                <FacebookView range={range} onRangeChange={setRange} />
+            )}
         </div>
     );
 }

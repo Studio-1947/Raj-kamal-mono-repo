@@ -10,7 +10,6 @@ import sessionRoutes from "./routes/sessions.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import inventoryRoutes from "./routes/inventory.js";
 import rankingsRoutes from "./routes/rankings.js";
-import socialRoutes from "./routes/social.js";
 import metricoolRoutes from "./routes/metricool.js";
 import syncLogsRoutes from "./routes/syncLogs.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -201,7 +200,6 @@ app.use("/api/sync-logs", syncLogsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/rankings", rankingsRoutes);
-app.use("/api/social", socialRoutes);
 app.use("/api/metricool", metricoolRoutes);
 // Sales APIs (features)
 mountOnlineSales(app, "/api/online-sales");

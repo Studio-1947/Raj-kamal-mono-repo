@@ -6,6 +6,7 @@ import {
   fetchTimeline,
   fetchPosts,
   fetchCompetitors,
+  fetchConnectedNetworks,
 } from "../services/metricoolService.js";
 
 const router = express.Router();
@@ -54,6 +55,16 @@ const competitorsQuerySchema = z.object({
   to: z.string().optional(),
   timezone: z.string().optional(),
   limit: z.coerce.number().optional(),
+});
+
+router.get("/connected-networks", async (_req, res, next) => {
+  try {
+    const data = await fetchConnectedNetworks();
+    res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
+    res.json({ success: true, data, error: null });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get("/:network/distribution", async (req, res, next) => {

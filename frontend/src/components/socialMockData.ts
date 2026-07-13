@@ -212,36 +212,3 @@ export const instagramCompetitorsMock = {
     ],
     timeline: null as any,
 };
-
-/* -------------------------------------------------------------------------- */
-/*  Meta Ads                                                                  */
-/* -------------------------------------------------------------------------- */
-
-export const metaAdsOverviewMock = {
-    spend: 184200,
-    impressions: 1240000,
-    reach: 682000,
-    clicks: 28400,
-    ctr: 2.29,
-    cpc: 6.49,
-    conversions: 1420,
-    roas: 4.8,
-};
-
-export function metaAdsTimeseriesMock(range: "7d" | "30d" | "90d") {
-    const days = rangeDays(range);
-    return {
-        series: {
-            spend: { values: buildSeries(days, 6200, 1400, 20) },
-            impressions: { values: buildSeries(days, 41000, 9000, 200) },
-            clicks: { values: buildSeries(days, 940, 320, 6) },
-        },
-    };
-}
-
-export const metaAdsCampaignsMock = [
-    { id: "camp-1", campaignName: "New Release Launch — Prospecting", objective: "CONVERSIONS", spend: 72400, status: "ACTIVE", startDate: "2026-06-01", endDate: "2026-06-30" },
-    { id: "camp-2", campaignName: "Retargeting — Cart Abandoners", objective: "CONVERSIONS", spend: 48100, status: "ACTIVE", startDate: "2026-06-05", endDate: "2026-06-30" },
-    { id: "camp-3", campaignName: "Book Fair Awareness — Reels", objective: "REACH", spend: 36200, status: "PAUSED", startDate: "2026-05-15", endDate: "2026-06-15" },
-    { id: "camp-4", campaignName: "Bestsellers Catalogue — Traffic", objective: "TRAFFIC", spend: 27500, status: "ACTIVE", startDate: "2026-06-10", endDate: "2026-07-10" },
-];

@@ -86,11 +86,17 @@ function overviewIsEmpty(data: any) {
     );
 }
 
+function asSeriesArray(candidate: any): any[] {
+    if (Array.isArray(candidate)) return candidate;
+    if (Array.isArray(candidate?.values)) return candidate.values;
+    return [];
+}
+
 function growthIsEmpty(data: any) {
     const container = data?.series ?? data?.data?.series ?? data;
-    const imp = container?.impressions?.values ?? container?.impressions;
-    const fol = container?.followers?.values ?? container?.followers;
-    return !(Array.isArray(imp) && imp.length) && !(Array.isArray(fol) && fol.length);
+    const imp = asSeriesArray(container?.impressions);
+    const fol = asSeriesArray(container?.followers);
+    return imp.length === 0 && fol.length === 0;
 }
 
 function sectionDataIsEmpty(data: any) {

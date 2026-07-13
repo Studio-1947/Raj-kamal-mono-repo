@@ -1,6 +1,21 @@
 import { apiClient } from "../lib/apiClient";
 
-export type PlatformKey = "facebook" | "instagram" | "meta_ads";
+export type PlatformKey = "facebook" | "instagram";
+
+export type ConnectedNetworks = {
+  brandLabel: string | null;
+  facebook: boolean;
+  instagram: boolean;
+  youtube: boolean;
+  meta_ads: boolean;
+  linkedin: boolean;
+  tiktok: boolean;
+  twitter: boolean;
+  threads: boolean;
+  pinterest: boolean;
+  gmb: boolean;
+  bluesky: boolean;
+};
 
 type ApiEnvelope<T> = { success: boolean; data: T; error?: any };
 
@@ -54,7 +69,6 @@ const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
     reach: "reach",
     clicks: "website_clicks",
   },
-  meta_ads: {},
 };
 
 const distributionMetricAliases: Record<PlatformKey, DistributionMetricMap> = {
@@ -66,7 +80,6 @@ const distributionMetricAliases: Record<PlatformKey, DistributionMetricMap> = {
     country: "country", // Instagram uses simple 'country' for distribution
     city: "city", // Instagram uses simple 'city' for distribution
   },
-  meta_ads: {},
 };
 
 function extractSeriesValues(payload: any): TimelinePoint[] {
@@ -167,14 +180,14 @@ async function fetchDistributionMetric(
   });
 }
 
+export async function fetchConnectedNetworks(): Promise<ConnectedNetworks> {
+  return getMetricool<ConnectedNetworks>("/metricool/connected-networks");
+}
+
 export async function fetchOverview(
   platform: PlatformKey,
   params?: Record<string, unknown>,
 ) {
-  if (platform === "meta_ads") {
-    return { data: null };
-  }
-
   const [likes, followers, impressions, reach, pageVisits, posts] =
     await Promise.all([
       fetchTimelineSeries(platform, "likes", params),
@@ -230,10 +243,6 @@ export async function fetchGrowth(
   platform: PlatformKey,
   params?: Record<string, unknown>,
 ) {
-  if (platform === "meta_ads") {
-    return { data: null };
-  }
-
   const [
     impressions,
     reach,
@@ -270,9 +279,6 @@ export async function fetchPosts(
   platform: PlatformKey,
   params?: Record<string, unknown>,
 ): Promise<{ data: any }> {
-  if (platform === "meta_ads") {
-    return { data: { items: [] } };
-  }
   const data = await getMetricool<any>(
     "/metricool/" + platform + "/posts",
     params,
@@ -284,9 +290,6 @@ export async function fetchDemographicsCountries(
   platform: PlatformKey,
   params?: Record<string, unknown>,
 ) {
-  if (platform === "meta_ads") {
-    return { data: { data: [] } };
-  }
   const metric = resolveDistributionMetric(platform, "country");
   const data = await fetchDistributionMetric(platform, metric, {
     ...params,
@@ -298,9 +301,6 @@ export async function fetchDemographicsCities(
   platform: PlatformKey,
   params?: Record<string, unknown>,
 ) {
-  if (platform === "meta_ads") {
-    return { data: { data: [] } };
-  }
   const metric = resolveDistributionMetric(platform, "city");
   const data = await fetchDistributionMetric(platform, metric, {
     ...params,
@@ -312,67 +312,8 @@ export async function fetchClicks(
   platform: PlatformKey,
   params?: Record<string, unknown>,
 ): Promise<{ data: any }> {
-  if (platform === "meta_ads") {
-    return { data: null };
-  }
   const clicks = await fetchTimelineSeries(platform, "clicks", params);
   return { data: clicks };
-}
-
-export async function fetchAdsOverview(
-  params?: Record<string, unknown>,
-): Promise<{ data: any }> {
-  const [spend, impressions, reach, clicks, ctr, cpc, conversions, roas] =
-    await Promise.all([
-      fetchTimelineSeries("meta_ads", "spend", params),
-      fetchTimelineSeries("meta_ads", "impressions", params),
-      fetchTimelineSeries("meta_ads", "reach", params),
-      fetchTimelineSeries("meta_ads", "clicks", params),
-      fetchTimelineSeries("meta_ads", "ctr", params),
-      fetchTimelineSeries("meta_ads", "cpc", params),
-      fetchTimelineSeries("meta_ads", "conversions", params),
-      fetchTimelineSeries("meta_ads", "roas", params),
-    ]);
-
-  return {
-    data: {
-      spend: extractLatestValue(spend),
-      impressions: extractLatestValue(impressions),
-      reach: extractLatestValue(reach),
-      clicks: extractLatestValue(clicks),
-      ctr: extractLatestValue(ctr),
-      cpc: extractLatestValue(cpc),
-      conversions: extractLatestValue(conversions),
-      roas: extractLatestValue(roas),
-    },
-  };
-}
-
-export async function fetchAdsTimeseries(
-  params?: Record<string, unknown>,
-): Promise<{ data: any }> {
-  const [spend, impressions, clicks] = await Promise.all([
-    fetchTimelineSeries("meta_ads", "spend", params),
-    fetchTimelineSeries("meta_ads", "impressions", params),
-    fetchTimelineSeries("meta_ads", "clicks", params),
-  ]);
-
-  return {
-    data: {
-      series: {
-        spend: extractSeriesValues(spend),
-        impressions: extractSeriesValues(impressions),
-        clicks: extractSeriesValues(clicks),
-      },
-    },
-  };
-}
-
-export async function fetchAdsCampaigns(
-  params?: Record<string, unknown>,
-): Promise<{ data: any[] }> {
-  const data = await getMetricool<any>("/metricool/meta_ads/posts", params);
-  return { data: data?.items ?? data?.data?.items ?? [] };
 }
 
 // Instagram section-specific data fetchers

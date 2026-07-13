@@ -9,33 +9,14 @@ const metricoolCache = new TtlCache<any>(5 * 60 * 1000);
 
 export const METRICOOL_BASE_URL = process.env.METRICOOL_BASE_URL ?? "";
 export const METRICOOL_API_TOKEN = process.env.METRICOOL_API_TOKEN ?? "";
-export const METRICOOL_BRAND_ID = process.env.METRICOOL_BRAND_ID;
 export const METRICOOL_DEFAULT_TIMEZONE =
   process.env.METRICOOL_DEFAULT_TIMEZONE ?? "Asia/Kolkata";
 export const METRICOOL_USER_ID = process.env.METRICOOL_USER_ID ?? "";
 export const METRICOOL_BLOG_ID = process.env.METRICOOL_BLOG_ID ?? "";
 
-export const METRICOOL_ANALYTICS_ENDPOINT_OVERVIEW =
-  "<FILL_METRICOOL_ANALYTICS_ENDPOINT_OVERVIEW>";
-export const METRICOOL_ANALYTICS_ENDPOINT_FACEBOOK =
-  "<FILL_METRICOOL_ANALYTICS_ENDPOINT_FACEBOOK>";
-export const METRICOOL_ANALYTICS_ENDPOINT_INSTAGRAM =
-  "<FILL_METRICOOL_ANALYTICS_ENDPOINT_INSTAGRAM>";
-export const METRICOOL_ANALYTICS_ENDPOINT_TWITTER =
-  "<FILL_METRICOOL_ANALYTICS_ENDPOINT_TWITTER>";
-export const METRICOOL_ANALYTICS_ENDPOINT_LINKEDIN =
-  "<FILL_METRICOOL_ANALYTICS_ENDPOINT_LINKEDIN>";
-export const METRICOOL_ANALYTICS_ENDPOINT_YOUTUBE =
-  "<FILL_METRICOOL_ANALYTICS_ENDPOINT_YOUTUBE>";
-export const METRICOOL_ANALYTICS_ENDPOINT_TIKTOK =
-  "<FILL_METRICOOL_ANALYTICS_ENDPOINT_TIKTOK>";
-
 export const METRICOOL_ANALYTICS_DISTRIBUTION_PATH =
   "/api/v2/analytics/distribution";
 export const METRICOOL_ANALYTICS_TIMELINES_PATH = "/api/v2/analytics/timelines";
-
-// Admin / profile info (confirmed working from Postman)
-export const METRICOOL_ADMIN_PROFILE_PATH = "/api/admin/profile";
 
 // Optimized queue-based rate limiting with batching
 let requestQueue: Array<() => Promise<any>> = [];
@@ -309,45 +290,4 @@ export async function metricoolRequest<T = unknown>(
       clearTimeout(timeout);
     }
   });
-}
-
-export type MetricoolAnalyticsParams = {
-  from?: string | null;
-  to?: string | null;
-  metric: string;
-  network: string;
-  timezone?: string;
-  subject?: string;
-};
-
-export function buildMetricoolAnalyticsParams(
-  params: MetricoolAnalyticsParams,
-): Record<string, string> {
-  if (!METRICOOL_USER_ID || !METRICOOL_BLOG_ID || !METRICOOL_API_TOKEN) {
-    throw new Error(
-      "Missing METRICOOL_USER_ID, METRICOOL_BLOG_ID or METRICOOL_API_TOKEN",
-    );
-  }
-
-  const searchParams: Record<string, string> = {
-    metric: params.metric,
-    network: params.network,
-    userId: METRICOOL_USER_ID,
-    blogId: METRICOOL_BLOG_ID,
-    userToken: METRICOOL_API_TOKEN,
-  };
-
-  if (params.from) {
-    searchParams.from = params.from;
-  }
-  if (params.to) {
-    searchParams.to = params.to;
-  }
-  if (params.timezone) {
-    searchParams.timezone = params.timezone;
-  }
-
-  searchParams.subject = params.subject || "account";
-
-  return searchParams;
 }
