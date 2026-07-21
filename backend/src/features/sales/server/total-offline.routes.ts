@@ -1751,7 +1751,16 @@ router.get('/channel-list', async (req, res) => {
     if (req.query.author)       where.author       = { contains: req.query.author as string,       mode: 'insensitive' };
     if (req.query.isbn)         where.isbn         = { contains: req.query.isbn as string,         mode: 'insensitive' };
     if (req.query.customerName) where.customerName = { contains: req.query.customerName as string, mode: 'insensitive' };
-    if (req.query.title)        where.title        = { contains: req.query.title as string,        mode: 'insensitive' };
+    if (req.query.title) {
+      const titleStr = req.query.title as string;
+      const match = titleStr.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        where.title = { equals: (match[1] ?? '').trim().replace(/\s+/g, ' '), mode: 'insensitive' };
+        where.binding = { equals: (match[2] ?? '').trim().replace(/\s+/g, ' '), mode: 'insensitive' };
+      } else {
+        where.title = { equals: titleStr.trim().replace(/\s+/g, ' '), mode: 'insensitive' };
+      }
+    }
     if (req.query.type)         where.type         = { contains: req.query.type as string,         mode: 'insensitive' };
 
     if (req.query.binding) {
@@ -1829,7 +1838,16 @@ router.get('/channel-counts', async (req, res) => {
       if (bts.length === 1) where.binding = { contains: bts[0], mode: 'insensitive' };
       else if (bts.length > 1) where.OR = bts.map(b => ({ binding: { contains: b, mode: 'insensitive' } }));
     }
-    if (req.query.title) where.title = { contains: req.query.title as string, mode: 'insensitive' };
+    if (req.query.title) {
+      const titleStr = req.query.title as string;
+      const match = titleStr.match(/^(.*)\s\(([^)]+)\)$/);
+      if (match) {
+        where.title = { equals: (match[1] ?? '').trim().replace(/\s+/g, ' '), mode: 'insensitive' };
+        where.binding = { equals: (match[2] ?? '').trim().replace(/\s+/g, ' '), mode: 'insensitive' };
+      } else {
+        where.title = { equals: titleStr.trim().replace(/\s+/g, ' '), mode: 'insensitive' };
+      }
+    }
     if (req.query.type)  where.type  = { contains: req.query.type  as string, mode: 'insensitive' };
     if (req.query.isbn)  where.isbn  = { contains: req.query.isbn  as string, mode: 'insensitive' };
     if (req.query.minAmount) where.amount = { ...(where.amount ?? {}), gte: Number(req.query.minAmount) };

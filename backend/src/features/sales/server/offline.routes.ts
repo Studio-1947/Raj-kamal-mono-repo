@@ -374,10 +374,10 @@ router.get("/summary", async (req, res) => {
       const match = title.match(/^(.*)\s\(([^)]+)\)$/);
       if (match) {
         const [_, t, b] = match;
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
-        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+        conditions.push(Prisma.sql`LOWER("title") = LOWER(${(t ?? "").trim()})`);
+        conditions.push(Prisma.sql`LOWER("binding") = LOWER(${(b ?? "").trim()})`);
       } else {
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+        conditions.push(Prisma.sql`LOWER("title") = LOWER(${title.trim()})`);
       }
     }
     if (parsed.data.type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(parsed.data.type)}`);
@@ -410,10 +410,10 @@ router.get("/summary", async (req, res) => {
       const match = title.match(/^(.*)\s\(([^)]+)\)$/);
       if (match) {
         const [_, t, b] = match;
-        itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
-        itemConditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+        itemConditions.push(Prisma.sql`LOWER("title") = LOWER(${(t ?? "").trim()})`);
+        itemConditions.push(Prisma.sql`LOWER("binding") = LOWER(${(b ?? "").trim()})`);
       } else {
-        itemConditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+        itemConditions.push(Prisma.sql`LOWER("title") = LOWER(${title.trim()})`);
       }
     }
     if (minAmount != null) itemConditions.push(Prisma.sql`"amount" >= ${minAmount}`);
@@ -694,10 +694,10 @@ router.get("/counts", async (req, res) => {
     if (title) {
       const match = title.match(/^(.*)\s\(([^)]+)\)$/);
       if (match) {
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((match[1] ?? '').trim())}`);
-        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((match[2] ?? '').trim())}`);
+        conditions.push(Prisma.sql`LOWER("title") = LOWER(${(match[1] ?? "").trim()})`);
+        conditions.push(Prisma.sql`LOWER("binding") = LOWER(${(match[2] ?? "").trim()})`);
       } else {
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+        conditions.push(Prisma.sql`LOWER("title") = LOWER(${title.trim()})`);
       }
     }
     if (type) conditions.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
@@ -741,10 +741,10 @@ router.get("/counts", async (req, res) => {
     if (title) {
       const match2 = title.match(/^(.*)\s\(([^)]+)\)$/);
       if (match2) {
-        conditionsForBinding.push(Prisma.sql`"title" ~* ${toTokenRegex((match2[1] ?? '').trim())}`);
-        conditionsForBinding.push(Prisma.sql`"binding" ~* ${toTokenRegex((match2[2] ?? '').trim())}`);
+        conditionsForBinding.push(Prisma.sql`LOWER("title") = LOWER(${(match2[1] ?? "").trim()})`);
+        conditionsForBinding.push(Prisma.sql`LOWER("binding") = LOWER(${(match2[2] ?? "").trim()})`);
       } else {
-        conditionsForBinding.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+        conditionsForBinding.push(Prisma.sql`LOWER("title") = LOWER(${title.trim()})`);
       }
     }
     if (type) conditionsForBinding.push(Prisma.sql`"type" ~* ${toTokenRegex(type)}`);
@@ -871,10 +871,10 @@ router.get("/daily-details", async (req, res) => {
       const match = title.match(/^(.*)\s\(([^)]+)\)$/);
       if (match) {
         const [_, t, b] = match;
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex((t ?? "").trim())}`);
-        conditions.push(Prisma.sql`"binding" ~* ${toTokenRegex((b ?? "").trim())}`);
+        conditions.push(Prisma.sql`LOWER("title") = LOWER(${(t ?? "").trim()})`);
+        conditions.push(Prisma.sql`LOWER("binding") = LOWER(${(b ?? "").trim()})`);
       } else {
-        conditions.push(Prisma.sql`"title" ~* ${toTokenRegex(title)}`);
+        conditions.push(Prisma.sql`LOWER("title") = LOWER(${title.trim()})`);
       }
     }
     if (minAmount != null) conditions.push(Prisma.sql`"amount" >= ${minAmount}`);
