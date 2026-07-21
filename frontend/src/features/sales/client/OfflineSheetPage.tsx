@@ -871,6 +871,19 @@ export default function OfflineSheetPage({ region = 'delhi' }: { region?: 'delhi
             />
           </div>
 
+          {(filters.title || filters.q) && (
+            <div className="mb-8 p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700 flex items-start gap-2.5 shadow-sm animate-fadeIn">
+              <span className="text-base mt-0.5">ℹ️</span>
+              <div>
+                <p className="font-semibold">Note on Title Matching:</p>
+                <p className="mt-0.5 leading-relaxed">
+                  Channel filters use <strong>partial keyword matching</strong>. Filtering by a book title will aggregate sales for all books containing that keyword (e.g., searching "Azadi" matches "Azadi Mera Brand", "Azadi Ke Baad Ka Bharat", etc.).
+                  For <strong>exact, book-by-book</strong> breakdowns across all formats and channels, please use the search bar on the <a href="/" className="underline font-semibold hover:text-blue-900">Total Sales</a> dashboard.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mb-8">
             <OfflineSheetKPI
               data={countsQ.data}
