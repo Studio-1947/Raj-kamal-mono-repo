@@ -27,6 +27,7 @@ import {
   AuthorPerformanceView,
   PriceReprintAnalysisView,
   CategorySalesView,
+  BookSearchView,
 } from './total-offline-sales/components';
 import BookFairSubFairs from '../features/sales/client/BookFairSubFairs';
 
@@ -285,8 +286,11 @@ export default function TotalOfflineSales() {
         <div className="space-y-10 animate-fadeIn">
           {dashboardTab === 'overview' && (
             <>
+              {/* 0. Book Search Bar */}
+              <BookSearchView fyMode={fyMode} />
+
               {/* 1. KPI Cards */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {/* Net Revenue = OUT minus IN (returns) */}
             <KpiCard
               title="Net Revenue (OUT − IN)"

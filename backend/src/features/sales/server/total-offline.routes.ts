@@ -1450,6 +1450,96 @@ router.get('/category-sales', async (req, res) => {
   }
 });
 
+// ─── GET /api/total-offline-sales/book-search ─────────────────────────────────
+router.get('/book-search', async (req, res) => {
+  try {
+    const q = (req.query.q as string || '').trim();
+    if (q.length < 2) {
+      return res.json({ ok: true, books: [] });
+    }
+
+    const { fy, isHistory } = resolveFy(req.query.fy as string);
+    const cacheKey = `book-search-${q}-${fy}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const channels = ALL_CHANNELS;
+
+    const promises = channels.map(async (ch) => {
+      const { model, base } = getChannelSource(ch, isHistory, fy);
+      return model.groupBy({
+        by: ['title', 'binding'],
+        _sum: { amount: true, inAmount: true, qty: true, inQty: true },
+        where: {
+          ...base,
+          title: { contains: q, mode: 'insensitive' }
+        }
+      });
+    });
+
+    const results = await Promise.all(promises);
+
+    // Group by title and canonicalized binding
+    const bookMap = new Map<string, {
+      title: string;
+      binding: string;
+      totalQty: number;
+      totalRevenue: number;
+      channels: Record<string, { qty: number; revenue: number }>;
+    }>();
+
+    channels.forEach((ch, idx) => {
+      const rows = results[idx];
+      for (const r of rows) {
+        if (!r.title) continue;
+        const title = r.title.trim();
+        const binding = canonicalBinding(r.binding);
+        const qty = toNum(r._sum.qty) - toNum(r._sum.inQty);
+        const rev = toNum(r._sum.amount) - toNum(r._sum.inAmount);
+
+        // Generate unique key
+        const key = `${title.toLowerCase()}|||${binding.toLowerCase()}`;
+
+        let existing = bookMap.get(key);
+        if (!existing) {
+          existing = {
+            title,
+            binding: binding || 'Paperback', // Default to Paperback if empty
+            totalQty: 0,
+            totalRevenue: 0,
+            channels: {}
+          };
+          // Initialize channel entries
+          channels.forEach(c => {
+            existing!.channels[c] = { qty: 0, revenue: 0 };
+          });
+          bookMap.set(key, existing);
+        }
+
+        existing.totalQty += qty;
+        existing.totalRevenue += rev;
+        existing.channels[ch] = {
+          qty: (existing.channels[ch]?.qty || 0) + qty,
+          revenue: (existing.channels[ch]?.revenue || 0) + rev
+        };
+      }
+    });
+
+    // Convert map to array and sort by total quantity descending
+    const books = Array.from(bookMap.values())
+      .filter(b => b.totalQty > 0 || b.totalRevenue > 0)
+      .sort((a, b) => b.totalQty - a.totalQty)
+      .slice(0, 100); // Limit to top 100 search results for performance
+
+    const responseData = { ok: true, books };
+    setCached(cacheKey, responseData);
+    return res.json(responseData);
+  } catch (err: any) {
+    console.error('Book search failed:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to search books' });
+  }
+});
+
 // ─── GET /api/total-offline-sales/price-analysis ─────────────────────────────
 router.get('/price-analysis', async (req, res) => {
   try {
