@@ -1459,21 +1459,33 @@ router.get('/book-search', async (req, res) => {
     }
 
     const { fy, isHistory } = resolveFy(req.query.fy as string);
-    const cacheKey = `book-search-${q}-${fy}`;
+    const startDateStr = (req.query.startDate as string) || '';
+    const endDateStr = (req.query.endDate as string) || '';
+    
+    const cacheKey = `book-search-${q}-${fy}-${startDateStr}-${endDateStr}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
+
+    const startDate = startDateStr ? new Date(startDateStr) : undefined;
+    const endDate = endDateStr ? new Date(endDateStr) : undefined;
 
     const channels = ALL_CHANNELS;
 
     const promises = channels.map(async (ch) => {
       const { model, base } = getChannelSource(ch, isHistory, fy);
+      const where: any = {
+        ...base,
+        title: { contains: q, mode: 'insensitive' }
+      };
+      if (startDate || endDate) {
+        where.date = {};
+        if (startDate) where.date.gte = startDate;
+        if (endDate)   where.date.lte = endDate;
+      }
       return model.groupBy({
         by: ['title', 'binding'],
         _sum: { amount: true, inAmount: true, qty: true, inQty: true },
-        where: {
-          ...base,
-          title: { contains: q, mode: 'insensitive' }
-        }
+        where
       });
     });
 

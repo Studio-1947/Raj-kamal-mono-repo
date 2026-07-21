@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useDebounce } from '../../../shared/searchUtils';
 import { apiClient } from '../../../lib/apiClient';
-import { FiSearch, FiX, FiShoppingBag, FiTrendingUp } from 'react-icons/fi';
-import { formatINR, formatLakhsAndCrores, REGIONAL_COLORS } from './utils';
+import { FiSearch, FiX } from 'react-icons/fi';
+import { formatINR, formatLakhsAndCrores } from './utils';
 
 interface BookSearchResult {
   title: string;
@@ -33,6 +33,34 @@ export const BookSearchView: React.FC<BookSearchViewProps> = ({ fyMode }) => {
   const [books, setBooks] = useState<BookSearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Date filter states
+  const [dateMode, setDateMode] = useState<'overall' | 'custom'>('overall');
+  const [startDate, setStartDate] = useState<string>(() => {
+    const year = fyMode === 'previous' ? 2025 : new Date().getFullYear();
+    const month = new Date().getMonth();
+    const startYear = month >= 3 ? year : year - 1;
+    return `${startYear}-04-01`;
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    if (fyMode === 'previous') {
+      return '2026-03-31';
+    }
+    return new Date().toISOString().slice(0, 10);
+  });
+
+  // Dynamic dates update when changing fyMode
+  useEffect(() => {
+    const year = fyMode === 'previous' ? 2025 : new Date().getFullYear();
+    const month = new Date().getMonth();
+    const startYear = month >= 3 ? year : year - 1;
+    setStartDate(`${startYear}-04-01`);
+    if (fyMode === 'previous') {
+      setEndDate('2026-03-31');
+    } else {
+      setEndDate(new Date().toISOString().slice(0, 10));
+    }
+  }, [fyMode]);
+
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   useEffect(() => {
@@ -48,9 +76,13 @@ export const BookSearchView: React.FC<BookSearchViewProps> = ({ fyMode }) => {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.get<{ ok: boolean; books: BookSearchResult[] }>(
-          `total-offline-sales/book-search?q=${encodeURIComponent(q)}&fy=${fyMode}`
-        );
+        let url = `total-offline-sales/book-search?q=${encodeURIComponent(q)}&fy=${fyMode}`;
+        if (dateMode === 'custom') {
+          if (startDate) url += `&startDate=${startDate}`;
+          if (endDate) url += `&endDate=${endDate}`;
+        }
+
+        const response = await apiClient.get<{ ok: boolean; books: BookSearchResult[] }>(url);
         if (response.ok) {
           setBooks(response.books || []);
         } else {
@@ -65,7 +97,7 @@ export const BookSearchView: React.FC<BookSearchViewProps> = ({ fyMode }) => {
     }
 
     performSearch();
-  }, [debouncedSearchTerm, fyMode]);
+  }, [debouncedSearchTerm, fyMode, dateMode, startDate, endDate]);
 
   const handleClear = () => {
     setSearchTerm('');
@@ -89,37 +121,96 @@ export const BookSearchView: React.FC<BookSearchViewProps> = ({ fyMode }) => {
 
   return (
     <div className="space-y-6">
-      {/* 🔍 Search Input Card */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
-        <div className="flex flex-col space-y-1.5 w-full">
-          <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-            Search Book Sales
-          </label>
-          <div className="relative w-full">
-            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <FiSearch className="h-5 w-5 text-gray-400" />
-            </span>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search book title across all channels (e.g. Godan, Kafan)..."
-              className="block w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl bg-gray-50/50 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-            />
-            {searchTerm && (
-              <button
-                onClick={handleClear}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                title="Clear search"
-              >
-                <FiX className="h-5 w-5" />
-              </button>
+      {/* 🔍 Search Input & Date Filters Card */}
+      <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          {/* Search Input */}
+          <div className="flex-1 flex flex-col space-y-1.5">
+            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              Search Book Sales
+            </label>
+            <div className="relative w-full">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <FiSearch className="h-5 w-5 text-gray-400" />
+              </span>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search book title across all channels (e.g. Godan, Kafan)..."
+                className="block w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl bg-gray-50/50 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+              />
+              {searchTerm && (
+                <button
+                  onClick={handleClear}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Clear search"
+                >
+                  <FiX className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+            {searchTerm && searchTerm.trim().length === 1 && (
+              <p className="text-[10px] text-amber-600 italic">Please enter at least 2 characters to search.</p>
             )}
           </div>
-          {searchTerm && searchTerm.trim().length === 1 && (
-            <p className="text-[10px] text-amber-600 italic">Please enter at least 2 characters to search.</p>
-          )}
+
+          {/* Date Mode Switcher */}
+          <div className="flex flex-col space-y-1.5 shrink-0">
+            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              Date Filter
+            </label>
+            <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
+              <button
+                type="button"
+                onClick={() => setDateMode('overall')}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
+                  dateMode === 'overall'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Overall
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateMode('custom')}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
+                  dateMode === 'custom'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Custom Dates
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* Custom Dates Inputs */}
+        {dateMode === 'custom' && (
+          <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex flex-col space-y-1">
+              <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Start Date</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <span className="text-gray-400 text-xs mt-4">→</span>
+            <div className="flex flex-col space-y-1">
+              <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">End Date</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 📊 Expandable Search Results Container */}
@@ -128,6 +219,11 @@ export const BookSearchView: React.FC<BookSearchViewProps> = ({ fyMode }) => {
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
               Search Results for "{debouncedSearchTerm.trim()}"
+              {dateMode === 'custom' && (
+                <span className="text-xs text-gray-400 font-normal lowercase tracking-normal ml-2">
+                  ({startDate} to {endDate})
+                </span>
+              )}
             </h3>
             {loading ? (
               <span className="text-xs text-gray-400 flex items-center gap-1.5">
@@ -147,7 +243,7 @@ export const BookSearchView: React.FC<BookSearchViewProps> = ({ fyMode }) => {
             </div>
           ) : !loading && books.length === 0 ? (
             <div className="py-16 text-center text-sm text-gray-400">
-              No book sales matching "{debouncedSearchTerm.trim()}" found in this financial year.
+              No book sales matching "{debouncedSearchTerm.trim()}" found.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -155,8 +251,8 @@ export const BookSearchView: React.FC<BookSearchViewProps> = ({ fyMode }) => {
                 <thead className="bg-gray-50/30 text-gray-400 text-[10px] font-semibold uppercase tracking-wider text-left">
                   <tr>
                     <th className="px-6 py-3.5">Book Title & Binding</th>
-                    <th className="px-6 py-3.5 text-right bg-indigo-50/20 text-indigo-700">Total Copies</th>
-                    <th className="px-6 py-3.5 text-right bg-indigo-50/20 text-indigo-700">Total Revenue</th>
+                    <th className="px-6 py-3.5 text-right bg-indigo-50/20 text-indigo-700 font-bold">Total Copies</th>
+                    <th className="px-6 py-3.5 text-right bg-indigo-50/20 text-indigo-700 font-bold">Total Revenue</th>
                     {CHANNEL_KEYS.map((ch) => {
                       const display = CHANNEL_DISPLAY[ch];
                       return (
