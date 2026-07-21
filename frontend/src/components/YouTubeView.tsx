@@ -12,9 +12,12 @@ import {
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { youtubeOverviewMock, youtubeGrowthMock } from "./socialMockData";
 
-type TimeRangeKey = "7d" | "30d" | "90d";
+type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 
-function computeRangeDates(key: TimeRangeKey) {
+function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: string) {
+    if (key === "custom" && customFrom && customTo) {
+        return { from: customFrom, to: customTo };
+    }
     const to = new Date();
     const from = new Date();
     if (key === "7d") {
@@ -66,10 +69,12 @@ function growthIsEmpty(data: any) {
 interface YouTubeViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
+    customFrom?: string;
+    customTo?: string;
     blogId?: string;
 }
 
-export default function YouTubeView({ range, onRangeChange, blogId }: YouTubeViewProps) {
+export default function YouTubeView({ range, onRangeChange, customFrom, customTo, blogId }: YouTubeViewProps) {
     const [loading, setLoading] = useState(false);
     const [usingMock, setUsingMock] = useState(false);
     const [overview, setOverview] = useState<any>(null);
@@ -82,7 +87,7 @@ export default function YouTubeView({ range, onRangeChange, blogId }: YouTubeVie
             setLoading(true);
             setUsingMock(false);
             try {
-                const { from, to } = computeRangeDates(range);
+                const { from, to } = computeRangeDates(range, customFrom, customTo);
                 const [overviewRes, growthRes] = await Promise.all([
                     fetchYoutubeOverview({ from, to, blogId }),
                     fetchYoutubeGrowth({ from, to, blogId }),
@@ -114,7 +119,7 @@ export default function YouTubeView({ range, onRangeChange, blogId }: YouTubeVie
         return () => {
             cancelled = true;
         };
-    }, [range, blogId]);
+    }, [range, customFrom, customTo, blogId]);
 
     const growthSeriesContainer = growth?.series ?? growth?.data?.series ?? growth;
     const subscribersPoints = toChartPoints(asSeriesArray(growthSeriesContainer?.subscribers));
