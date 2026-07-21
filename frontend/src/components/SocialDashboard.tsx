@@ -20,7 +20,7 @@ import {
     FaPinterest,
 } from "react-icons/fa";
 
-type TimeRangeKey = "7d" | "30d" | "90d";
+type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 
 const IMPLEMENTED_NETWORKS: PlatformKey[] = ["facebook", "instagram", "youtube"];
 
@@ -110,6 +110,14 @@ export default function SocialDashboard() {
     const { t } = useLang();
 
     const [range, setRange] = useState<TimeRangeKey>("30d");
+    const [customFrom, setCustomFrom] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString().slice(0, 10);
+    });
+    const [customTo, setCustomTo] = useState(() => {
+        return new Date().toISOString().slice(0, 10);
+    });
     const [searchParams, setSearchParams] = useSearchParams();
     const platformParam = searchParams.get("platform") as PlatformKey | null;
 
@@ -287,7 +295,7 @@ export default function SocialDashboard() {
             {/* Right Column: Metrics Content Area */}
             <div className="flex-1 min-w-0 flex flex-col gap-6">
                 {/* Header card with title & range */}
-                <div className="rounded-3xl border border-gray-200/60 bg-white shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="rounded-3xl border border-gray-200/60 bg-white shadow-sm p-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                     <div>
                         <h1 className="text-xl font-bold text-gray-900 capitalize flex items-center gap-2">
                             {activeNetwork} Insights
@@ -297,21 +305,46 @@ export default function SocialDashboard() {
                         </p>
                     </div>
 
-                    <div className="inline-flex items-center rounded-full bg-gray-100 p-1 text-xs font-semibold self-start sm:self-auto">
-                        {["7d", "30d", "90d"].map((key) => (
-                            <button
-                                key={key}
-                                type="button"
-                                onClick={() => setRange(key as TimeRangeKey)}
-                                className={`px-4 py-1.5 rounded-full transition-all duration-200 ${
-                                    range === key
-                                        ? "bg-white text-gray-900 shadow-sm"
-                                        : "text-gray-500 hover:text-gray-900"
-                                }`}
-                            >
-                                {key}
-                            </button>
-                        ))}
+                    <div className="flex flex-wrap items-center gap-3 self-start xl:self-auto">
+                        <div className="inline-flex items-center rounded-full bg-gray-100 p-1 text-xs font-semibold">
+                            {["7d", "30d", "90d", "custom"].map((key) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setRange(key as TimeRangeKey)}
+                                    className={`px-4 py-1.5 rounded-full transition-all duration-200 capitalize ${
+                                        range === key
+                                            ? "bg-white text-gray-900 shadow-sm"
+                                            : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                >
+                                    {key === "custom" ? "Custom Range" : key}
+                                </button>
+                            ))}
+                        </div>
+
+                        {range === "custom" && (
+                            <div className="flex flex-wrap items-center gap-3 text-xs font-medium bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">From:</span>
+                                    <input
+                                        type="date"
+                                        value={customFrom}
+                                        onChange={(e) => setCustomFrom(e.target.value)}
+                                        className="px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-800"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">To:</span>
+                                    <input
+                                        type="date"
+                                        value={customTo}
+                                        onChange={(e) => setCustomTo(e.target.value)}
+                                        className="px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-800"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -323,15 +356,15 @@ export default function SocialDashboard() {
                 )}
 
                 {headerTabs.includes(activeNetwork) && activeNetwork === "instagram" && (
-                    <InstagramView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
+                    <InstagramView range={range} onRangeChange={setRange} customFrom={customFrom} customTo={customTo} blogId={selectedBlogId ?? undefined} />
                 )}
 
                 {headerTabs.includes(activeNetwork) && activeNetwork === "facebook" && (
-                    <FacebookView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
+                    <FacebookView range={range} onRangeChange={setRange} customFrom={customFrom} customTo={customTo} blogId={selectedBlogId ?? undefined} />
                 )}
 
                 {headerTabs.includes(activeNetwork) && activeNetwork === "youtube" && (
-                    <YouTubeView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
+                    <YouTubeView range={range} onRangeChange={setRange} customFrom={customFrom} customTo={customTo} blogId={selectedBlogId ?? undefined} />
                 )}
             </div>
         </div>

@@ -26,11 +26,11 @@ function buildSeries(days: number, base: number, variance: number, trend = 0): S
     return points;
 }
 
-function rangeDays(range: "7d" | "30d" | "90d") {
-    return range === "7d" ? 7 : range === "30d" ? 30 : 90;
+function rangeDays(range: string) {
+    return range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : 30;
 }
 
-function isoRange(range: "7d" | "30d" | "90d") {
+function isoRange(range: string) {
     const to = new Date();
     const from = new Date();
     from.setDate(to.getDate() - rangeDays(range));
@@ -41,7 +41,7 @@ function isoRange(range: "7d" | "30d" | "90d") {
 /*  Facebook                                                                  */
 /* -------------------------------------------------------------------------- */
 
-export function facebookOverviewMock(range: "7d" | "30d" | "90d") {
+export function facebookOverviewMock(range: string) {
     const { from, to } = isoRange(range);
     return {
         profileName: "Rajkamal Prakashan (Sample)",
@@ -59,7 +59,7 @@ export function facebookOverviewMock(range: "7d" | "30d" | "90d") {
     };
 }
 
-export function facebookGrowthMock(range: "7d" | "30d" | "90d") {
+export function facebookGrowthMock(range: string) {
     const days = rangeDays(range);
     return {
         series: {
@@ -72,7 +72,7 @@ export function facebookGrowthMock(range: "7d" | "30d" | "90d") {
     };
 }
 
-export function facebookClicksMock(range: "7d" | "30d" | "90d") {
+export function facebookClicksMock(range: string) {
     const days = rangeDays(range);
     return { values: buildSeries(days, 320, 140, 4) };
 }
@@ -156,7 +156,7 @@ export const facebookCompetitorsMock = {
 /*  Instagram                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export function instagramOverviewMock(range: "7d" | "30d" | "90d") {
+export function instagramOverviewMock(range: string) {
     const { from, to } = isoRange(range);
     return {
         profileName: "rajkamalprakashan (Sample)",
@@ -175,7 +175,7 @@ export function instagramOverviewMock(range: "7d" | "30d" | "90d") {
     };
 }
 
-export function instagramGrowthMock(range: "7d" | "30d" | "90d") {
+export function instagramGrowthMock(range: string) {
     const days = rangeDays(range);
     return {
         series: {
@@ -197,7 +197,7 @@ function buildInstagramItems(prefix: string, label: string) {
     ];
 }
 
-export function instagramTimelineMock(range: "7d" | "30d" | "90d") {
+export function instagramTimelineMock(range: string) {
     return { data: [{ values: buildSeries(rangeDays(range), 18000, 3600, 70) }] };
 }
 
@@ -266,7 +266,7 @@ export const instagramContentTypesMock = [
 /*  YouTube                                                                   */
 /* -------------------------------------------------------------------------- */
 
-export function youtubeOverviewMock(range: "7d" | "30d" | "90d") {
+export function youtubeOverviewMock(range: string) {
     const { from, to } = isoRange(range);
     return {
         subscribers: 15600,
@@ -277,7 +277,7 @@ export function youtubeOverviewMock(range: "7d" | "30d" | "90d") {
     };
 }
 
-export function youtubeGrowthMock(range: "7d" | "30d" | "90d") {
+export function youtubeGrowthMock(range: string) {
     const days = rangeDays(range);
     return {
         series: {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     fetchOverview,
     fetchGrowth,
@@ -40,10 +40,13 @@ import {
     facebookCompetitorsMock,
 } from "./socialMockData";
 
-type TimeRangeKey = "7d" | "30d" | "90d";
+type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 type FacebookSection = "page_overview" | "demographics" | "page_views" | "posts" | "reels" | "stories" | "competitors";
 
-function computeRangeDates(key: TimeRangeKey) {
+function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: string) {
+    if (key === "custom" && customFrom && customTo) {
+        return { from: customFrom, to: customTo };
+    }
     const to = new Date();
     const from = new Date();
     if (key === "7d") {
@@ -131,10 +134,12 @@ function listIsEmpty(list: any[]) {
 interface FacebookViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
+    customFrom?: string;
+    customTo?: string;
     blogId?: string;
 }
 
-export default function FacebookView({ range, onRangeChange, blogId }: FacebookViewProps) {
+export default function FacebookView({ range, onRangeChange, customFrom, customTo, blogId }: FacebookViewProps) {
     const [activeSection, setActiveSection] = useState<FacebookSection>("page_overview");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -171,7 +176,7 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
         let cancelled = false;
         async function checkCompetitors() {
             try {
-                const { from, to } = computeRangeDates(range);
+                const { from, to } = computeRangeDates(range, customFrom, customTo);
                 const res = await fetchFacebookCompetitors({ from, to, blogId });
                 if (!cancelled) setHasCompetitors(!listIsEmpty(res.data?.items));
             } catch {
@@ -182,7 +187,7 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
         return () => {
             cancelled = true;
         };
-    }, [range, blogId]);
+    }, [range, customFrom, customTo, blogId]);
 
     useEffect(() => {
         if (!hasCompetitors && activeSection === "competitors") {
@@ -198,7 +203,7 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
             setError(null);
             setUsingMock(false);
             try {
-                const { from, to } = computeRangeDates(range);
+                const { from, to } = computeRangeDates(range, customFrom, customTo);
 
                 // Load data based on active section to reduce parallel API calls
                 if (activeSection === "page_overview") {
@@ -340,7 +345,7 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
         return () => {
             cancelled = true;
         };
-    }, [range, activeSection, blogId]);
+    }, [range, customFrom, customTo, activeSection, blogId]);
 
     const networkFrom = overview?.from ?? growth?.from ?? clicksData?.from ?? "unknown";
     const networkTo = overview?.to ?? growth?.to ?? clicksData?.to ?? "unknown";
@@ -383,7 +388,193 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
         .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
         .slice(0, 10);
 
-    const postsRows = posts.slice(0, 5);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [mediaTypeFilter, setMediaTypeFilter] = useState("all");
+    const [sortBy, setSortBy] = useState("date_desc");
+
+    useEffect(() => {
+        setSearchQuery("");
+        setMediaTypeFilter("all");
+        setSortBy("date_desc");
+    }, [activeSection]);
+
+    // Helpers for CSV and PDF downloads
+    const exportToCSV = (data: any[], filename: string, mapping: { header: string; getValue: (item: any) => any }[]) => {
+        if (!data || !data.length) return;
+        const headers = mapping.map(m => m.header).join(",");
+        const rows = data.map(item => 
+            mapping.map(m => {
+                const val = m.getValue(item);
+                const cell = val === null || val === undefined ? "" : String(val);
+                const escaped = cell.replace(/"/g, '""');
+                return `"${escaped}"`;
+            }).join(",")
+        );
+        const csvContent = [headers, ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const exportToPDF = (data: any[], title: string, mapping: { header: string; getValue: (item: any) => any; align?: "left" | "right" }[]) => {
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) return;
+        
+        const rowsHtml = data.map((item, index) => {
+            const colsHtml = mapping.map(m => {
+                const val = m.getValue(item);
+                const displayVal = typeof val === "number" ? val.toLocaleString("en-IN") : (val ?? "—");
+                const alignment = m.align === "right" ? "text-align: right;" : "text-align: left;";
+                return `<td style="padding: 8px; border-bottom: 1px solid #e5e7eb; ${alignment}">${displayVal}</td>`;
+            }).join("");
+            return `<tr style="background-color: ${index % 2 === 0 ? "#ffffff" : "#f9fafb"}">${colsHtml}</tr>`;
+        }).join("");
+        
+        const headersHtml = mapping.map(m => {
+            const alignment = m.align === "right" ? "text-align: right;" : "text-align: left;";
+            return `<th style="padding: 10px 8px; background-color: #f3f4f6; font-weight: bold; border-bottom: 2px solid #e5e7eb; ${alignment}">${m.header}</th>`;
+        }).join("");
+        
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>${title}</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111827; padding: 20px; }
+                        h1 { font-size: 18px; margin-bottom: 4px; color: #1f2937; }
+                        p { font-size: 11px; color: #6b7280; margin-top: 0; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${title}</h1>
+                    <p>Generated on ${new Date().toLocaleDateString("en-IN")} at ${new Date().toLocaleTimeString("en-IN")}</p>
+                    <table>
+                        <thead>
+                            <tr>${headersHtml}</tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            window.close();
+                        }
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
+    // Columns configuration for CSV and PDF exports
+    const postExportColumns = [
+        { header: "Date", getValue: (item: any) => item.date || item.dateTime || "" },
+        { header: "Message", getValue: (item: any) => item.message || item.text || item.description || item.caption || "" },
+        { header: "Type", getValue: (item: any) => item.mediaType || item.type || "" },
+        { header: "Impressions", getValue: (item: any) => item.impressions || item.impressionsTotal || item.views || 0, align: "right" as const },
+        { header: "Reach", getValue: (item: any) => item.reach || item.impressionsUnique || item.reachTotal || 0, align: "right" as const },
+        { header: "Engagement", getValue: (item: any) => item.engagement || item.engagementTotal || 0, align: "right" as const },
+        { header: "Likes/Reactions", getValue: (item: any) => item.likes || item.reactions || item.likesCount || 0, align: "right" as const },
+        { header: "Comments", getValue: (item: any) => item.comments || item.commentsCount || 0, align: "right" as const },
+        { header: "Shares", getValue: (item: any) => item.shares || item.sharesCount || 0, align: "right" as const },
+    ];
+
+    const competitorExportColumns = [
+        { header: "Competitor", getValue: (item: any) => item.displayName || item.screenName || "" },
+        { header: "Followers", getValue: (item: any) => item.followers || 0, align: "right" as const },
+        { header: "Posts", getValue: (item: any) => item.posts || 0, align: "right" as const },
+        { header: "Likes/Reactions", getValue: (item: any) => item.likes || item.reactions || 0, align: "right" as const },
+        { header: "Comments", getValue: (item: any) => item.comments || 0, align: "right" as const },
+        { header: "Shares", getValue: (item: any) => item.shares || item.sharesCount || 0, align: "right" as const },
+        { header: "Engagement %", getValue: (item: any) => item.engagement ? (item.engagement * 100).toFixed(2) + "%" : "0%", align: "right" as const },
+    ];
+
+    const postTypes = useMemo(() => {
+        const types = new Set<string>();
+        posts.forEach((item: any) => {
+            const t = item.mediaType || item.type;
+            if (t) types.add(t);
+        });
+        return Array.from(types);
+    }, [posts]);
+
+    const sortItems = (items: any[], type: string) => {
+        return [...items].sort((a, b) => {
+            switch (type) {
+                case "date_desc":
+                    return new Date(b.date || b.dateTime || 0).getTime() - new Date(a.date || a.dateTime || 0).getTime();
+                case "date_asc":
+                    return new Date(a.date || a.dateTime || 0).getTime() - new Date(b.date || b.dateTime || 0).getTime();
+                case "impressions_desc":
+                    return (b.impressions || b.impressionsTotal || b.views || 0) - (a.impressions || a.impressionsTotal || a.views || 0);
+                case "reach_desc":
+                    return (b.reach || b.impressionsUnique || b.reachTotal || 0) - (a.reach || a.impressionsUnique || a.reachTotal || 0);
+                case "likes_desc":
+                    return (b.likes || b.reactions || b.likesCount || 0) - (a.likes || a.reactions || a.likesCount || 0);
+                case "comments_desc":
+                    return (b.comments || b.commentsCount || 0) - (a.comments || a.commentsCount || 0);
+                case "shares_desc":
+                    return (b.shares || b.sharesCount || 0) - (a.shares || a.sharesCount || 0);
+                case "engagement_desc":
+                    return (b.engagement || b.engagementTotal || 0) - (a.engagement || a.engagementTotal || 0);
+                case "followers_desc":
+                    return (b.followers || 0) - (a.followers || 0);
+                case "posts_desc":
+                    return (b.posts || 0) - (a.posts || 0);
+                default:
+                    return 0;
+            }
+        });
+    };
+
+    const filteredPosts = useMemo(() => {
+        if (!posts) return [];
+        const result = posts.filter((item: any) => {
+            const content = item.message || item.text || item.description || item.caption || "";
+            const matchesSearch = content.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            if (mediaTypeFilter === "all") return matchesSearch;
+            const type = (item.mediaType || item.type || "").toLowerCase();
+            return matchesSearch && type === mediaTypeFilter.toLowerCase();
+        });
+        return sortItems(result, sortBy);
+    }, [posts, searchQuery, mediaTypeFilter, sortBy]);
+
+    const filteredReels = useMemo(() => {
+        const items = reelsData?.items || [];
+        const result = items.filter((item: any) => {
+            const content = item.message || item.text || item.description || item.caption || "";
+            return content.toLowerCase().includes(searchQuery.toLowerCase());
+        });
+        return sortItems(result, sortBy);
+    }, [reelsData, searchQuery, sortBy]);
+
+    const filteredStories = useMemo(() => {
+        const items = storiesData?.items || [];
+        const result = items.filter((item: any) => {
+            const content = item.text || item.message || item.description || item.caption || "";
+            return content.toLowerCase().includes(searchQuery.toLowerCase());
+        });
+        return sortItems(result, sortBy);
+    }, [storiesData, searchQuery, sortBy]);
+
+    const filteredCompetitors = useMemo(() => {
+        const items = competitorsData?.items || [];
+        const result = items.filter((item: any) => {
+            const content = item.displayName || item.screenName || "";
+            return content.toLowerCase().includes(searchQuery.toLowerCase());
+        });
+        return sortItems(result, sortBy);
+    }, [competitorsData, searchQuery, sortBy]);
 
     return (
         <div className="space-y-6">
@@ -935,66 +1126,117 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
             {/* POSTS Section */}
             {activeSection === "posts" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4">
-                        <p className="text-sm font-normal text-gray-900">Recent Posts</p>
-                        <p className="text-xs text-gray-900">
-                            Top performing posts in this period
-                        </p>
+                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-semibold text-gray-900">Recent Posts</p>
+                            <p className="text-xs text-gray-500">
+                                {filteredPosts.length} posts in this period
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {postTypes.length > 1 && (
+                                <select
+                                    value={mediaTypeFilter}
+                                    onChange={(e) => setMediaTypeFilter(e.target.value)}
+                                    className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                                >
+                                    <option value="all">All Types</option>
+                                    {postTypes.map(t => (
+                                        <option key={t} value={t}>{t}</option>
+                                    ))}
+                                </select>
+                            )}
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                            >
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                <option value="impressions_desc">Impressions (High to Low)</option>
+                                <option value="reach_desc">Reach (High to Low)</option>
+                                <option value="likes_desc">Likes/Reactions (High to Low)</option>
+                                <option value="comments_desc">Comments (High to Low)</option>
+                                <option value="shares_desc">Shares (High to Low)</option>
+                                <option value="engagement_desc">Engagement Rate (High to Low)</option>
+                            </select>
+                            <input
+                                type="text"
+                                placeholder="Search posts..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => exportToCSV(filteredPosts, "facebook_posts.csv", postExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ CSV
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => exportToPDF(filteredPosts, "Facebook Posts Analysis", postExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ PDF
+                            </button>
+                        </div>
                     </header>
                     <div className="overflow-x-auto">
-                        {postsRows.length > 0 ? (
-                            <table className="min-w-full text-xs">
+                        {filteredPosts.length > 0 ? (
+                            <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="text-left text-gray-900">
-                                        <th className="py-2 pr-2">Media</th>
-                                        <th className="py-2 pr-2">Message</th>
-                                        <th className="py-2 pr-2">Type</th>
-                                        <th className="py-2 pr-2 text-right">Impressions</th>
-                                        <th className="py-2 pr-2 text-right">Reach</th>
-                                        <th className="py-2 pr-2 text-right">Engagement</th>
-                                        <th className="py-2 pr-2 text-right">Clicks</th>
-                                        <th className="py-2 pr-2 text-right">Likes</th>
-                                        <th className="py-2 pr-2 text-right">Comments</th>
-                                        <th className="py-2 pr-2 text-right">Shares</th>
+                                    <tr className="text-left text-gray-900 border-b border-gray-100">
+                                        <th className="py-4 pr-3">Media</th>
+                                        <th className="py-4 pr-3">Message</th>
+                                        <th className="py-4 pr-3">Type</th>
+                                        <th className="py-4 pr-3 text-right">Impressions</th>
+                                        <th className="py-4 pr-3 text-right">Reach</th>
+                                        <th className="py-4 pr-3 text-right">Engagement</th>
+                                        <th className="py-4 pr-3 text-right">Clicks</th>
+                                        <th className="py-4 pr-3 text-right">Likes</th>
+                                        <th className="py-4 pr-3 text-right">Comments</th>
+                                        <th className="py-4 pr-3 text-right">Shares</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {postsRows.map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-t border-gray-100">
-                                            <td className="py-2 pr-2 text-gray-900">
+                                    {filteredPosts.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
+                                            <td className="py-4 pr-3 text-gray-900">
                                                 <ImageWithHover
                                                     src={item.picture}
                                                     alt={item.message || item.text || item.description || "Post media"}
-                                                    className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                    className="w-16 h-16 rounded-xl object-cover border border-gray-200"
                                                     showName={true}
                                                     name={(item.message || item.text || item.description || item.caption)?.substring(0, 50) || "Post"}
                                                 />
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
+                                            <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
                                                 {item.message || item.text || item.description || item.caption || "—"}
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-900">
+                                            <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
                                                 {item.mediaType || item.type || "—"}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.impressions || item.impressionsTotal || item.views)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
                                                 {formatNumber(item.engagement || item.engagementTotal)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.clicks || item.clicksTotal)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.likes || item.reactions || item.likesCount)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.comments || item.commentsCount)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.shares || item.sharesCount)}
                                             </td>
                                         </tr>
@@ -1012,71 +1254,110 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
             {/* REELS Section */}
             {activeSection === "reels" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4">
-                        <p className="text-sm font-normal text-gray-900">Facebook Reels</p>
-                        <p className="text-xs text-gray-900">
-                            Performance metrics for your Reels content
-                        </p>
-                        {reelsData?.error && (
-                            <p className="text-xs text-amber-600 mt-2">
-                                ⚠️ {reelsData.error}
+                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-semibold text-gray-900">Facebook Reels</p>
+                            <p className="text-xs text-gray-500">
+                                {filteredReels.length} reels in this period
                             </p>
-                        )}
+                            {reelsData?.error && (
+                                <p className="text-xs text-amber-600 mt-1">
+                                    ⚠️ {reelsData.error}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                            >
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                <option value="impressions_desc">Impressions (High to Low)</option>
+                                <option value="reach_desc">Reach (High to Low)</option>
+                                <option value="likes_desc">Likes (High to Low)</option>
+                                <option value="comments_desc">Comments (High to Low)</option>
+                                <option value="shares_desc">Shares (High to Low)</option>
+                                <option value="engagement_desc">Engagement Rate (High to Low)</option>
+                            </select>
+                            <input
+                                type="text"
+                                placeholder="Search reels..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => exportToCSV(filteredReels, "facebook_reels.csv", postExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ CSV
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => exportToPDF(filteredReels, "Facebook Reels Analysis", postExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ PDF
+                            </button>
+                        </div>
                     </header>
                     <div className="overflow-x-auto">
-                        {reelsData?.items && reelsData.items.length > 0 ? (
-                            <table className="min-w-full text-xs">
+                        {filteredReels.length > 0 ? (
+                            <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="text-left text-gray-900">
-                                        <th className="py-2 pr-2">Media</th>
-                                        <th className="py-2 pr-2">Message</th>
-                                        <th className="py-2 pr-2">Type</th>
-                                        <th className="py-2 pr-2 text-right">Impressions</th>
-                                        <th className="py-2 pr-2 text-right">Reach</th>
-                                        <th className="py-2 pr-2 text-right">Engagement</th>
-                                        <th className="py-2 pr-2 text-right">Likes</th>
-                                        <th className="py-2 pr-2 text-right">Comments</th>
-                                        <th className="py-2 pr-2 text-right">Shares</th>
+                                    <tr className="text-left text-gray-900 border-b border-gray-100">
+                                        <th className="py-4 pr-3">Media</th>
+                                        <th className="py-4 pr-3">Message</th>
+                                        <th className="py-4 pr-3">Type</th>
+                                        <th className="py-4 pr-3 text-right">Impressions</th>
+                                        <th className="py-4 pr-3 text-right">Reach</th>
+                                        <th className="py-4 pr-3 text-right">Engagement</th>
+                                        <th className="py-4 pr-3 text-right">Likes</th>
+                                        <th className="py-4 pr-3 text-right">Comments</th>
+                                        <th className="py-4 pr-3 text-right">Shares</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {reelsData.items.slice(0, 10).map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-t border-gray-100">
-                                            <td className="py-2 pr-2 text-gray-900">
+                                    {filteredReels.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
+                                            <td className="py-4 pr-3 text-gray-900">
                                                 {item.picture ? (
                                                     <img
                                                         src={item.picture}
                                                         alt="Reel media"
-                                                        className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                        className="w-16 h-16 rounded-xl object-cover border border-gray-200"
                                                     />
                                                 ) : (
-                                                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                                                    <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
                                                         No img
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
+                                            <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
                                                 {item.message || item.text || item.description || item.caption || "—"}
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-900">
+                                            <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
                                                 {item.mediaType || "Reel"}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.impressions || item.impressionsTotal || item.views)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
                                                 {formatNumber(item.engagement || item.engagementTotal)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.likes || item.reactions || item.likesCount)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.comments || item.commentsCount)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.shares || item.sharesCount)}
                                             </td>
                                         </tr>
@@ -1097,67 +1378,106 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
             {/* STORIES Section */}
             {activeSection === "stories" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4">
-                        <p className="text-sm font-normal text-gray-900">Facebook Stories</p>
-                        <p className="text-xs text-gray-900">
-                            Performance metrics for your Stories content
-                        </p>
-                        {storiesData?.error && (
-                            <p className="text-xs text-amber-600 mt-2">
-                                ⚠️ {storiesData.error}
+                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-semibold text-gray-900">Facebook Stories</p>
+                            <p className="text-xs text-gray-500">
+                                {filteredStories.length} stories in this period
                             </p>
-                        )}
+                            {storiesData?.error && (
+                                <p className="text-xs text-amber-600 mt-1">
+                                    ⚠️ {storiesData.error}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                            >
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                <option value="impressions_desc">Impressions (High to Low)</option>
+                                <option value="reach_desc">Reach (High to Low)</option>
+                                <option value="likes_desc">Likes (High to Low)</option>
+                                <option value="comments_desc">Comments (High to Low)</option>
+                                <option value="shares_desc">Shares (High to Low)</option>
+                                <option value="engagement_desc">Engagement Rate (High to Low)</option>
+                            </select>
+                            <input
+                                type="text"
+                                placeholder="Search stories..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => exportToCSV(filteredStories, "facebook_stories.csv", postExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ CSV
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => exportToPDF(filteredStories, "Facebook Stories Analysis", postExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ PDF
+                            </button>
+                        </div>
                     </header>
                     <div className="overflow-x-auto">
-                        {storiesData?.items && storiesData.items.length > 0 ? (
-                            <table className="min-w-full text-xs">
+                        {filteredStories.length > 0 ? (
+                            <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="text-left text-gray-900">
-                                        <th className="py-2 pr-2">Media</th>
-                                        <th className="py-2 pr-2">Message</th>
-                                        <th className="py-2 pr-2">Type</th>
-                                        <th className="py-2 pr-2 text-right">Impressions</th>
-                                        <th className="py-2 pr-2 text-right">Reach</th>
-                                        <th className="py-2 pr-2 text-right">Engagement</th>
-                                        <th className="py-2 pr-2 text-right">Likes</th>
-                                        <th className="py-2 pr-2 text-right">Comments</th>
-                                        <th className="py-2 pr-2 text-right">Shares</th>
+                                    <tr className="text-left text-gray-900 border-b border-gray-100">
+                                        <th className="py-4 pr-3">Media</th>
+                                        <th className="py-4 pr-3">Message</th>
+                                        <th className="py-4 pr-3">Type</th>
+                                        <th className="py-4 pr-3 text-right">Impressions</th>
+                                        <th className="py-4 pr-3 text-right">Reach</th>
+                                        <th className="py-4 pr-3 text-right">Engagement</th>
+                                        <th className="py-4 pr-3 text-right">Likes</th>
+                                        <th className="py-4 pr-3 text-right">Comments</th>
+                                        <th className="py-4 pr-3 text-right">Shares</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {storiesData.items.slice(0, 10).map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-t border-gray-100">
-                                            <td className="py-2 pr-2 text-gray-900">
+                                    {filteredStories.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
+                                            <td className="py-4 pr-3 text-gray-900">
                                                 <ImageWithHover
                                                     src={item.picture}
                                                     alt={item.text || "Story media"}
-                                                    className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                    className="w-16 h-16 rounded-xl object-cover border border-gray-200"
                                                     showName={true}
                                                     name={item.text?.substring(0, 50) || "Story"}
                                                 />
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
+                                            <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
                                                 {item.text || "—"}
                                             </td>
-                                            <td className="py-2 pr-2 text-gray-900">
+                                            <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
                                                 {item.mediaType || "Story"}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.impressions)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.impressionsUnique)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
                                                 {formatNumber(item.engagement)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900 font-medium">
                                                 {formatNumber(item.reactions)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.comments)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.shares)}
                                             </td>
                                         </tr>
@@ -1178,64 +1498,103 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
             {/* COMPETITORS Section */}
             {activeSection === "competitors" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4">
-                        <p className="text-sm font-normal text-gray-900">Competitors Analysis</p>
-                        <p className="text-xs text-gray-900">
-                            Compare your performance with competitors
-                        </p>
-                        {competitorsData?.error && (
-                            <p className="text-xs text-amber-600 mt-2">
-                                ⚠️ {competitorsData.error}
+                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-semibold text-gray-900">Competitors Analysis</p>
+                            <p className="text-xs text-gray-500">
+                                {filteredCompetitors.length} competitors tracked
                             </p>
-                        )}
+                            {competitorsData?.error && (
+                                <p className="text-xs text-amber-600 mt-1">
+                                    ⚠️ {competitorsData.error}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                            >
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                <option value="followers_desc">Followers (High to Low)</option>
+                                <option value="posts_desc">Posts (High to Low)</option>
+                            </select>
+                            <input
+                                type="text"
+                                placeholder="Search competitors..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => exportToCSV(filteredCompetitors, "facebook_competitors.csv", competitorExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ CSV
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => exportToPDF(filteredCompetitors, "Facebook Competitors Comparison", competitorExportColumns)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ PDF
+                            </button>
+                        </div>
                     </header>
                     <div className="overflow-x-auto">
-                        {competitorsData?.items && competitorsData.items.length > 0 ? (
-                            <table className="min-w-full text-xs">
+                        {filteredCompetitors.length > 0 ? (
+                            <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="text-left text-gray-900">
-                                        <th className="py-2 pr-2">Competitor</th>
-                                        <th className="py-2 pr-2 text-right">Followers</th>
-                                        <th className="py-2 pr-2 text-right">Posts</th>
-                                        <th className="py-2 pr-2 text-right">Reactions</th>
-                                        <th className="py-2 pr-2 text-right">Comments</th>
-                                        <th className="py-2 pr-2 text-right">Shares</th>
-                                        <th className="py-2 pr-2 text-right">Engagement %</th>
+                                    <tr className="text-left text-gray-900 border-b border-gray-100">
+                                        <th className="py-4 pr-3">Competitor</th>
+                                        <th className="py-4 pr-3 text-right">Followers</th>
+                                        <th className="py-4 pr-3 text-right">Posts</th>
+                                        <th className="py-4 pr-3 text-right">Reactions</th>
+                                        <th className="py-4 pr-3 text-right">Comments</th>
+                                        <th className="py-4 pr-3 text-right">Shares</th>
+                                        <th className="py-4 pr-3 text-right">Engagement %</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {competitorsData.items.map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-t border-gray-100">
-                                            <td className="py-2 pr-2 text-gray-900">
-                                                <div className="flex items-center gap-2">
-                                                    {item.picture && (
+                                    {filteredCompetitors.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
+                                            <td className="py-4 pr-3 text-gray-900">
+                                                <div className="flex items-center gap-3">
+                                                    {item.picture ? (
                                                         <img
                                                             src={item.picture}
                                                             alt={item.displayName || item.screenName}
-                                                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                                                            className="w-12 h-12 rounded-full object-cover border border-gray-200 shadow-sm"
                                                         />
+                                                    ) : (
+                                                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs border border-gray-200 font-semibold uppercase">
+                                                            {(item.displayName || item.screenName || "C").substring(0, 2)}
+                                                        </div>
                                                     )}
-                                                    <span className="font-normal">
+                                                    <span className="font-semibold text-gray-800">
                                                         {item.displayName || item.screenName || "—"}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900 font-medium">
                                                 {formatNumber(item.followers)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.posts)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.reactions)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.comments)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900">
                                                 {formatNumber(item.shares)}
                                             </td>
-                                            <td className="py-2 pr-2 text-right text-gray-900">
+                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold text-blue-600">
                                                 {item.engagement ? (item.engagement * 100).toFixed(2) + '%' : '—'}
                                             </td>
                                         </tr>

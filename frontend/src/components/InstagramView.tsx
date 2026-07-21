@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     fetchOverview,
     fetchGrowth,
@@ -48,9 +48,12 @@ import {
     instagramDemographicsCitiesMock,
 } from "./socialMockData";
 
-type TimeRangeKey = "7d" | "30d" | "90d";
+type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 
-function computeRangeDates(key: TimeRangeKey) {
+function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: string) {
+    if (key === "custom" && customFrom && customTo) {
+        return { from: customFrom, to: customTo };
+    }
     const to = new Date();
     const from = new Date();
     if (key === "7d") {
@@ -149,10 +152,12 @@ type LocalInstagramSection = InstagramSection | "demographics";
 interface InstagramViewProps {
     range: TimeRangeKey;
     onRangeChange: (range: TimeRangeKey) => void;
+    customFrom?: string;
+    customTo?: string;
     blogId?: string;
 }
 
-export default function InstagramView({ range, onRangeChange, blogId }: InstagramViewProps) {
+export default function InstagramView({ range, onRangeChange, customFrom, customTo, blogId }: InstagramViewProps) {
     const [activeSection, setActiveSection] = useState<LocalInstagramSection>("account");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -186,7 +191,7 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
         let cancelled = false;
         async function checkCompetitors() {
             try {
-                const { from, to } = computeRangeDates(range);
+                const { from, to } = computeRangeDates(range, customFrom, customTo);
                 const res = await fetchInstagramCompetitors({ from, to, blogId });
                 if (!cancelled) setHasCompetitors(!listIsEmpty(res.data?.items));
             } catch {
@@ -197,7 +202,7 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
         return () => {
             cancelled = true;
         };
-    }, [range, blogId]);
+    }, [range, customFrom, customTo, blogId]);
 
     useEffect(() => {
         if (!hasCompetitors && activeSection === "competitors") {
@@ -213,7 +218,7 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
             setError(null);
             setUsingMock(false);
             try {
-                const { from, to } = computeRangeDates(range);
+                const { from, to } = computeRangeDates(range, customFrom, customTo);
 
                 // Load data based on active section
                 if (activeSection === "account") {
@@ -343,7 +348,7 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
         return () => {
             cancelled = true;
         };
-    }, [activeSection, range, blogId]);
+    }, [activeSection, range, customFrom, customTo, blogId]);
 
     // Helper function to normalize series data
     function normalizeSeries(seriesContainer: any, key: string): any[] {
@@ -384,7 +389,173 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
         extractSeriesValues(sectionData?.timeline)
     );
 
-    const items = sectionData?.items ?? [];
+    const [searchQuery, setSearchQuery] = useState("");
+    const [mediaTypeFilter, setMediaTypeFilter] = useState("all");
+    const [sortBy, setSearchSortBy] = useState("date_desc");
+
+    useEffect(() => {
+        setSearchQuery("");
+        setMediaTypeFilter("all");
+        setSearchSortBy("date_desc");
+    }, [activeSection]);
+
+    // Helpers for CSV and PDF downloads
+    const exportToCSV = (data: any[], filename: string, mapping: { header: string; getValue: (item: any) => any }[]) => {
+        if (!data || !data.length) return;
+        const headers = mapping.map(m => m.header).join(",");
+        const rows = data.map(item => 
+            mapping.map(m => {
+                const val = m.getValue(item);
+                const cell = val === null || val === undefined ? "" : String(val);
+                const escaped = cell.replace(/"/g, '""');
+                return `"${escaped}"`;
+            }).join(",")
+        );
+        const csvContent = [headers, ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const exportToPDF = (data: any[], title: string, mapping: { header: string; getValue: (item: any) => any; align?: "left" | "right" }[]) => {
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) return;
+        
+        const rowsHtml = data.map((item, index) => {
+            const colsHtml = mapping.map(m => {
+                const val = m.getValue(item);
+                const displayVal = typeof val === "number" ? val.toLocaleString("en-IN") : (val ?? "—");
+                const alignment = m.align === "right" ? "text-align: right;" : "text-align: left;";
+                return `<td style="padding: 8px; border-bottom: 1px solid #e5e7eb; ${alignment}">${displayVal}</td>`;
+            }).join("");
+            return `<tr style="background-color: ${index % 2 === 0 ? "#ffffff" : "#f9fafb"}">${colsHtml}</tr>`;
+        }).join("");
+        
+        const headersHtml = mapping.map(m => {
+            const alignment = m.align === "right" ? "text-align: right;" : "text-align: left;";
+            return `<th style="padding: 10px 8px; background-color: #f3f4f6; font-weight: bold; border-bottom: 2px solid #e5e7eb; ${alignment}">${m.header}</th>`;
+        }).join("");
+        
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>${title}</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111827; padding: 20px; }
+                        h1 { font-size: 18px; margin-bottom: 4px; color: #1f2937; }
+                        p { font-size: 11px; color: #6b7280; margin-top: 0; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${title}</h1>
+                    <p>Generated on ${new Date().toLocaleDateString("en-IN")} at ${new Date().toLocaleTimeString("en-IN")}</p>
+                    <table>
+                        <thead>
+                            <tr>${headersHtml}</tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            window.close();
+                        }
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
+    // Columns configurations
+    const postExportColumns = [
+        { header: "Date", getValue: (item: any) => item.date || item.dateTime || "" },
+        { header: "Message", getValue: (item: any) => item.content || item.message || item.text || item.caption || item.description || item.title || "" },
+        { header: "Type", getValue: (item: any) => item.mediaType || item.type || "" },
+        { header: "Impressions", getValue: (item: any) => item.impressions || item.impressionsTotal || item.views || 0, align: "right" as const },
+        { header: "Reach", getValue: (item: any) => item.reach || item.impressionsUnique || item.reachTotal || 0, align: "right" as const },
+        { header: "Engagement", getValue: (item: any) => item.engagement || item.engagementTotal || 0, align: "right" as const },
+        { header: "Likes/Reactions", getValue: (item: any) => item.likes || item.reactions || item.likesCount || 0, align: "right" as const },
+        { header: "Comments", getValue: (item: any) => item.comments || item.commentsCount || 0, align: "right" as const },
+        { header: "Shares", getValue: (item: any) => item.shares || item.sharesCount || 0, align: "right" as const },
+    ];
+
+    const competitorExportColumns = [
+        { header: "Competitor", getValue: (item: any) => item.displayName || item.screenName || "" },
+        { header: "Followers", getValue: (item: any) => item.followers || 0, align: "right" as const },
+        { header: "Posts", getValue: (item: any) => item.posts || 0, align: "right" as const },
+        { header: "Likes/Reactions", getValue: (item: any) => item.likes || item.reactions || 0, align: "right" as const },
+        { header: "Comments", getValue: (item: any) => item.comments || 0, align: "right" as const },
+        { header: "Shares", getValue: (item: any) => item.shares || item.sharesCount || 0, align: "right" as const },
+        { header: "Engagement %", getValue: (item: any) => item.engagement ? (item.engagement * 100).toFixed(2) + "%" : "0%", align: "right" as const },
+    ];
+
+    const rawItems = sectionData?.items ?? [];
+
+    const postTypes = useMemo(() => {
+        const types = new Set<string>();
+        rawItems.forEach((item: any) => {
+            const t = item.mediaType || item.type;
+            if (t) types.add(t);
+        });
+        return Array.from(types);
+    }, [rawItems]);
+
+    const sortItems = (items: any[], type: string) => {
+        return [...items].sort((a, b) => {
+            switch (type) {
+                case "date_desc":
+                    return new Date(b.date || b.dateTime || 0).getTime() - new Date(a.date || a.dateTime || 0).getTime();
+                case "date_asc":
+                    return new Date(a.date || a.dateTime || 0).getTime() - new Date(b.date || b.dateTime || 0).getTime();
+                case "impressions_desc":
+                    return (b.impressions || b.impressionsTotal || b.views || 0) - (a.impressions || a.impressionsTotal || a.views || 0);
+                case "reach_desc":
+                    return (b.reach || b.impressionsUnique || b.reachTotal || 0) - (a.reach || a.impressionsUnique || a.reachTotal || 0);
+                case "likes_desc":
+                    return (b.likes || b.reactions || b.likesCount || 0) - (a.likes || a.reactions || a.likesCount || 0);
+                case "comments_desc":
+                    return (b.comments || b.commentsCount || 0) - (a.comments || a.commentsCount || 0);
+                case "shares_desc":
+                    return (b.shares || b.sharesCount || 0) - (a.shares || a.sharesCount || 0);
+                case "engagement_desc":
+                    return (b.engagement || b.engagementTotal || 0) - (a.engagement || a.engagementTotal || 0);
+                case "followers_desc":
+                    return (b.followers || 0) - (a.followers || 0);
+                case "posts_desc":
+                    return (b.posts || 0) - (a.posts || 0);
+                default:
+                    return 0;
+            }
+        });
+    };
+
+    const items = useMemo(() => {
+        if (!rawItems) return [];
+        let result = rawItems.filter((item: any) => {
+            if (activeSection === "competitors") {
+                const name = item.displayName || item.screenName || "";
+                return name.toLowerCase().includes(searchQuery.toLowerCase());
+            } else {
+                const content = item.content || item.message || item.text || item.caption || item.description || item.title || "";
+                const matchesSearch = content.toLowerCase().includes(searchQuery.toLowerCase());
+                
+                if (mediaTypeFilter === "all") return matchesSearch;
+                const type = (item.mediaType || item.type || "").toLowerCase();
+                return matchesSearch && type === mediaTypeFilter.toLowerCase();
+            }
+        });
+        return sortItems(result, sortBy);
+    }, [rawItems, searchQuery, activeSection, mediaTypeFilter, sortBy]);
 
     return (
         <div className="space-y-6">
@@ -888,65 +1059,130 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
             {/* Items List - Only show for non-account sections */}
             {activeSection !== "account" && activeSection !== "demographics" && (
                 <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4">
-                        <p className="text-sm font-normal text-gray-900 capitalize">
-                            {activeSection} {activeSection === 'competitors' ? 'Analysis' : 'Items'}
-                        </p>
-                        <p className="text-xs text-gray-900">
-                            {activeSection === 'competitors'
-                                ? 'Compare your performance with competitors'
-                                : `Recent ${activeSection} published in this period`
-                            }
-                        </p>
+                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-semibold text-gray-900 capitalize">
+                                {activeSection} {activeSection === 'competitors' ? 'Analysis' : 'Items'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                {items.length} items found
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {activeSection === "posts" && postTypes.length > 1 && (
+                                <select
+                                    value={mediaTypeFilter}
+                                    onChange={(e) => setMediaTypeFilter(e.target.value)}
+                                    className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white text-gray-700"
+                                >
+                                    <option value="all">All Types</option>
+                                    {postTypes.map(t => (
+                                        <option key={t} value={t}>{t}</option>
+                                    ))}
+                                </select>
+                            )}
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSearchSortBy(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white text-gray-700"
+                            >
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                {activeSection === "competitors" ? (
+                                    <>
+                                        <option value="followers_desc">Followers (High to Low)</option>
+                                        <option value="posts_desc">Posts (High to Low)</option>
+                                    </>
+                                ) : (
+                                    <>
+                                        <option value="impressions_desc">Impressions (High to Low)</option>
+                                        <option value="reach_desc">Reach (High to Low)</option>
+                                        <option value="likes_desc">Likes (High to Low)</option>
+                                        <option value="comments_desc">Comments (High to Low)</option>
+                                        <option value="shares_desc">Shares (High to Low)</option>
+                                        <option value="engagement_desc">Engagement Rate (High to Low)</option>
+                                    </>
+                                )}
+                            </select>
+                            <input
+                                type="text"
+                                placeholder={`Search ${activeSection}...`}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-pink-500 w-48 bg-gray-50/50 text-gray-900"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => exportToCSV(
+                                    items,
+                                    `instagram_${activeSection}.csv`,
+                                    activeSection === "competitors" ? competitorExportColumns : postExportColumns
+                                )}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ CSV
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => exportToPDF(
+                                    items,
+                                    `Instagram ${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} Analysis`,
+                                    activeSection === "competitors" ? competitorExportColumns : postExportColumns
+                                )}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
+                            >
+                                ⬇ PDF
+                            </button>
+                        </div>
                     </header>
                     <div className="overflow-x-auto">
                         {items.length > 0 ? (
                             activeSection === 'competitors' ? (
-                                <table className="min-w-full text-xs">
+                                <table className="min-w-full text-sm">
                                     <thead>
-                                        <tr className="text-left text-gray-900">
-                                            <th className="py-2 pr-2">Competitor</th>
-                                            <th className="py-2 pr-2 text-right">Followers</th>
-                                            <th className="py-2 pr-2 text-right">Posts</th>
-                                            <th className="py-2 pr-2 text-right">Likes</th>
-                                            <th className="py-2 pr-2 text-right">Comments</th>
-                                            <th className="py-2 pr-2 text-right">Shares</th>
-                                            <th className="py-2 pr-2 text-right">Engagement %</th>
+                                        <tr className="text-left text-gray-900 border-b border-gray-100">
+                                            <th className="py-4 pr-3">Competitor</th>
+                                            <th className="py-4 pr-3 text-right">Followers</th>
+                                            <th className="py-4 pr-3 text-right">Posts</th>
+                                            <th className="py-4 pr-3 text-right">Likes</th>
+                                            <th className="py-4 pr-3 text-right">Comments</th>
+                                            <th className="py-4 pr-3 text-right">Shares</th>
+                                            <th className="py-4 pr-3 text-right">Engagement %</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {items.map((item: any, index: number) => (
-                                            <tr key={item.id ?? index} className="border-t border-gray-100">
-                                                <td className="py-2 pr-2 text-gray-900">
-                                                    <div className="flex items-center gap-2">
+                                            <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
+                                                <td className="py-4 pr-3 text-gray-900">
+                                                    <div className="flex items-center gap-3 font-semibold text-gray-800">
                                                         <ImageWithHover
                                                             src={item.picture}
                                                             alt={item.displayName || item.screenName || "Competitor"}
-                                                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                                                            className="w-12 h-12 rounded-full object-cover border border-gray-200 shadow-sm"
                                                             showName={true}
                                                             name={item.displayName || item.screenName || "Unknown"}
                                                         />
-                                                        <span className="font-normal">
+                                                        <span className="font-semibold text-gray-800">
                                                             {item.displayName || item.screenName || "—"}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900 font-medium">
                                                     {formatNumber(item.followers)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.posts)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.likes || item.reactions)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.comments)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.shares || item.sharesCount)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900 font-semibold text-pink-600">
                                                     {item.engagement ? (item.engagement * 100).toFixed(2) + '%' : '—'}
                                                 </td>
                                             </tr>
@@ -954,54 +1190,54 @@ export default function InstagramView({ range, onRangeChange, blogId }: Instagra
                                     </tbody>
                                 </table>
                             ) : (
-                                <table className="min-w-full text-xs">
+                                <table className="min-w-full text-sm">
                                     <thead>
-                                        <tr className="text-left text-gray-900">
-                                            <th className="py-2 pr-2">Media</th>
-                                            <th className="py-2 pr-2">Message</th>
-                                            <th className="py-2 pr-2">Type</th>
-                                            <th className="py-2 pr-2 text-right">Impressions</th>
-                                            <th className="py-2 pr-2 text-right">Reach</th>
-                                            <th className="py-2 pr-2 text-right">Engagement</th>
-                                            <th className="py-2 pr-2 text-right">Likes</th>
-                                            <th className="py-2 pr-2 text-right">Comments</th>
-                                            <th className="py-2 pr-2 text-right">Shares</th>
+                                        <tr className="text-left text-gray-900 border-b border-gray-100">
+                                            <th className="py-4 pr-3">Media</th>
+                                            <th className="py-4 pr-3">Message</th>
+                                            <th className="py-4 pr-3">Type</th>
+                                            <th className="py-4 pr-3 text-right">Impressions</th>
+                                            <th className="py-4 pr-3 text-right">Reach</th>
+                                            <th className="py-4 pr-3 text-right">Engagement</th>
+                                            <th className="py-4 pr-3 text-right">Likes</th>
+                                            <th className="py-4 pr-3 text-right">Comments</th>
+                                            <th className="py-4 pr-3 text-right">Shares</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.slice(0, 10).map((item: any, index: number) => (
-                                            <tr key={item.id ?? index} className="border-t border-gray-100">
-                                                <td className="py-2 pr-2 text-gray-900">
+                                        {items.map((item: any, index: number) => (
+                                            <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
+                                                <td className="py-4 pr-3 text-gray-900">
                                                     <ImageWithHover
                                                         src={item.picture || item.thumbnailUrl || item.imageUrl}
                                                         alt={item.content || item.message || item.text || item.caption || item.description || item.title || "Media"}
-                                                        className="w-10 h-10 rounded object-cover border border-gray-200"
+                                                        className="w-16 h-16 rounded-xl object-cover border border-gray-200"
                                                         showName={true}
                                                         name={(item.content || item.message || item.text || item.caption || item.description || item.title || item.name || item.mediaType || item.type || activeSection).substring(0, 50)}
                                                     />
                                                 </td>
-                                                <td className="py-2 pr-2 text-gray-900 max-w-xs truncate">
+                                                <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
                                                     {item.content || item.message || item.text || item.caption || item.description || item.title || item.name || <span className="text-gray-400 italic text-xs">(No caption)</span>}
                                                 </td>
-                                                <td className="py-2 pr-2 text-gray-900">
+                                                <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
                                                     {item.mediaType || item.type || activeSection}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.impressions || item.impressionsTotal || item.views)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
                                                     {formatNumber(item.engagement || item.engagementTotal)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.likes || item.reactions || item.likesCount)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.comments || item.commentsCount)}
                                                 </td>
-                                                <td className="py-2 pr-2 text-right text-gray-900">
+                                                <td className="py-4 pr-3 text-right text-gray-900">
                                                     {formatNumber(item.shares || item.sharesCount)}
                                                 </td>
                                             </tr>
