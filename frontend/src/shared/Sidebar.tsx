@@ -4,6 +4,7 @@ import { useLang } from "../modules/lang/LangContext";
 import { useLogout } from "../services/authService";
 import { useAuth } from "../modules/auth/AuthContext";
 import { IconSettingsDefault } from "./icons/SidebarIcons";
+import { FaFacebook, FaInstagram, FaYoutube } from "react-icons/fa";
 
 import { RajkamalLogo } from "./RajkamalLogo";
 
@@ -36,6 +37,9 @@ const IconChat = svg(<path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 2
 const IconBag = svg(<><path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></>);
 const IconMap = svg(<><path d="m9 4 6 2 5-2v14l-5 2-6-2-5 2V6l5-2Z" /><path d="M9 4v14M15 6v14" /></>);
 const IconSocial = svg(<><circle cx="6" cy="12" r="2.5" /><circle cx="17" cy="6" r="2.5" /><circle cx="17" cy="18" r="2.5" /><path d="m8.2 10.8 6.6-3.6M8.2 13.2l6.6 3.6" /></>);
+const IconFacebook = (p: IconProps) => <FaFacebook {...p} className={`h-4 w-4 shrink-0 text-[#1877F2] ${p.className || ""}`} />;
+const IconInstagram = (p: IconProps) => <FaInstagram {...p} className={`h-4 w-4 shrink-0 text-[#E1306C] ${p.className || ""}`} />;
+const IconYoutube = (p: IconProps) => <FaYoutube {...p} className={`h-4 w-4 shrink-0 text-[#FF0000] ${p.className || ""}`} />;
 const IconArrowLeft = svg(<path d="M19 12H5M11 6l-6 6 6 6" />);
 const IconLogout = svg(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5M21 12H9" /></>);
 
@@ -44,6 +48,7 @@ type Leaf = {
   to: string;
   icon: (p: IconProps) => JSX.Element;
   disabled?: boolean;
+  color?: string;
 };
 
 type NavNode =
@@ -81,6 +86,16 @@ const TREE: NavNode[] = [
     icon: IconBook,
     items: [
       { label: "Delhi", to: "/bookfair-offline-sales", icon: IconPin },
+    ],
+  },
+  {
+    kind: "group",
+    title: "Social Media",
+    icon: IconSocial,
+    items: [
+      { label: "Facebook", to: "/social?platform=facebook", icon: IconFacebook, color: "#1877F2" },
+      { label: "Instagram", to: "/social?platform=instagram", icon: IconInstagram, color: "#E1306C" },
+      { label: "YouTube", to: "/social?platform=youtube", icon: IconYoutube, color: "#FF0000" },
     ],
   },
 ];
@@ -134,22 +149,30 @@ export default function Sidebar() {
   function LeafItem({ leaf }: { leaf: Leaf }) {
     const active = isActive(leaf.to);
     const Icon = leaf.icon;
+    const activeColor = leaf.color || ACTIVE;
     return (
       <Link
         to={leaf.disabled ? "#" : leaf.to}
         onClick={(e) => leaf.disabled && e.preventDefault()}
         title={leaf.label}
-        style={active ? { color: ACTIVE } : undefined}
+        style={
+          active
+            ? {
+                color: activeColor,
+                backgroundColor: `${activeColor}12`,
+              }
+            : undefined
+        }
         className={
           "group/leaf flex items-center gap-2 rounded-lg py-0.5 pl-6 pr-3 text-sm transition-colors " +
           (leaf.disabled ? "opacity-40 pointer-events-none " : "") +
           (active
-            ? "bg-[#0067B5]/10 font-medium"
+            ? "font-medium"
             : "text-gray-600 hover:bg-gray-50 hover:text-gray-900")
         }
       >
-        {active && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
-        <Icon className={"h-4 w-4 shrink-0 " + (active ? "" : "text-gray-400")} />
+        {active && <span className="shrink-0 text-base leading-none" aria-hidden style={{ color: activeColor }}>→</span>}
+        <Icon className={"h-4 w-4 shrink-0 " + (active ? "" : "text-gray-400")} style={active ? { color: activeColor } : undefined} />
         <span className="truncate">{leaf.label}</span>
       </Link>
     );
@@ -159,7 +182,6 @@ export default function Sidebar() {
   const collapsedNav = [
     ...TREE.flatMap((n) => (n.kind === "item" ? [{ label: n.label, to: n.to, icon: n.icon, disabled: n.disabled }] : n.items)),
     { label: t("geo_insights"), to: "/geo-insights", icon: IconMap, disabled: false },
-    { label: t("social_media"), to: "/social", icon: IconSocial, disabled: false },
   ];
 
   return (
@@ -193,20 +215,28 @@ export default function Sidebar() {
               {collapsedNav.map((it) => {
                 const active = isActive(it.to);
                 const Icon = it.icon;
+                const activeColor = (it as any).color || ACTIVE;
                 return (
                   <Link
                     key={it.to + it.label}
                     to={it.disabled ? "#" : it.to}
                     onClick={(e) => it.disabled && e.preventDefault()}
                     title={it.label}
-                    style={active ? { color: ACTIVE } : undefined}
+                    style={
+                      active
+                        ? {
+                            color: activeColor,
+                            backgroundColor: `${activeColor}12`,
+                          }
+                        : undefined
+                    }
                     className={
                       "flex h-10 w-10 items-center justify-center rounded-xl transition-colors " +
                       (it.disabled ? "opacity-40 pointer-events-none " : "") +
-                      (active ? "bg-[#0067B5]/10" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800")
+                      (active ? "" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800")
                     }
                   >
-                    <Icon className="h-5 w-5 shrink-0" />
+                    <Icon className="h-5 w-5 shrink-0" style={active ? { color: activeColor } : undefined} />
                   </Link>
                 );
               })}
@@ -252,20 +282,6 @@ export default function Sidebar() {
                   {isActive("/geo-insights") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
                   <IconMap className={"h-4 w-4 shrink-0 " + (isActive("/geo-insights") ? "" : "text-gray-400")} />
                   {t("geo_insights")}
-                </Link>
-                <Link
-                  to="/social"
-                  style={isActive("/social") ? { color: ACTIVE, borderColor: ACTIVE } : undefined}
-                  className={
-                    "flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium transition-colors " +
-                    (isActive("/social")
-                      ? "bg-[#0067B5]/10 border-[#0067B5]"
-                      : "border-gray-200 text-gray-700 hover:bg-gray-50")
-                  }
-                >
-                  {isActive("/social") && <span className="shrink-0 text-base leading-none" aria-hidden>→</span>}
-                  <IconSocial className={"h-4 w-4 shrink-0 " + (isActive("/social") ? "" : "text-gray-400")} />
-                  {t("social_media")}
                 </Link>
             </div>
           )}

@@ -388,37 +388,20 @@ export default function FacebookView({ range, onRangeChange, blogId }: FacebookV
     return (
         <div className="space-y-6">
             {/* Section Tabs */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
-                    {sections.map((section) => (
-                        <button
-                            key={section.key}
-                            type="button"
-                            onClick={() => setActiveSection(section.key)}
-                            className={`px-4 py-2 text-xs font-normal rounded-lg transition-all ${activeSection === section.key
-                                ? "bg-blue-600 text-white shadow-md"
-                                : "bg-gray-100 text-gray-900 hover:bg-gray-200"
-                                }`}
-                        >
-                            {section.label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Time Range Selector */}
-                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-900">
-                    {(["7d", "30d", "90d"] as TimeRangeKey[]).map((key) => (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => onRangeChange(key)}
-                            className={`px-3 py-1 rounded-full ${range === key ? "bg-white shadow-sm" : ""
-                                }`}
-                        >
-                            {key}
-                        </button>
-                    ))}
-                </div>
+            <div className="flex flex-wrap gap-2">
+                {sections.map((section) => (
+                    <button
+                        key={section.key}
+                        type="button"
+                        onClick={() => setActiveSection(section.key)}
+                        className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${activeSection === section.key
+                            ? "bg-[#1877F2] text-white shadow-md shadow-[#1877F2]/20 border border-[#1877F2]"
+                            : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:text-gray-900"
+                            }`}
+                    >
+                        {section.label}
+                    </button>
+                ))}
             </div>
 
             {error && (

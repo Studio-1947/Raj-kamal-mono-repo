@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useLang } from "../modules/lang/LangContext";
 import InstagramView from "./InstagramView";
 import FacebookView from "./FacebookView";
@@ -21,9 +22,6 @@ import {
 
 type TimeRangeKey = "7d" | "30d" | "90d";
 
-// Networks we have a real dashboard view for. Metricool may have other
-// networks connected (YouTube, LinkedIn, etc.) but we only show a tab once
-// there's an actual view built for it — no "Coming Soon" placeholders.
 const IMPLEMENTED_NETWORKS: PlatformKey[] = ["facebook", "instagram", "youtube"];
 
 const SELECTED_BRAND_STORAGE_KEY = "metricool_selected_blog_id";
@@ -36,6 +34,44 @@ const NETWORK_ICONS: Partial<Record<keyof NetworkFlags, { Icon: ComponentType<{ 
     tiktok: { Icon: FaTiktok, color: "text-gray-900" },
     twitter: { Icon: FaTwitter, color: "text-[#1DA1F2]" },
     pinterest: { Icon: FaPinterest, color: "text-[#E60023]" },
+};
+
+const BRAND_DETAILS: Record<PlatformKey, {
+    name: string;
+    icon: ComponentType<{ className?: string }>;
+    activeBg: string;
+    activeBorder: string;
+    activeText: string;
+    brandColor: string;
+    description: string;
+}> = {
+    facebook: {
+        name: "Facebook",
+        icon: FaFacebook,
+        activeBg: "bg-[#1877F2]/10",
+        activeBorder: "border-[#1877F2]",
+        activeText: "text-[#1877F2]",
+        brandColor: "#1877F2",
+        description: "Pages & Reels insights",
+    },
+    instagram: {
+        name: "Instagram",
+        icon: FaInstagram,
+        activeBg: "bg-[#E1306C]/10",
+        activeBorder: "border-[#E1306C]",
+        activeText: "text-[#E1306C]",
+        brandColor: "#E1306C",
+        description: "Account & Reels statistics",
+    },
+    youtube: {
+        name: "YouTube",
+        icon: FaYoutube,
+        activeBg: "bg-[#FF0000]/10",
+        activeBorder: "border-[#FF0000]",
+        activeText: "text-[#FF0000]",
+        brandColor: "#FF0000",
+        description: "Channel growth & videos",
+    },
 };
 
 function BrandNetworkIcons({ brand }: { brand: NetworkFlags }) {
@@ -74,7 +110,23 @@ export default function SocialDashboard() {
     const { t } = useLang();
 
     const [range, setRange] = useState<TimeRangeKey>("30d");
-    const [activeNetwork, setActiveNetwork] = useState<PlatformKey>("facebook");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const platformParam = searchParams.get("platform") as PlatformKey | null;
+
+    const activeNetwork = useMemo(() => {
+        if (platformParam && IMPLEMENTED_NETWORKS.includes(platformParam)) {
+            return platformParam;
+        }
+        return "facebook";
+    }, [platformParam]);
+
+    const setActiveNetwork = (network: PlatformKey) => {
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("platform", network);
+            return next;
+        }, { replace: true });
+    };
 
     const [brands, setBrands] = useState<Brand[]>([]);
     const [selectedBlogId, setSelectedBlogId] = useState<string | null>(
@@ -88,8 +140,6 @@ export default function SocialDashboard() {
             .then((data) => {
                 if (cancelled) return;
                 setBrands(data);
-                // If nothing selected yet, or the stored selection no longer exists
-                // on this account, fall back to the first brand Metricool returns.
                 setSelectedBlogId((current) => {
                     if (current && data.some((b) => b.blogId === current)) {
                         return current;
@@ -116,126 +166,175 @@ export default function SocialDashboard() {
         [brands, selectedBlogId],
     );
 
-    // Derived synchronously from `brands` (already loaded) instead of a
-    // separate per-brand fetch — no fetch means no gap where a view can
-    // render against a brand that doesn't actually support that network.
-    // Fail open before brands have loaded, so the dashboard isn't blank.
     const headerTabs: PlatformKey[] = selectedBrand
         ? IMPLEMENTED_NETWORKS.filter((key) => selectedBrand[key])
         : IMPLEMENTED_NETWORKS;
 
     useEffect(() => {
-        if (headerTabs.length > 0 && !headerTabs.includes(activeNetwork)) {
-            setActiveNetwork(headerTabs[0]);
+        if (headerTabs.length > 0) {
+            if (!platformParam || !headerTabs.includes(activeNetwork)) {
+                setActiveNetwork(headerTabs[0]);
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [headerTabs.join(",")]);
+    }, [headerTabs, activeNetwork, platformParam]);
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-normal text-gray-900">
-                            {t("social_media")}
-                        </h1>
-                        <p className="mt-1 text-sm text-gray-600">
-                            Metricool analytics for {selectedBrand?.label || "your connected accounts"}.
-                        </p>
-                    </div>
+        <div className="flex flex-col lg:flex-row gap-6">
+            {/* Left Column: Brand Switcher and Social Channel Selector */}
+            <div className="w-full lg:w-64 shrink-0 flex flex-col gap-4">
+                {/* Brand Switcher Card */}
+                <div className="rounded-3xl border border-gray-200/60 bg-white shadow-sm p-4 flex flex-col gap-4 relative">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                            {selectedBrand && <BrandAvatar brand={selectedBrand} />}
+                            <div className="min-w-0">
+                                <h2 className="text-xs font-semibold text-gray-900 truncate">
+                                    {selectedBrand?.label ?? "Select brand"}
+                                </h2>
+                                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mt-0.5">
+                                    Active Profile
+                                </p>
+                            </div>
+                        </div>
 
-                    {brands.length > 0 && (
-                        <div className="relative">
+                        {brands.length > 0 && (
                             <button
                                 type="button"
                                 onClick={() => setSwitcherOpen((open) => !open)}
-                                className="flex items-center gap-2 rounded-full border border-gray-200 bg-white pl-1.5 pr-3 py-1.5 shadow-sm hover:bg-gray-50"
+                                className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors shadow-sm shrink-0"
                             >
-                                {selectedBrand && <BrandAvatar brand={selectedBrand} />}
-                                <span className="text-xs font-normal text-gray-900 max-w-[140px] truncate">
-                                    {selectedBrand?.label ?? "Select brand"}
-                                </span>
-                                <span className="text-gray-400 text-xs">▾</span>
+                                <span className="text-[10px]">▼</span>
                             </button>
+                        )}
+                    </div>
 
-                            {switcherOpen && (
-                                <>
-                                    <div
-                                        className="fixed inset-0 z-10"
-                                        onClick={() => setSwitcherOpen(false)}
-                                    />
-                                    <div className="absolute left-0 z-20 mt-2 w-72 rounded-2xl border border-gray-200 bg-white shadow-lg py-2">
-                                        {brands.map((brand) => (
-                                            <button
-                                                key={brand.blogId}
-                                                type="button"
-                                                onClick={() => {
-                                                    setSelectedBlogId(brand.blogId);
-                                                    setSwitcherOpen(false);
-                                                }}
-                                                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 ${brand.blogId === selectedBlogId ? "bg-gray-100" : ""
-                                                    }`}
-                                            >
-                                                <BrandAvatar brand={brand} />
-                                                <span className="flex-1 text-sm text-gray-900 truncate">
-                                                    {brand.label}
-                                                </span>
-                                                <BrandNetworkIcons brand={brand} />
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                    {switcherOpen && brands.length > 0 && (
+                        <>
+                            <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setSwitcherOpen(false)}
+                            />
+                            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-gray-200 bg-white shadow-lg py-2">
+                                {brands.map((brand) => (
+                                    <button
+                                        key={brand.blogId}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedBlogId(brand.blogId);
+                                            setSwitcherOpen(false);
+                                        }}
+                                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 ${brand.blogId === selectedBlogId ? "bg-gray-100" : ""
+                                            }`}
+                                    >
+                                        <BrandAvatar brand={brand} />
+                                        <span className="flex-1 text-sm text-gray-900 truncate">
+                                            {brand.label}
+                                        </span>
+                                        <BrandNetworkIcons brand={brand} />
+                                    </button>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </div>
-                <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                    <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-700">
-                        {headerTabs.map((key) => (
-                            <button
-                                key={key}
-                                type="button"
-                                onClick={() => setActiveNetwork(key)}
-                                className={`px-3 py-1 rounded-full capitalize ${activeNetwork === key ? "bg-white shadow-sm" : ""
+
+                {/* Vertical Social Channels Navigation */}
+                <div className="rounded-3xl border border-gray-200/60 bg-white shadow-sm p-4 flex flex-col gap-3">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">
+                        Social Channels
+                    </p>
+
+                    <div className="flex flex-col gap-2">
+                        {headerTabs.map((key) => {
+                            const details = BRAND_DETAILS[key];
+                            if (!details) return null;
+                            const Icon = details.icon;
+                            const isActive = activeNetwork === key;
+
+                            return (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setActiveNetwork(key)}
+                                    className={`flex items-center gap-3 w-full text-left p-3 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
+                                        isActive
+                                            ? `${details.activeBg} ${details.activeText} shadow-sm border-l-4 ${details.activeBorder} font-semibold`
+                                            : "border-gray-100 bg-white text-gray-700 hover:bg-gray-50/80 hover:text-gray-900"
                                     }`}
-                            >
-                                {key}
-                            </button>
-                        ))}
+                                >
+                                    <Icon
+                                        className={`h-5 w-5 shrink-0 ${
+                                            isActive ? "" : "text-gray-400"
+                                        }`}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-semibold capitalize">{key}</p>
+                                        <p className={`text-[9px] mt-0.5 truncate ${isActive ? "opacity-90" : "text-gray-400"}`}>
+                                            {details.description}
+                                        </p>
+                                    </div>
+                                    {isActive && (
+                                        <span className="h-1.5 w-1.5 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: details.brandColor }} />
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
-                    <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-700">
+                </div>
+            </div>
+
+            {/* Right Column: Metrics Content Area */}
+            <div className="flex-1 min-w-0 flex flex-col gap-6">
+                {/* Header card with title & range */}
+                <div className="rounded-3xl border border-gray-200/60 bg-white shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900 capitalize flex items-center gap-2">
+                            {activeNetwork} Insights
+                        </h1>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Metricool analysis for your connected {activeNetwork} page.
+                        </p>
+                    </div>
+
+                    <div className="inline-flex items-center rounded-full bg-gray-100 p-1 text-xs font-semibold self-start sm:self-auto">
                         {["7d", "30d", "90d"].map((key) => (
                             <button
                                 key={key}
                                 type="button"
                                 onClick={() => setRange(key as TimeRangeKey)}
-                                className={`px-3 py-1 rounded-full ${range === key ? "bg-white shadow-sm" : ""
-                                    }`}
+                                className={`px-4 py-1.5 rounded-full transition-all duration-200 ${
+                                    range === key
+                                        ? "bg-white text-gray-900 shadow-sm"
+                                        : "text-gray-500 hover:text-gray-900"
+                                }`}
                             >
                                 {key}
                             </button>
                         ))}
                     </div>
                 </div>
+
+                {/* View Details */}
+                {headerTabs.length === 0 && (
+                    <div className="rounded-3xl border border-black/5 bg-white shadow-sm p-6 text-sm text-gray-600">
+                        No connected social accounts were found for this brand in Metricool.
+                    </div>
+                )}
+
+                {headerTabs.includes(activeNetwork) && activeNetwork === "instagram" && (
+                    <InstagramView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
+                )}
+
+                {headerTabs.includes(activeNetwork) && activeNetwork === "facebook" && (
+                    <FacebookView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
+                )}
+
+                {headerTabs.includes(activeNetwork) && activeNetwork === "youtube" && (
+                    <YouTubeView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
+                )}
             </div>
-
-            {headerTabs.length === 0 && (
-                <div className="rounded-3xl border border-black/5 bg-white shadow-sm p-6 text-sm text-gray-600">
-                    No connected social accounts were found for this brand in Metricool.
-                </div>
-            )}
-
-            {headerTabs.includes(activeNetwork) && activeNetwork === "instagram" && (
-                <InstagramView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
-            )}
-
-            {headerTabs.includes(activeNetwork) && activeNetwork === "facebook" && (
-                <FacebookView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
-            )}
-
-            {headerTabs.includes(activeNetwork) && activeNetwork === "youtube" && (
-                <YouTubeView range={range} onRangeChange={setRange} blogId={selectedBlogId ?? undefined} />
-            )}
         </div>
     );
 }
+
