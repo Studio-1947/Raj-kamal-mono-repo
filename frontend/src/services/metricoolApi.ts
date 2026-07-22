@@ -217,11 +217,11 @@ export async function fetchOverview(
     ]);
 
   // Extract values from series
-  const likesValue = extractLatestValue(likes);
+  const likesValue = sumSeriesValues(likes) || extractLatestValue(likes);
   const followersValue = extractLatestValue(followers);
-  const impressionsValue = extractLatestValue(impressions);
-  const reachValue = extractLatestValue(reach);
-  const pageVisitsValue = extractLatestValue(pageVisits);
+  const impressionsSum = sumSeriesValues(impressions) || extractLatestValue(impressions);
+  const reachSum = sumSeriesValues(reach) || extractLatestValue(reach);
+  const pageVisitsSum = sumSeriesValues(pageVisits) || extractLatestValue(pageVisits);
 
   // Calculate total content from posts
   const totalContentValue =
@@ -236,10 +236,10 @@ export async function fetchOverview(
       to: params?.to as string,
       likes: likesValue,
       followers: followersValue,
-      views: impressionsValue ?? 0, // Use impressions for views
-      impressions: impressionsValue,
-      reach: reachValue,
-      pageVisits: pageVisitsValue,
+      views: impressionsSum,
+      impressions: impressionsSum,
+      reach: reachSum,
+      pageVisits: pageVisitsSum,
       totalContent: totalContentValue,
       followersChange: null,
       dailyPageViews: null,

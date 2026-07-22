@@ -33,6 +33,7 @@ import { ImageWithHover } from "./ImageWithHover";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { getCountryName } from "../lib/countryNames";
 import SocialCommonHeader from "./SocialCommonHeader";
+import TablePagination from "./TablePagination";
 import {
     instagramOverviewMock,
     instagramGrowthMock,
@@ -394,12 +395,19 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
     const [searchQuery, setSearchQuery] = useState("");
     const [mediaTypeFilter, setMediaTypeFilter] = useState("all");
     const [sortBy, setSearchSortBy] = useState("date_desc");
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
     useEffect(() => {
         setSearchQuery("");
         setMediaTypeFilter("all");
         setSearchSortBy("date_desc");
+        setCurrentPage(1);
     }, [activeSection]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, mediaTypeFilter, sortBy]);
 
     // Helpers for CSV and PDF downloads
     const exportToCSV = (data: any[], filename: string, mapping: { header: string; getValue: (item: any) => any }[]) => {
@@ -558,6 +566,11 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
         });
         return sortItems(result, sortBy);
     }, [rawItems, searchQuery, activeSection, mediaTypeFilter, sortBy]);
+
+    const paginatedItems = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return items.slice(start, start + pageSize);
+    }, [items, currentPage, pageSize]);
 
     const activeDates = computeRangeDates(range, customFrom, customTo);
 
@@ -1156,7 +1169,7 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.map((item: any, index: number) => (
+                                        {paginatedItems.map((item: any, index: number) => (
                                             <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
                                                 <td className="py-4 pr-3 text-gray-900">
                                                     <div className="flex items-center gap-3 font-semibold text-gray-800">
@@ -1210,7 +1223,7 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.map((item: any, index: number) => (
+                                        {paginatedItems.map((item: any, index: number) => (
                                             <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
                                                 <td className="py-4 pr-3 text-gray-900">
                                                     <ImageWithHover
@@ -1256,6 +1269,13 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                             </p>
                         )}
                     </div>
+                    <TablePagination
+                        currentPage={currentPage}
+                        totalItems={items.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={setPageSize}
+                    />
                 </section>
             )}
         </div>

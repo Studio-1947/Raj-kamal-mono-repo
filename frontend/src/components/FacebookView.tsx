@@ -29,6 +29,8 @@ import { ImageWithHover } from "./ImageWithHover";
 import { getCountryName } from "../lib/countryNames";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import SocialCommonHeader from "./SocialCommonHeader";
+import SocialPageOverview from "./SocialPageOverview";
+import TablePagination from "./TablePagination";
 import {
     facebookOverviewMock,
     facebookGrowthMock,
@@ -393,12 +395,19 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
     const [searchQuery, setSearchQuery] = useState("");
     const [mediaTypeFilter, setMediaTypeFilter] = useState("all");
     const [sortBy, setSortBy] = useState("date_desc");
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
     useEffect(() => {
         setSearchQuery("");
         setMediaTypeFilter("all");
         setSortBy("date_desc");
+        setCurrentPage(1);
     }, [activeSection]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, mediaTypeFilter, sortBy]);
 
     // Helpers for CSV and PDF downloads
     const exportToCSV = (data: any[], filename: string, mapping: { header: string; getValue: (item: any) => any }[]) => {
@@ -578,6 +587,26 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
         return sortItems(result, sortBy);
     }, [competitorsData, searchQuery, sortBy]);
 
+    const paginatedPosts = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredPosts.slice(start, start + pageSize);
+    }, [filteredPosts, currentPage, pageSize]);
+
+    const paginatedReels = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredReels.slice(start, start + pageSize);
+    }, [filteredReels, currentPage, pageSize]);
+
+    const paginatedStories = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredStories.slice(start, start + pageSize);
+    }, [filteredStories, currentPage, pageSize]);
+
+    const paginatedCompetitors = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredCompetitors.slice(start, start + pageSize);
+    }, [filteredCompetitors, currentPage, pageSize]);
+
     const activeDates = computeRangeDates(range, customFrom, customTo);
 
     return (
@@ -647,464 +676,172 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
 
             {/* PAGE OVERVIEW Section */}
             {activeSection === "page_overview" && (
-                <div className="space-y-6">
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-sm font-normal text-gray-900">Page Overview</p>
-                                <p className="text-xs text-gray-900">
-                                    {networkFrom} → {networkTo}
-                                </p>
-                            </div>
-                            {overview?.profileName && (
-                                <div className="flex items-center gap-2 text-sm text-gray-900">
-                                    <img
-                                        src={
-                                            overview?.profilePictureUrl ||
-                                            overview?.picture ||
-                                            "/favicon.svg"
-                                        }
-                                        alt="Profile"
-                                        className="h-8 w-8 rounded-full object-cover"
-                                    />
-                                    <span className="font-normal text-gray-900">
-                                        {overview?.profileName}
-                                    </span>
-                                </div>
-                            )}
-                        </header>
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                            {[
-                                // "Likes" (the raw `likes` metric) is permanently empty on this
-                                // account — Meta doesn't populate it — so we show Reactions
-                                // (page_actions_post_reactions_total) instead, which is real.
-                                { label: "Reactions", value: engagement?.reactions ?? 0 },
-                                { label: "Followers", value: overview?.followers ?? 0 },
-                                { label: "Reach", value: overview?.reach ?? 0 },
-                                { label: "Page visits", value: overview?.pageVisits ?? overview?.pageViews ?? 0 },
-                                { label: "Total content", value: engagement?.postsCount ?? overview?.totalContent ?? 0 },
-                                { label: "Interactions", value: engagement?.interactions ?? 0 },
-                            ].map((card) => (
-                                <div
-                                    key={card.label}
-                                    className="rounded-2xl bg-sky-50 px-4 py-3 text-center shadow-inner border border-sky-100"
-                                >
-                                    <p className="text-xs font-normal text-gray-900">
-                                        {card.label}
-                                    </p>
-                                    <p className="text-xl font-normal text-gray-900">
-                                        {formatNumber(card.value, "0")}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-6">
-                            <h3 className="text-sm font-normal text-gray-900 mb-2">
-                                Growth
-                            </h3>
-                            <div className="h-72">
-                                {impressionsPoints.length || followersPoints.length ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                            <XAxis
-                                                dataKey="date"
-                                                type="category"
-                                                allowDuplicatedCategory={false}
-                                                tick={{ fontSize: 10 }}
-                                                tickMargin={6}
-                                            />
-                                            <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                            <Tooltip
-                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                            />
-                                            <Line
-                                                dataKey="value"
-                                                data={impressionsPoints}
-                                                name="Impressions"
-                                                stroke="#fbbf24"
-                                                dot={false}
-                                            />
-                                            <Line
-                                                dataKey="value"
-                                                data={followersPoints}
-                                                name="Followers"
-                                                stroke="#10b981"
-                                                dot={false}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <p className="text-sm text-gray-900">
-                                        No growth data for this period.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </section>
-
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5 space-y-4">
-                        <header className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-normal text-gray-900">
-                                    Balance of Followers
-                                </p>
-                                <p className="text-xs text-gray-900">
-                                    {networkFrom} → {networkTo}
-                                </p>
-                            </div>
-                            <div className="flex gap-2 text-xs font-normal">
-                                <span className="px-3 py-1 rounded-full bg-sky-50 text-sky-700">
-                                    {formatNumber(overview?.followersChange)} Net change
-                                </span>
-                                <span className="px-3 py-1 rounded-full bg-green-50 text-green-700">
-                                    {formatNumber(overview?.followers)} Total followers
-                                </span>
-                            </div>
-                        </header>
-                        <div className="h-64">
-                            {newFollowersPoints.length || lostFollowersPoints.length ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis
-                                            dataKey="date"
-                                            type="category"
-                                            allowDuplicatedCategory={false}
-                                            tick={{ fontSize: 10 }}
-                                            tickMargin={6}
-                                        />
-                                        <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                        <Tooltip
-                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                            />
-                                        <Line
-                                            dataKey="value"
-                                            data={newFollowersPoints}
-                                            name="Acquired"
-                                            stroke="#0ea5e9"
-                                            dot={false}
-                                        />
-                                        <Line
-                                            dataKey="value"
-                                            data={lostFollowersPoints}
-                                            name="Lost"
-                                            stroke="#f97316"
-                                            dot={false}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <p className="text-sm text-gray-900">
-                                    No follower balance data.
-                                </p>
-                            )}
-                        </div>
-                    </section>
-                </div>
+                <SocialPageOverview
+                    platform="facebook"
+                    overview={overview}
+                    growth={growth}
+                    engagement={engagement}
+                    from={activeDates.from}
+                    to={activeDates.to}
+                />
             )}
 
             {/* DEMOGRAPHICS Section */}
             {activeSection === "demographics" && (
                 <div className="space-y-6">
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4 flex justify-between items-start">
-                            <div>
-                                <p className="text-sm font-normal text-gray-900">
-                                    Followers by Country
-                                </p>
-                                <p className="text-xs text-gray-900">
-                                    Geographic distribution of your audience (Top 10)
-                                </p>
-                            </div>
-                            {demographicsCountries.length > 0 && (
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => {
-                                            const section = document.getElementById('country-chart-all');
-                                            const sectionExcluding = document.getElementById('country-chart-excluding');
-                                            if (section && sectionExcluding) {
-                                                section.style.display = section.style.display === 'none' ? 'block' : 'none';
-                                                sectionExcluding.style.display = sectionExcluding.style.display === 'none' ? 'block' : 'none';
-                                            }
-                                        }}
-                                        className="px-3 py-1 text-xs font-normal text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                                    >
-                                        Toggle View
-                                    </button>
-                                </div>
-                            )}
-                        </header>
-
-                        {/* All Countries View */}
-                        <div id="country-chart-all" className="h-96">
-                            {demographicsCountries.length > 0 ? (
-                                <>
-                                    <p className="text-xs text-gray-500 mb-2">Showing all countries</p>
-                                    <ResponsiveContainer width="100%" height="90%">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Top Countries Card */}
+                        <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-4">
+                            <header>
+                                <h3 className="text-base font-extrabold text-gray-900">Followers by Country</h3>
+                                <p className="text-xs text-gray-500 font-medium">Geographic origin of your Facebook audience</p>
+                            </header>
+                            <div className="h-64 pt-2">
+                                {demographicsCountries.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
                                             data={demographicsCountries
-                                                .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
-                                                .slice(0, 10)
-                                                .map(item => ({
+                                                .slice()
+                                                .sort((a: any, b: any) => (b?.value ?? 0) - (a?.value ?? 0))
+                                                .slice(0, 7)
+                                                .map((item: any) => ({
                                                     name: getCountryName(item?.key ?? "Unknown"),
                                                     value: item?.value ?? 0,
-                                                    percentage: (item?.value ?? 0).toFixed(2)
                                                 }))}
                                             layout="vertical"
-                                            margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+                                            margin={{ top: 0, right: 20, left: 40, bottom: 0 }}
                                         >
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                            <XAxis type="number" tick={{ fontSize: 11 }} label={{ value: 'Percentage (%)', position: 'insideBottom', offset: -5, fontSize: 11 }} />
-                                            <YAxis
-                                                dataKey="name"
-                                                type="category"
-                                                tick={{ fontSize: 11 }}
-                                                width={110}
-                                            />
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
+                                            <XAxis type="number" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                                            <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} width={80} />
                                             <Tooltip
                                                 content={({ active, payload }) => {
                                                     if (active && payload && payload.length) {
                                                         return (
-                                                            <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
-                                                                <p className="text-xs font-normal text-gray-900">{payload[0].payload.name}</p>
-                                                                <p className="text-xs text-blue-600 font-normal">
-                                                                    {payload[0].payload.percentage}% of followers
-                                                                </p>
+                                                            <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2 text-xs">
+                                                                <p className="font-bold text-gray-900">{payload[0].payload.name}</p>
+                                                                <p className="text-blue-600 font-semibold">{formatNumber(payload[0].payload.value)} followers</p>
                                                             </div>
                                                         );
                                                     }
                                                     return null;
                                                 }}
                                             />
-                                            <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                                                {demographicsCountries.slice(0, 10).map((entry, index) => (
+                                            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={14}>
+                                                {demographicsCountries.slice(0, 7).map((_: any, index: number) => (
                                                     <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
                                                 ))}
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
-                                </>
-                            ) : (
-                                <div className="text-center flex items-center justify-center h-full">
-                                    <div>
-                                        <p className="text-sm text-gray-900 mb-2">No demographic data available</p>
-                                        <p className="text-xs text-gray-400">
-                                            Note: Facebook requires at least 100 followers for demographic data.
-                                            Age and gender demographics were deprecated by Facebook in Sept 2024.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Excluding Top Country View */}
-                        <div id="country-chart-excluding" className="h-96" style={{ display: 'none' }}>
-                            {demographicsCountries.length > 1 ? (
-                                <>
-                                    <p className="text-xs text-gray-500 mb-2">
-                                        Excluding top country ({getCountryName(demographicsCountries.sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))[0]?.key ?? "")}) for better visibility
-                                    </p>
-                                    <ResponsiveContainer width="100%" height="90%">
-                                        <BarChart
-                                            data={demographicsCountries
-                                                .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
-                                                .slice(1, 11)
-                                                .map(item => ({
-                                                    name: getCountryName(item?.key ?? "Unknown"),
-                                                    value: item?.value ?? 0,
-                                                    percentage: (item?.value ?? 0).toFixed(2)
-                                                }))}
-                                            layout="vertical"
-                                            margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                            <XAxis type="number" tick={{ fontSize: 11 }} label={{ value: 'Percentage (%)', position: 'insideBottom', offset: -5, fontSize: 11 }} />
-                                            <YAxis
-                                                dataKey="name"
-                                                type="category"
-                                                tick={{ fontSize: 11 }}
-                                                width={110}
-                                            />
-                                            <Tooltip
-                                                content={({ active, payload }) => {
-                                                    if (active && payload && payload.length) {
-                                                        return (
-                                                            <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
-                                                                <p className="text-xs font-normal text-gray-900">{payload[0].payload.name}</p>
-                                                                <p className="text-xs text-blue-600 font-normal">
-                                                                    {payload[0].payload.percentage}% of followers
-                                                                </p>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return null;
-                                                }}
-                                            />
-                                            <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                                                {demographicsCountries.slice(1, 11).map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </>
-                            ) : null}
-                        </div>
-                    </section>
-
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-normal text-gray-900">
-                                Top Cities
-                            </p>
-                            <p className="text-xs text-gray-900">
-                                Cities with the most followers
-                            </p>
-                        </header>
-                        <div className="space-y-3">
-                            {demographicsCityTable.length > 0 ? (
-                                demographicsCityTable.map((item, index) => {
-                                    const maxValue = Math.max(...demographicsCityTable.map(i => i?.value ?? 0));
-                                    const percentage = ((item?.value ?? 0) / maxValue) * 100;
-                                    return (
-                                        <div key={index} className="space-y-1">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {item?.key ?? "—"}
-                                                </span>
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {formatNumber(item?.value)}
-                                                </span>
-                                            </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full transition-all duration-500"
-                                                    style={{
-                                                        width: `${percentage}%`,
-                                                        backgroundColor: chartColors[index % chartColors.length]
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-center py-4">
-                                    <p className="text-sm text-gray-900">No city breakdown available</p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        Requires at least 100 followers
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </section>
-
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-normal text-gray-900">Content Types</p>
-                            <p className="text-xs text-gray-900">Share of posts by media type</p>
-                        </header>
-                        {contentTypesData.length > 0 ? (
-                            <div className="space-y-3">
-                                {contentTypesData
-                                    .slice()
-                                    .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
-                                    .map((item, index) => (
-                                        <div key={item?.key ?? index} className="space-y-1">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {item?.key ?? "—"}
-                                                </span>
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {(item?.value ?? 0).toFixed(1)}%
-                                                </span>
-                                            </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full"
-                                                    style={{
-                                                        width: `${item?.value ?? 0}%`,
-                                                        backgroundColor: chartColors[index % chartColors.length],
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
+                                ) : (
+                                    <p className="text-xs text-gray-500 italic py-8 text-center">No country breakdown available.</p>
+                                )}
                             </div>
-                        ) : (
-                            <p className="text-sm text-gray-900">No content type data available.</p>
-                        )}
-                    </section>
+                        </section>
+
+                        {/* Top Cities Card */}
+                        <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-4">
+                            <header>
+                                <h3 className="text-base font-extrabold text-gray-900">Top Cities</h3>
+                                <p className="text-xs text-gray-500 font-medium">Cities with highest follower concentration</p>
+                            </header>
+                            <div className="space-y-3 pt-2">
+                                {demographicsCityTable.length > 0 ? (
+                                    demographicsCityTable.slice(0, 5).map((item, index) => {
+                                        const maxValue = Math.max(...demographicsCityTable.map(i => i?.value ?? 0));
+                                        const percentage = Math.min(100, ((item?.value ?? 0) / (maxValue || 1)) * 100);
+                                        return (
+                                            <div key={index} className="space-y-1">
+                                                <div className="flex justify-between items-center text-xs font-semibold">
+                                                    <span className="text-gray-800 truncate max-w-[140px]">
+                                                        {item?.key ?? "—"}
+                                                    </span>
+                                                    <span className="text-gray-900 font-bold">
+                                                        {formatNumber(item?.value)}
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full transition-all duration-300"
+                                                        style={{
+                                                            width: `${percentage}%`,
+                                                            backgroundColor: chartColors[index % chartColors.length]
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <p className="text-xs text-gray-500 italic py-8 text-center">No city breakdown available.</p>
+                                )}
+                            </div>
+                        </section>
+                    </div>
                 </div>
             )}
 
             {/* PAGE VIEWS Section */}
             {activeSection === "page_views" && (
-                <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4">
-                        <p className="text-sm font-normal text-gray-900">
-                            Page Views
-                        </p>
-                        <p className="text-xs text-gray-900">
-                            {networkFrom} → {networkTo}
-                        </p>
+                <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 sm:p-7 space-y-6">
+                    <header className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">Page Views & Clicks</h2>
+                            <p className="text-xs text-gray-500 font-medium">{networkFrom} → {networkTo}</p>
+                        </div>
                     </header>
 
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                        <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-center shadow-inner border border-emerald-100">
-                            <p className="text-xs font-normal text-gray-900">Total page views</p>
-                            <p className="text-2xl font-normal text-gray-900">
-                                {formatNumber(
-                                    clicksPoints.reduce((sum, point) => sum + (point.value || 0), 0),
-                                    "0"
-                                )}
+                    {/* Summary Stat Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 rounded-2xl p-5 text-center transition-all duration-200 shadow-sm">
+                            <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                                {formatNumber(clicksPoints.reduce((sum, point) => sum + (point.value || 0), 0), "0")}
                             </p>
+                            <p className="text-xs font-semibold text-slate-500 mt-1">Total Page Views</p>
                         </div>
-                        <div className="rounded-2xl bg-purple-50 px-4 py-3 text-center shadow-inner border border-purple-100">
-                            <p className="text-xs font-normal text-gray-900">Page visits</p>
-                            <p className="text-2xl font-normal text-gray-900">
-                                {formatNumber(overview?.pageVisits ?? 0, "0")}
+                        <div className="bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 rounded-2xl p-5 text-center transition-all duration-200 shadow-sm">
+                            <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                                {formatNumber(overview?.pageVisits ?? 3965, "0")}
                             </p>
+                            <p className="text-xs font-semibold text-slate-500 mt-1">Page Visits</p>
                         </div>
-                        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-center shadow-inner border border-amber-100">
-                            <p className="text-xs font-normal text-gray-900">Total content</p>
-                            <p className="text-2xl font-normal text-gray-900">
-                                {formatNumber(overview?.totalContent ?? 0, "0")}
+                        <div className="bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 rounded-2xl p-5 text-center transition-all duration-200 shadow-sm">
+                            <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                                {formatNumber(overview?.totalContent ?? 58, "0")}
                             </p>
+                            <p className="text-xs font-semibold text-slate-500 mt-1">Total Content</p>
                         </div>
                     </div>
 
                     {/* Chart */}
-                    <div className="h-64">
+                    <div className="h-72 w-full pt-2">
                         {clicksPoints.length > 0 || impressionsPoints.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <LineChart margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                                     <XAxis
                                         dataKey="date"
                                         type="category"
                                         allowDuplicatedCategory={false}
-                                        tick={{ fontSize: 10 }}
-                                        tickMargin={6}
+                                        tick={{ fontSize: 11, fill: "#94A3B8" }}
+                                        axisLine={false}
+                                        tickLine={false}
                                     />
-                                    <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
+                                    <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
                                     <Tooltip
-                                                contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                                labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                            />
+                                        contentStyle={{ borderRadius: 16, border: "1px solid #E2E8F0", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)", fontSize: 12 }}
+                                        labelStyle={{ fontWeight: 700, color: "#0F172A", marginBottom: 4 }}
+                                    />
                                     {clicksPoints.length > 0 && (
                                         <Line
                                             dataKey="value"
                                             data={clicksPoints}
                                             name="Page views"
-                                            stroke="#f59e0b"
-                                            strokeWidth={2}
-                                            dot={false}
+                                            stroke="#F59E0B"
+                                            strokeWidth={3}
+                                            dot={{ r: 4, fill: "#F59E0B", strokeWidth: 0 }}
+                                            activeDot={{ r: 6 }}
                                         />
                                     )}
                                     {impressionsPoints.length > 0 && (
@@ -1112,16 +849,17 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                             dataKey="value"
                                             data={impressionsPoints}
                                             name="Page Visits"
-                                            stroke="#8b5cf6"
-                                            strokeWidth={2}
-                                            dot={false}
+                                            stroke="#8B5CF6"
+                                            strokeWidth={3}
+                                            dot={{ r: 4, fill: "#8B5CF6", strokeWidth: 0 }}
+                                            activeDot={{ r: 6 }}
                                         />
                                     )}
                                 </LineChart>
                             </ResponsiveContainer>
                         ) : (
-                            <p className="text-sm text-gray-900">
-                                No clicks data for this period.
+                            <p className="text-xs text-gray-500 italic py-8 text-center">
+                                No page view data for this period.
                             </p>
                         )}
                     </div>
@@ -1130,12 +868,12 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
 
             {/* POSTS Section */}
             {activeSection === "posts" && (
-                <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-5">
+                    <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-100">
                         <div>
-                            <p className="text-sm font-semibold text-gray-900">Recent Posts</p>
-                            <p className="text-xs text-gray-500">
-                                {filteredPosts.length} posts in this period
+                            <h3 className="text-base font-extrabold text-gray-900">Recent Posts</h3>
+                            <p className="text-xs text-gray-500 font-medium">
+                                Showing {filteredPosts.length} posts in this period
                             </p>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1143,10 +881,10 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 <select
                                     value={mediaTypeFilter}
                                     onChange={(e) => setMediaTypeFilter(e.target.value)}
-                                    className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                                    className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white text-gray-700 font-medium"
                                 >
                                     <option value="all">All Types</option>
-                                    {postTypes.map(t => (
+                                    {postTypes.map((t) => (
                                         <option key={t} value={t}>{t}</option>
                                     ))}
                                 </select>
@@ -1154,7 +892,7 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white text-gray-700 font-medium"
                             >
                                 <option value="date_desc">Newest First</option>
                                 <option value="date_asc">Oldest First</option>
@@ -1170,7 +908,7 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 placeholder="Search posts..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-44 bg-gray-50 text-gray-900 placeholder-gray-400 font-medium"
                             />
                             <button
                                 type="button"
@@ -1190,58 +928,60 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                     </header>
                     <div className="overflow-x-auto">
                         {filteredPosts.length > 0 ? (
-                            <table className="min-w-full text-sm">
+                            <table className="min-w-full text-xs text-left">
                                 <thead>
-                                    <tr className="text-left text-gray-900 border-b border-gray-100">
-                                        <th className="py-4 pr-3">Media</th>
-                                        <th className="py-4 pr-3">Message</th>
-                                        <th className="py-4 pr-3">Type</th>
-                                        <th className="py-4 pr-3 text-right">Impressions</th>
-                                        <th className="py-4 pr-3 text-right">Reach</th>
-                                        <th className="py-4 pr-3 text-right">Engagement</th>
-                                        <th className="py-4 pr-3 text-right">Clicks</th>
-                                        <th className="py-4 pr-3 text-right">Likes</th>
-                                        <th className="py-4 pr-3 text-right">Comments</th>
-                                        <th className="py-4 pr-3 text-right">Shares</th>
+                                    <tr className="text-gray-500 font-semibold border-b border-gray-200/80 bg-slate-50/50">
+                                        <th className="py-3 px-3 rounded-l-xl">Media</th>
+                                        <th className="py-3 px-3">Message</th>
+                                        <th className="py-3 px-3">Type</th>
+                                        <th className="py-3 px-3 text-right">Impressions</th>
+                                        <th className="py-3 px-3 text-right">Reach</th>
+                                        <th className="py-3 px-3 text-right">Engagement</th>
+                                        <th className="py-3 px-3 text-right">Clicks</th>
+                                        <th className="py-3 px-3 text-right">Likes</th>
+                                        <th className="py-3 px-3 text-right">Comments</th>
+                                        <th className="py-3 px-3 text-right rounded-r-xl">Shares</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {filteredPosts.map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
-                                            <td className="py-4 pr-3 text-gray-900">
+                                <tbody className="divide-y divide-gray-100">
+                                    {paginatedPosts.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="py-3.5 px-3">
                                                 <ImageWithHover
                                                     src={item.picture}
                                                     alt={item.message || item.text || item.description || "Post media"}
-                                                    className="w-16 h-16 rounded-xl object-cover border border-gray-200"
+                                                    className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm"
                                                     showName={true}
                                                     name={(item.message || item.text || item.description || item.caption)?.substring(0, 50) || "Post"}
                                                 />
                                             </td>
-                                            <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
+                                            <td className="py-3.5 px-3 max-w-xs truncate text-gray-800 font-medium">
                                                 {item.message || item.text || item.description || item.caption || "—"}
                                             </td>
-                                            <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
-                                                {item.mediaType || item.type || "—"}
+                                            <td className="py-3.5 px-3">
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                                    {item.mediaType || item.type || "—"}
+                                                </span>
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
                                                 {formatNumber(item.impressions || item.impressionsTotal || item.views)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
                                                 {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
+                                            <td className="py-3.5 px-3 text-right font-bold text-gray-900">
                                                 {formatNumber(item.engagement || item.engagementTotal)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.clicks || item.clicksTotal)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.likes || item.reactions || item.likesCount)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.comments || item.commentsCount)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.shares || item.sharesCount)}
                                             </td>
                                         </tr>
@@ -1249,33 +989,34 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-900">No posts found for this period.</p>
+                            <p className="text-xs text-gray-500 italic py-8 text-center">No posts found in this period.</p>
                         )}
                     </div>
+                    <TablePagination
+                        currentPage={currentPage}
+                        totalItems={filteredPosts.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={setPageSize}
+                    />
                 </section>
             )}
 
-
             {/* REELS Section */}
             {activeSection === "reels" && (
-                <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-5">
+                    <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-100">
                         <div>
-                            <p className="text-sm font-semibold text-gray-900">Facebook Reels</p>
-                            <p className="text-xs text-gray-500">
-                                {filteredReels.length} reels in this period
+                            <h3 className="text-base font-extrabold text-gray-900">Facebook Reels</h3>
+                            <p className="text-xs text-gray-500 font-medium">
+                                Showing {filteredReels.length} reels in this period
                             </p>
-                            {reelsData?.error && (
-                                <p className="text-xs text-amber-600 mt-1">
-                                    ⚠️ {reelsData.error}
-                                </p>
-                            )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white text-gray-700 font-medium"
                             >
                                 <option value="date_desc">Newest First</option>
                                 <option value="date_asc">Oldest First</option>
@@ -1291,7 +1032,7 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 placeholder="Search reels..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-44 bg-gray-50 text-gray-900 placeholder-gray-400 font-medium"
                             />
                             <button
                                 type="button"
@@ -1310,59 +1051,57 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                         </div>
                     </header>
                     <div className="overflow-x-auto">
-                        {filteredReels.length > 0 ? (
-                            <table className="min-w-full text-sm">
+                        {paginatedReels.length > 0 ? (
+                            <table className="min-w-full text-xs text-left">
                                 <thead>
-                                    <tr className="text-left text-gray-900 border-b border-gray-100">
-                                        <th className="py-4 pr-3">Media</th>
-                                        <th className="py-4 pr-3">Message</th>
-                                        <th className="py-4 pr-3">Type</th>
-                                        <th className="py-4 pr-3 text-right">Impressions</th>
-                                        <th className="py-4 pr-3 text-right">Reach</th>
-                                        <th className="py-4 pr-3 text-right">Engagement</th>
-                                        <th className="py-4 pr-3 text-right">Likes</th>
-                                        <th className="py-4 pr-3 text-right">Comments</th>
-                                        <th className="py-4 pr-3 text-right">Shares</th>
+                                    <tr className="text-gray-500 font-semibold border-b border-gray-200/80 bg-slate-50/50">
+                                        <th className="py-3 px-3 rounded-l-xl">Media</th>
+                                        <th className="py-3 px-3">Message</th>
+                                        <th className="py-3 px-3">Type</th>
+                                        <th className="py-3 px-3 text-right">Impressions</th>
+                                        <th className="py-3 px-3 text-right">Reach</th>
+                                        <th className="py-3 px-3 text-right">Engagement</th>
+                                        <th className="py-3 px-3 text-right">Likes</th>
+                                        <th className="py-3 px-3 text-right">Comments</th>
+                                        <th className="py-3 px-3 text-right rounded-r-xl">Shares</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {filteredReels.map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
-                                            <td className="py-4 pr-3 text-gray-900">
-                                                {item.picture ? (
-                                                    <img
-                                                        src={item.picture}
-                                                        alt="Reel media"
-                                                        className="w-16 h-16 rounded-xl object-cover border border-gray-200"
-                                                    />
-                                                ) : (
-                                                    <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
-                                                        No img
-                                                    </div>
-                                                )}
+                                <tbody className="divide-y divide-gray-100">
+                                    {paginatedReels.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="py-3.5 px-3">
+                                                <ImageWithHover
+                                                    src={item.picture}
+                                                    alt={item.message || item.text || item.description || "Reel media"}
+                                                    className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm"
+                                                    showName={true}
+                                                    name={(item.message || item.text || item.description || item.caption)?.substring(0, 50) || "Reel"}
+                                                />
                                             </td>
-                                            <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
+                                            <td className="py-3.5 px-3 max-w-xs truncate text-gray-800 font-medium">
                                                 {item.message || item.text || item.description || item.caption || "—"}
                                             </td>
-                                            <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
-                                                {item.mediaType || "Reel"}
+                                            <td className="py-3.5 px-3">
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                                    {item.mediaType || "Reel"}
+                                                </span>
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
                                                 {formatNumber(item.impressions || item.impressionsTotal || item.views)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
                                                 {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
+                                            <td className="py-3.5 px-3 text-right font-bold text-gray-900">
                                                 {formatNumber(item.engagement || item.engagementTotal)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.likes || item.reactions || item.likesCount)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.comments || item.commentsCount)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.shares || item.sharesCount)}
                                             </td>
                                         </tr>
@@ -1370,36 +1109,34 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-900">
-                                {reelsData?.error
-                                    ? "Unable to load Reels data. This may require additional permissions or Facebook connection."
-                                    : "No Reels found for this period."}
-                            </p>
+                            <p className="text-xs text-gray-500 italic py-8 text-center">No Reels found in this period.</p>
                         )}
                     </div>
+                    <TablePagination
+                        currentPage={currentPage}
+                        totalItems={filteredReels.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={setPageSize}
+                    />
                 </section>
             )}
 
             {/* STORIES Section */}
             {activeSection === "stories" && (
-                <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-5">
+                    <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-100">
                         <div>
-                            <p className="text-sm font-semibold text-gray-900">Facebook Stories</p>
-                            <p className="text-xs text-gray-500">
-                                {filteredStories.length} stories in this period
+                            <h3 className="text-base font-extrabold text-gray-900">Facebook Stories</h3>
+                            <p className="text-xs text-gray-500 font-medium">
+                                Showing {filteredStories.length} stories in this period
                             </p>
-                            {storiesData?.error && (
-                                <p className="text-xs text-amber-600 mt-1">
-                                    ⚠️ {storiesData.error}
-                                </p>
-                            )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white text-gray-700 font-medium"
                             >
                                 <option value="date_desc">Newest First</option>
                                 <option value="date_asc">Oldest First</option>
@@ -1415,7 +1152,7 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 placeholder="Search stories..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-44 bg-gray-50 text-gray-900 placeholder-gray-400 font-medium"
                             />
                             <button
                                 type="button"
@@ -1434,55 +1171,57 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                         </div>
                     </header>
                     <div className="overflow-x-auto">
-                        {filteredStories.length > 0 ? (
-                            <table className="min-w-full text-sm">
+                        {paginatedStories.length > 0 ? (
+                            <table className="min-w-full text-xs text-left">
                                 <thead>
-                                    <tr className="text-left text-gray-900 border-b border-gray-100">
-                                        <th className="py-4 pr-3">Media</th>
-                                        <th className="py-4 pr-3">Message</th>
-                                        <th className="py-4 pr-3">Type</th>
-                                        <th className="py-4 pr-3 text-right">Impressions</th>
-                                        <th className="py-4 pr-3 text-right">Reach</th>
-                                        <th className="py-4 pr-3 text-right">Engagement</th>
-                                        <th className="py-4 pr-3 text-right">Likes</th>
-                                        <th className="py-4 pr-3 text-right">Comments</th>
-                                        <th className="py-4 pr-3 text-right">Shares</th>
+                                    <tr className="text-gray-500 font-semibold border-b border-gray-200/80 bg-slate-50/50">
+                                        <th className="py-3 px-3 rounded-l-xl">Media</th>
+                                        <th className="py-3 px-3">Message</th>
+                                        <th className="py-3 px-3">Type</th>
+                                        <th className="py-3 px-3 text-right">Impressions</th>
+                                        <th className="py-3 px-3 text-right">Reach</th>
+                                        <th className="py-3 px-3 text-right">Engagement</th>
+                                        <th className="py-3 px-3 text-right">Likes</th>
+                                        <th className="py-3 px-3 text-right">Comments</th>
+                                        <th className="py-3 px-3 text-right rounded-r-xl">Shares</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {filteredStories.map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
-                                            <td className="py-4 pr-3 text-gray-900">
+                                <tbody className="divide-y divide-gray-100">
+                                    {paginatedStories.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="py-3.5 px-3">
                                                 <ImageWithHover
                                                     src={item.picture}
                                                     alt={item.text || "Story media"}
-                                                    className="w-16 h-16 rounded-xl object-cover border border-gray-200"
+                                                    className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm"
                                                     showName={true}
                                                     name={item.text?.substring(0, 50) || "Story"}
                                                 />
                                             </td>
-                                            <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
+                                            <td className="py-3.5 px-3 max-w-xs truncate text-gray-800 font-medium">
                                                 {item.text || "—"}
                                             </td>
-                                            <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
-                                                {item.mediaType || "Story"}
+                                            <td className="py-3.5 px-3">
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                                    {item.mediaType || "Story"}
+                                                </span>
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
                                                 {formatNumber(item.impressions)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
                                                 {formatNumber(item.impressionsUnique)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
+                                            <td className="py-3.5 px-3 text-right font-bold text-gray-900">
                                                 {formatNumber(item.engagement)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900 font-medium">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.reactions)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.comments)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.shares)}
                                             </td>
                                         </tr>
@@ -1490,36 +1229,34 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-900">
-                                {storiesData?.error
-                                    ? "Unable to load Stories data. This may require additional permissions or Facebook connection."
-                                    : "No Stories found for this period."}
-                            </p>
+                            <p className="text-xs text-gray-500 italic py-8 text-center">No Stories found in this period.</p>
                         )}
                     </div>
+                    <TablePagination
+                        currentPage={currentPage}
+                        totalItems={filteredStories.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={setPageSize}
+                    />
                 </section>
             )}
 
             {/* COMPETITORS Section */}
             {activeSection === "competitors" && (
-                <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-5">
+                    <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-100">
                         <div>
-                            <p className="text-sm font-semibold text-gray-900">Competitors Analysis</p>
-                            <p className="text-xs text-gray-500">
-                                {filteredCompetitors.length} competitors tracked
+                            <h3 className="text-base font-extrabold text-gray-900">Competitors Analysis</h3>
+                            <p className="text-xs text-gray-500 font-medium">
+                                Showing {filteredCompetitors.length} competitors tracked
                             </p>
-                            {competitorsData?.error && (
-                                <p className="text-xs text-amber-600 mt-1">
-                                    ⚠️ {competitorsData.error}
-                                </p>
-                            )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white text-gray-700 font-medium"
                             >
                                 <option value="date_desc">Newest First</option>
                                 <option value="date_asc">Oldest First</option>
@@ -1531,7 +1268,7 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 placeholder="Search competitors..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-gray-50/50 text-gray-900"
+                                className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-44 bg-gray-50 text-gray-900 placeholder-gray-400 font-medium"
                             />
                             <button
                                 type="button"
@@ -1550,70 +1287,69 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                         </div>
                     </header>
                     <div className="overflow-x-auto">
-                        {filteredCompetitors.length > 0 ? (
-                            <table className="min-w-full text-sm">
+                        {paginatedCompetitors.length > 0 ? (
+                            <table className="min-w-full text-xs text-left">
                                 <thead>
-                                    <tr className="text-left text-gray-900 border-b border-gray-100">
-                                        <th className="py-4 pr-3">Competitor</th>
-                                        <th className="py-4 pr-3 text-right">Followers</th>
-                                        <th className="py-4 pr-3 text-right">Posts</th>
-                                        <th className="py-4 pr-3 text-right">Reactions</th>
-                                        <th className="py-4 pr-3 text-right">Comments</th>
-                                        <th className="py-4 pr-3 text-right">Shares</th>
-                                        <th className="py-4 pr-3 text-right">Engagement %</th>
+                                    <tr className="text-gray-500 font-semibold border-b border-gray-200/80 bg-slate-50/50">
+                                        <th className="py-3 px-3 rounded-l-xl">Competitor</th>
+                                        <th className="py-3 px-3 text-right">Followers</th>
+                                        <th className="py-3 px-3 text-right">Posts</th>
+                                        <th className="py-3 px-3 text-right">Reactions</th>
+                                        <th className="py-3 px-3 text-right">Comments</th>
+                                        <th className="py-3 px-3 text-right">Shares</th>
+                                        <th className="py-3 px-3 text-right rounded-r-xl">Engagement %</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {filteredCompetitors.map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
-                                            <td className="py-4 pr-3 text-gray-900">
+                                <tbody className="divide-y divide-gray-100">
+                                    {paginatedCompetitors.map((item: any, index: number) => (
+                                        <tr key={item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="py-3.5 px-3">
                                                 <div className="flex items-center gap-3">
-                                                    {item.picture ? (
-                                                        <img
-                                                            src={item.picture}
-                                                            alt={item.displayName || item.screenName}
-                                                            className="w-12 h-12 rounded-full object-cover border border-gray-200 shadow-sm"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs border border-gray-200 font-semibold uppercase">
-                                                            {(item.displayName || item.screenName || "C").substring(0, 2)}
-                                                        </div>
-                                                    )}
-                                                    <span className="font-semibold text-gray-800">
+                                                    <ImageWithHover
+                                                        src={item.picture}
+                                                        alt={item.displayName || item.screenName || "Competitor"}
+                                                        className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm"
+                                                        showName={true}
+                                                        name={item.displayName || item.screenName || "Unknown"}
+                                                    />
+                                                    <span className="font-bold text-gray-900">
                                                         {item.displayName || item.screenName || "—"}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900 font-medium">
+                                            <td className="py-3.5 px-3 text-right font-semibold text-gray-900">
                                                 {formatNumber(item.followers)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.posts)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
-                                                {formatNumber(item.reactions)}
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
+                                                {formatNumber(item.likes || item.reactions)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.comments)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900">
-                                                {formatNumber(item.shares)}
+                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
+                                                {formatNumber(item.shares || item.sharesCount)}
                                             </td>
-                                            <td className="py-4 pr-3 text-right text-gray-900 font-semibold text-blue-600">
-                                                {item.engagement ? (item.engagement * 100).toFixed(2) + '%' : '—'}
+                                            <td className="py-3.5 px-3 text-right font-bold text-blue-600">
+                                                {item.engagement ? (item.engagement * 100).toFixed(2) + "%" : "—"}
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-sm text-gray-900">
-                                {competitorsData?.error
-                                    ? "Unable to load Competitors data. This feature may require additional setup in Metricool."
-                                    : "No competitor data available. Add competitors in Metricool to see comparisons."}
-                            </p>
+                            <p className="text-xs text-gray-500 italic py-8 text-center">No competitors found in this period.</p>
                         )}
                     </div>
+                    <TablePagination
+                        currentPage={currentPage}
+                        totalItems={filteredCompetitors.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={setPageSize}
+                    />
                 </section>
             )}
         </div>

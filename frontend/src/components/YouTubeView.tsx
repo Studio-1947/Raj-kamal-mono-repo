@@ -12,6 +12,7 @@ import {
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { youtubeOverviewMock, youtubeGrowthMock } from "./socialMockData";
 import SocialCommonHeader from "./SocialCommonHeader";
+import SocialPageOverview from "./SocialPageOverview";
 
 type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 
@@ -162,98 +163,13 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
                 </div>
             )}
 
-            <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="rounded-2xl bg-red-50 px-4 py-3 text-center shadow-inner border border-red-100">
-                        <p className="text-xs font-normal text-gray-900">Subscribers</p>
-                        <p className="text-xl font-normal text-gray-900">
-                            {formatNumber(overview?.subscribers, "0")}
-                        </p>
-                    </div>
-                    <div className="rounded-2xl bg-red-50 px-4 py-3 text-center shadow-inner border border-red-100">
-                        <p className="text-xs font-normal text-gray-900">Views (this period)</p>
-                        <p className="text-xl font-normal text-gray-900">
-                            {formatNumber(overview?.views, "0")}
-                        </p>
-                    </div>
-                    <div className="rounded-2xl bg-red-50 px-4 py-3 text-center shadow-inner border border-red-100">
-                        <p className="text-xs font-normal text-gray-900">Videos published</p>
-                        <p className="text-xl font-normal text-gray-900">
-                            {formatNumber(overview?.totalVideos, "0")}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="mt-6">
-                    <h3 className="text-sm font-normal text-gray-900 mb-2">Growth</h3>
-                    <div className="h-72">
-                        {subscribersPoints.length || viewsPoints.length ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                    <XAxis
-                                        dataKey="date"
-                                        type="category"
-                                        allowDuplicatedCategory={false}
-                                        tick={{ fontSize: 10 }}
-                                        tickMargin={6}
-                                    />
-                                    <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                        labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                    />
-                                    <Line
-                                        dataKey="value"
-                                        data={viewsPoints}
-                                        name="Views"
-                                        stroke="#fbbf24"
-                                        dot={false}
-                                    />
-                                    <Line
-                                        dataKey="value"
-                                        data={subscribersPoints}
-                                        name="Subscribers"
-                                        stroke="#dc2626"
-                                        dot={false}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <p className="text-sm text-gray-900">No growth data for this period.</p>
-                        )}
-                    </div>
-                </div>
-            </section>
-
-            <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5 space-y-4">
-                <p className="text-sm font-normal text-gray-900">Balance of Subscribers</p>
-                <div className="h-64">
-                    {gainedPoints.length || lostPoints.length ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                <XAxis
-                                    dataKey="date"
-                                    type="category"
-                                    allowDuplicatedCategory={false}
-                                    tick={{ fontSize: 10 }}
-                                    tickMargin={6}
-                                />
-                                <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                    labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                />
-                                <Line dataKey="value" data={gainedPoints} name="Gained" stroke="#0ea5e9" dot={false} />
-                                <Line dataKey="value" data={lostPoints} name="Lost" stroke="#f97316" dot={false} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    ) : (
-                        <p className="text-sm text-gray-900">No subscriber balance data.</p>
-                    )}
-                </div>
-            </section>
+            <SocialPageOverview
+                platform="youtube"
+                overview={overview}
+                growth={growth}
+                from={activeDates.from}
+                to={activeDates.to}
+            />
 
             <p className="text-xs text-gray-400">
                 Metricool doesn't provide a per-video list or audience demographics for YouTube —
