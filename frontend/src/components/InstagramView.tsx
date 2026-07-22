@@ -32,6 +32,7 @@ import {
 import { ImageWithHover } from "./ImageWithHover";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { getCountryName } from "../lib/countryNames";
+import SocialCommonHeader from "./SocialCommonHeader";
 import {
     instagramOverviewMock,
     instagramGrowthMock,
@@ -51,7 +52,7 @@ import {
 type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 
 function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: string) {
-    if (key === "custom" && customFrom && customTo) {
+    if (customFrom && customTo) {
         return { from: customFrom, to: customTo };
     }
     const to = new Date();
@@ -155,9 +156,10 @@ interface InstagramViewProps {
     customFrom?: string;
     customTo?: string;
     blogId?: string;
+    onDateRangeChange?: (from: string, to: string, presetKey?: string) => void;
 }
 
-export default function InstagramView({ range, onRangeChange, customFrom, customTo, blogId }: InstagramViewProps) {
+export default function InstagramView({ range, onRangeChange, customFrom, customTo, blogId, onDateRangeChange }: InstagramViewProps) {
     const [activeSection, setActiveSection] = useState<LocalInstagramSection>("account");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -557,24 +559,27 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
         return sortItems(result, sortBy);
     }, [rawItems, searchQuery, activeSection, mediaTypeFilter, sortBy]);
 
+    const activeDates = computeRangeDates(range, customFrom, customTo);
+
     return (
         <div className="space-y-6">
-            {/* Section Tabs */}
-            <div className="flex flex-wrap gap-2">
-                {sections.map((section) => (
-                    <button
-                        key={section.key}
-                        type="button"
-                        onClick={() => setActiveSection(section.key)}
-                        className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${activeSection === section.key
-                            ? "bg-[#E1306C] text-white shadow-md shadow-[#E1306C]/20 border border-[#E1306C]"
-                            : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:text-gray-900"
-                            }`}
-                    >
-                        {section.label}
-                    </button>
-                ))}
-            </div>
+            {/* Common Social Section Header & Calendar Date Picker */}
+            <SocialCommonHeader
+                sections={sections}
+                activeSection={activeSection}
+                onSelectSection={(key) => setActiveSection(key as LocalInstagramSection)}
+                from={activeDates.from}
+                to={activeDates.to}
+                onDateChange={(newFrom, newTo, presetKey) => {
+                    if (onDateRangeChange) {
+                        onDateRangeChange(newFrom, newTo, presetKey);
+                    } else {
+                        onRangeChange("custom");
+                    }
+                }}
+                activePresetKey={range}
+                brandColor="#E1306C"
+            />
 
             {error && (
                 <div className={`rounded-xl border px-4 py-3 ${error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')

@@ -11,11 +11,12 @@ import {
 } from "recharts";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { youtubeOverviewMock, youtubeGrowthMock } from "./socialMockData";
+import SocialCommonHeader from "./SocialCommonHeader";
 
 type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 
 function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: string) {
-    if (key === "custom" && customFrom && customTo) {
+    if (customFrom && customTo) {
         return { from: customFrom, to: customTo };
     }
     const to = new Date();
@@ -72,9 +73,10 @@ interface YouTubeViewProps {
     customFrom?: string;
     customTo?: string;
     blogId?: string;
+    onDateRangeChange?: (from: string, to: string, presetKey?: string) => void;
 }
 
-export default function YouTubeView({ range, onRangeChange, customFrom, customTo, blogId }: YouTubeViewProps) {
+export default function YouTubeView({ range, onRangeChange, customFrom, customTo, blogId, onDateRangeChange }: YouTubeViewProps) {
     const [loading, setLoading] = useState(false);
     const [usingMock, setUsingMock] = useState(false);
     const [overview, setOverview] = useState<any>(null);
@@ -127,29 +129,26 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
     const gainedPoints = toChartPoints(asSeriesArray(growthSeriesContainer?.subscribersGained));
     const lostPoints = toChartPoints(asSeriesArray(growthSeriesContainer?.subscribersLost));
 
+    const activeDates = computeRangeDates(range, customFrom, customTo);
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <p className="text-sm font-normal text-gray-900">Channel Overview</p>
-                    <p className="text-xs text-gray-900">
-                        {overview?.from ?? ""} → {overview?.to ?? ""}
-                    </p>
-                </div>
-                <div className="inline-flex rounded-full bg-gray-100 p-1 text-xs font-normal text-gray-900">
-                    {(["7d", "30d", "90d"] as TimeRangeKey[]).map((key) => (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => onRangeChange(key)}
-                            className={`px-3 py-1 rounded-full ${range === key ? "bg-white shadow-sm" : ""
-                                }`}
-                        >
-                            {key}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <SocialCommonHeader
+                sections={[{ key: "channel_overview", label: "CHANNEL OVERVIEW" }]}
+                activeSection="channel_overview"
+                onSelectSection={() => {}}
+                from={activeDates.from}
+                to={activeDates.to}
+                onDateChange={(newFrom, newTo, presetKey) => {
+                    if (onDateRangeChange) {
+                        onDateRangeChange(newFrom, newTo, presetKey);
+                    } else {
+                        onRangeChange("custom");
+                    }
+                }}
+                activePresetKey={range}
+                brandColor="#FF0000"
+            />
 
             {loading && <LoadingSpinner size="md" message="Loading YouTube metrics..." />}
 

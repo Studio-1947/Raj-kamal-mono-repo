@@ -28,6 +28,7 @@ import {
 import { ImageWithHover } from "./ImageWithHover";
 import { getCountryName } from "../lib/countryNames";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
+import SocialCommonHeader from "./SocialCommonHeader";
 import {
     facebookOverviewMock,
     facebookGrowthMock,
@@ -44,7 +45,7 @@ type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 type FacebookSection = "page_overview" | "demographics" | "page_views" | "posts" | "reels" | "stories" | "competitors";
 
 function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: string) {
-    if (key === "custom" && customFrom && customTo) {
+    if (customFrom && customTo) {
         return { from: customFrom, to: customTo };
     }
     const to = new Date();
@@ -137,9 +138,10 @@ interface FacebookViewProps {
     customFrom?: string;
     customTo?: string;
     blogId?: string;
+    onDateRangeChange?: (from: string, to: string, presetKey?: string) => void;
 }
 
-export default function FacebookView({ range, onRangeChange, customFrom, customTo, blogId }: FacebookViewProps) {
+export default function FacebookView({ range, onRangeChange, customFrom, customTo, blogId, onDateRangeChange }: FacebookViewProps) {
     const [activeSection, setActiveSection] = useState<FacebookSection>("page_overview");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -576,24 +578,27 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
         return sortItems(result, sortBy);
     }, [competitorsData, searchQuery, sortBy]);
 
+    const activeDates = computeRangeDates(range, customFrom, customTo);
+
     return (
         <div className="space-y-6">
-            {/* Section Tabs */}
-            <div className="flex flex-wrap gap-2">
-                {sections.map((section) => (
-                    <button
-                        key={section.key}
-                        type="button"
-                        onClick={() => setActiveSection(section.key)}
-                        className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${activeSection === section.key
-                            ? "bg-[#1877F2] text-white shadow-md shadow-[#1877F2]/20 border border-[#1877F2]"
-                            : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:text-gray-900"
-                            }`}
-                    >
-                        {section.label}
-                    </button>
-                ))}
-            </div>
+            {/* Common Social Section Header & Calendar Date Picker */}
+            <SocialCommonHeader
+                sections={sections}
+                activeSection={activeSection}
+                onSelectSection={(key) => setActiveSection(key as FacebookSection)}
+                from={activeDates.from}
+                to={activeDates.to}
+                onDateChange={(newFrom, newTo, presetKey) => {
+                    if (onDateRangeChange) {
+                        onDateRangeChange(newFrom, newTo, presetKey);
+                    } else {
+                        onRangeChange("custom");
+                    }
+                }}
+                activePresetKey={range}
+                brandColor="#1877F2"
+            />
 
             {error && (
                 <div className={`rounded-xl border px-4 py-3 text-sm ${error.includes('429') || error.includes('Rate limit') || error.includes('rate limit')

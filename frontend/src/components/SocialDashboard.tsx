@@ -4,6 +4,7 @@ import { useLang } from "../modules/lang/LangContext";
 import InstagramView from "./InstagramView";
 import FacebookView from "./FacebookView";
 import YouTubeView from "./YouTubeView";
+import SocialDatePicker from "./SocialDatePicker";
 import {
     fetchBrands,
     type Brand,
@@ -306,45 +307,22 @@ export default function SocialDashboard() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 self-start xl:self-auto">
-                        <div className="inline-flex items-center rounded-full bg-gray-100 p-1 text-xs font-semibold">
-                            {["7d", "30d", "90d", "custom"].map((key) => (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    onClick={() => setRange(key as TimeRangeKey)}
-                                    className={`px-4 py-1.5 rounded-full transition-all duration-200 capitalize ${
-                                        range === key
-                                            ? "bg-white text-gray-900 shadow-sm"
-                                            : "text-gray-500 hover:text-gray-900"
-                                    }`}
-                                >
-                                    {key === "custom" ? "Custom Range" : key}
-                                </button>
-                            ))}
-                        </div>
-
-                        {range === "custom" && (
-                            <div className="flex flex-wrap items-center gap-3 text-xs font-medium bg-gray-50 p-2 rounded-2xl border border-gray-100">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">From:</span>
-                                    <input
-                                        type="date"
-                                        value={customFrom}
-                                        onChange={(e) => setCustomFrom(e.target.value)}
-                                        className="px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-800"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">To:</span>
-                                    <input
-                                        type="date"
-                                        value={customTo}
-                                        onChange={(e) => setCustomTo(e.target.value)}
-                                        className="px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-800"
-                                    />
-                                </div>
-                            </div>
-                        )}
+                        <SocialDatePicker
+                            from={customFrom}
+                            to={customTo}
+                            onChange={(newFrom, newTo, presetKey) => {
+                                setCustomFrom(newFrom);
+                                setCustomTo(newTo);
+                                if (presetKey === "last_30_days") {
+                                    setRange("30d");
+                                } else if (presetKey === "last_week") {
+                                    setRange("7d");
+                                } else {
+                                    setRange("custom");
+                                }
+                            }}
+                            activePresetKey={range}
+                        />
                     </div>
                 </div>
 
@@ -356,15 +334,48 @@ export default function SocialDashboard() {
                 )}
 
                 {headerTabs.includes(activeNetwork) && activeNetwork === "instagram" && (
-                    <InstagramView range={range} onRangeChange={setRange} customFrom={customFrom} customTo={customTo} blogId={selectedBlogId ?? undefined} />
+                    <InstagramView
+                        range={range}
+                        onRangeChange={setRange}
+                        customFrom={customFrom}
+                        customTo={customTo}
+                        blogId={selectedBlogId ?? undefined}
+                        onDateRangeChange={(newFrom, newTo, presetKey) => {
+                            setCustomFrom(newFrom);
+                            setCustomTo(newTo);
+                            setRange("custom");
+                        }}
+                    />
                 )}
 
                 {headerTabs.includes(activeNetwork) && activeNetwork === "facebook" && (
-                    <FacebookView range={range} onRangeChange={setRange} customFrom={customFrom} customTo={customTo} blogId={selectedBlogId ?? undefined} />
+                    <FacebookView
+                        range={range}
+                        onRangeChange={setRange}
+                        customFrom={customFrom}
+                        customTo={customTo}
+                        blogId={selectedBlogId ?? undefined}
+                        onDateRangeChange={(newFrom, newTo, presetKey) => {
+                            setCustomFrom(newFrom);
+                            setCustomTo(newTo);
+                            setRange("custom");
+                        }}
+                    />
                 )}
 
                 {headerTabs.includes(activeNetwork) && activeNetwork === "youtube" && (
-                    <YouTubeView range={range} onRangeChange={setRange} customFrom={customFrom} customTo={customTo} blogId={selectedBlogId ?? undefined} />
+                    <YouTubeView
+                        range={range}
+                        onRangeChange={setRange}
+                        customFrom={customFrom}
+                        customTo={customTo}
+                        blogId={selectedBlogId ?? undefined}
+                        onDateRangeChange={(newFrom, newTo, presetKey) => {
+                            setCustomFrom(newFrom);
+                            setCustomTo(newTo);
+                            setRange("custom");
+                        }}
+                    />
                 )}
             </div>
         </div>
