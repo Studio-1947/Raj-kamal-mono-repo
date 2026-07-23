@@ -543,6 +543,22 @@ export default function SocialPageOverview({
                 to={to}
                 platform={platform}
             />
+
+            {/* 5. METRICS SCOPE & DATA GUIDE BANNER */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600 shadow-sm">
+                <div className="flex items-start gap-2.5">
+                    <span className="text-base leading-none shrink-0 mt-0.5">💡</span>
+                    <div>
+                        <p className="font-extrabold text-slate-900">Understanding Your Social Analytics</p>
+                        <p className="text-slate-600 mt-0.5">
+                            Metrics depend on platform API availability, active date filters, and account permissions.
+                            {platform === "facebook" && " Meta requires Facebook Page admin access for full reach & impressions."}
+                            {platform === "instagram" && " Instagram reach & demographics require an Instagram Business/Creator account connected via a Facebook Page."}
+                            {platform === "youtube" && " YouTube analytics provide channel-wide subscriber and view trends."}
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

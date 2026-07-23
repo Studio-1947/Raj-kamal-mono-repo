@@ -1121,9 +1121,18 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                 </table>
                             )
                         ) : (
-                            <p className="text-sm text-gray-900">
-                                No {activeSection} items found for this period.
-                            </p>
+                            <div className="text-center py-10 px-4 space-y-2 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 my-4">
+                                <p className="text-sm font-extrabold text-slate-800">
+                                    No {activeSection} items found for this period
+                                </p>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    {activeSection === "competitors" ? (
+                                        <>💡 <strong>Why is this empty?</strong> Competitor tracking requires adding competitor Instagram handles inside your Metricool account settings. Once added, their profile stats will appear here.</>
+                                    ) : (
+                                        <>💡 <strong>Tip:</strong> No {activeSection} were published between {activeDates.from} and {activeDates.to}. Try expanding your date range using the date picker above.</>
+                                    )}
+                                </p>
+                            </div>
                         )}
                     </div>
                     <TablePagination

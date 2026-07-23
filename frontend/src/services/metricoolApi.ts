@@ -58,14 +58,12 @@ function buildCacheKey(url: string, params?: Record<string, unknown>) {
 
 const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
   facebook: {
+    likes: "postsInteractions",
+    pageImpressions: "postsInteractions",
     followers: "pageFollows",
     newFollowers: "page_daily_follows_unique",
     lostFollowers: "page_daily_unfollows_unique",
-    reach: "page_posts_impressions",
-    // page_total_actions/ctaClicks/page_website_clicks_logged_in_unique are all
-    // permanently empty on this account (Meta deprecated those click-tracking
-    // fields broadly) — page_media_view is the click-adjacent metric Meta still
-    // populates, confirmed against the live API.
+    reach: "postsInteractions",
     clicks: "page_media_view",
   },
   instagram: {

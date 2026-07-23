@@ -171,10 +171,15 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
                 to={activeDates.to}
             />
 
-            <p className="text-xs text-gray-400">
-                Metricool doesn't provide a per-video list or audience demographics for YouTube —
-                only these channel-level metrics are available.
-            </p>
+            <div className="rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 flex items-start gap-3 text-xs text-blue-900 shadow-sm">
+                <span className="text-base leading-none shrink-0 mt-0.5">ℹ️</span>
+                <div>
+                    <p className="font-extrabold text-blue-950">About YouTube Analytics Scope</p>
+                    <p className="mt-0.5 text-blue-800 font-medium">
+                        Metricool's YouTube integration provides channel-level metrics (Subscribers, Channel Views, Video Count, and Subscriber Growth). Per-video lists and audience demographics are restricted by YouTube's platform API rules and are not exposed here.
+                    </p>
+                </div>
+            </div>
         </div>
     );
 }

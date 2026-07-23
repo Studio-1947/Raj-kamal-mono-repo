@@ -118,7 +118,7 @@ const chartColors = ["#2563eb", "#16a34a", "#f97316", "#e11d48", "#9333ea"];
 function overviewIsEmpty(data: any) {
     return (
         !data ||
-        (!data.followers && !data.likes && !data.reach && !data.impressions && !data.pageVisits)
+        (!data.followers && !data.likes && !data.reach && !data.impressions && !data.pageVisits && !data.totalContent)
     );
 }
 
@@ -126,7 +126,9 @@ function growthIsEmpty(data: any) {
     const container = data?.series ?? data?.data?.series ?? data;
     return (
         normalizeSeries(container, "impressions").length === 0 &&
-        normalizeSeries(container, "followers").length === 0
+        normalizeSeries(container, "followers").length === 0 &&
+        normalizeSeries(container, "reach").length === 0 &&
+        normalizeSeries(container, "newFollowers").length === 0
     );
 }
 
@@ -1022,7 +1024,12 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-xs text-gray-500 italic py-8 text-center">No posts found in this period.</p>
+                            <div className="text-center py-10 px-4 space-y-2 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 my-4">
+                                <p className="text-sm font-extrabold text-slate-800">No posts found in selected period</p>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    💡 <strong>Tip:</strong> No Facebook posts were published between {activeDates.from} and {activeDates.to}. Try expanding your date range filter using the date picker above.
+                                </p>
+                            </div>
                         )}
                     </div>
                     <TablePagination
@@ -1142,7 +1149,12 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-xs text-gray-500 italic py-8 text-center">No Reels found in this period.</p>
+                            <div className="text-center py-10 px-4 space-y-2 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 my-4">
+                                <p className="text-sm font-extrabold text-slate-800">No Reels found in selected period</p>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    💡 <strong>Tip:</strong> Facebook Reels metrics are collected for short video formats published to your page.
+                                </p>
+                            </div>
                         )}
                     </div>
                     <TablePagination
@@ -1262,7 +1274,12 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-xs text-gray-500 italic py-8 text-center">No Stories found in this period.</p>
+                            <div className="text-center py-10 px-4 space-y-2 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 my-4">
+                                <p className="text-sm font-extrabold text-slate-800">No Stories found in selected period</p>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    💡 <strong>Tip:</strong> Facebook Stories expire after 24 hours and story metrics are logged during active publication windows.
+                                </p>
+                            </div>
                         )}
                     </div>
                     <TablePagination
@@ -1373,7 +1390,12 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 </tbody>
                             </table>
                         ) : (
-                            <p className="text-xs text-gray-500 italic py-8 text-center">No competitors found in this period.</p>
+                            <div className="text-center py-10 px-4 space-y-2 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 my-4">
+                                <p className="text-sm font-extrabold text-slate-800">No Competitors Tracked</p>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    💡 <strong>Why is this empty?</strong> Add competitor Facebook Pages inside your Metricool account settings to track their performance here.
+                                </p>
+                            </div>
                         )}
                     </div>
                     <TablePagination
