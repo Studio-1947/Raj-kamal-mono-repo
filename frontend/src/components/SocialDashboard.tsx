@@ -295,7 +295,7 @@ export default function SocialDashboard() {
 
             {/* Right Column: Metrics Content Area */}
             <div className="flex-1 min-w-0 flex flex-col gap-6">
-                {/* Header card with title & range */}
+                {/* Header card with title */}
                 <div className="rounded-3xl border border-gray-200/60 bg-white shadow-sm p-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                     <div>
                         <h1 className="text-xl font-bold text-gray-900 capitalize flex items-center gap-2">
@@ -304,25 +304,6 @@ export default function SocialDashboard() {
                         <p className="text-xs text-gray-500 mt-1">
                             Metricool analysis for your connected {activeNetwork} page.
                         </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 self-start xl:self-auto">
-                        <SocialDatePicker
-                            from={customFrom}
-                            to={customTo}
-                            onChange={(newFrom, newTo, presetKey) => {
-                                setCustomFrom(newFrom);
-                                setCustomTo(newTo);
-                                if (presetKey === "last_30_days") {
-                                    setRange("30d");
-                                } else if (presetKey === "last_week") {
-                                    setRange("7d");
-                                } else {
-                                    setRange("custom");
-                                }
-                            }}
-                            activePresetKey={range}
-                        />
                     </div>
                 </div>
 

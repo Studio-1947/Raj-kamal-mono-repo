@@ -33,6 +33,7 @@ import { ImageWithHover } from "./ImageWithHover";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { getCountryName } from "../lib/countryNames";
 import SocialCommonHeader from "./SocialCommonHeader";
+import SocialPageOverview from "./SocialPageOverview";
 import TablePagination from "./TablePagination";
 import {
     instagramOverviewMock,
@@ -647,370 +648,223 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
 
             {/* ACCOUNT OVERVIEW Section */}
             {activeSection === "account" && (
-                <div className="space-y-6">
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-sm font-normal text-gray-900">Account Overview</p>
-                                <p className="text-xs text-gray-900">
-                                    {overview?.from ?? ""} → {overview?.to ?? ""}
-                                </p>
-                            </div>
-                            {overview?.profileName && (
-                                <div className="flex items-center gap-2 text-sm text-gray-900">
-                                    <img
-                                        src={
-                                            overview?.profilePictureUrl ||
-                                            overview?.picture ||
-                                            "/favicon.svg"
-                                        }
-                                        alt="Profile"
-                                        className="h-8 w-8 rounded-full object-cover"
-                                    />
-                                    <span className="font-normal text-gray-900">
-                                        {overview?.profileName}
-                                    </span>
-                                </div>
-                            )}
-                        </header>
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                            {[
-                                { label: "Likes", value: overview?.likes ?? 0 },
-                                { label: "Followers", value: overview?.followers ?? 0 },
-                                { label: "Reach", value: overview?.reach ?? 0 },
-                                { label: "Impressions", value: overview?.impressions ?? overview?.views ?? 0 },
-                                { label: "Profile visits", value: overview?.pageVisits ?? overview?.pageViews ?? 0 },
-                                { label: "Total content", value: engagement?.postsCount ?? overview?.totalContent ?? 0 },
-                                { label: "Accounts engaged", value: engagement?.accountsEngaged ?? 0 },
-                            ].map((card) => (
-                                <div
-                                    key={card.label}
-                                    className="rounded-2xl bg-purple-50 px-4 py-3 text-center shadow-inner border border-purple-100"
-                                >
-                                    <p className="text-xs font-normal text-gray-900">
-                                        {card.label}
-                                    </p>
-                                    <p className="text-xl font-normal text-gray-900">
-                                        {formatNumber(card.value, "0")}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-6">
-                            <h3 className="text-sm font-normal text-gray-900 mb-2">
-                                Growth
-                            </h3>
-                            <div className="h-72">
-                                {impressionsPoints.length || followersPoints.length ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                            <XAxis
-                                                dataKey="date"
-                                                type="category"
-                                                allowDuplicatedCategory={false}
-                                                tick={{ fontSize: 10 }}
-                                                tickMargin={6}
-                                            />
-                                            <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                            <Tooltip
-                                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                        labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                    />
-                                            <Line
-                                                dataKey="value"
-                                                data={impressionsPoints}
-                                                name="Impressions"
-                                                stroke="#fbbf24"
-                                                dot={false}
-                                            />
-                                            <Line
-                                                dataKey="value"
-                                                data={followersPoints}
-                                                name="Followers"
-                                                stroke="#10b981"
-                                                dot={false}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <p className="text-sm text-gray-900">
-                                        No growth data for this period.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </section>
-
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5 space-y-4">
-                        <header className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-normal text-gray-900">
-                                    Balance of Followers
-                                </p>
-                                <p className="text-xs text-gray-900">
-                                    {overview?.from ?? ""} → {overview?.to ?? ""}
-                                </p>
-                            </div>
-                            <div className="flex gap-2 text-xs font-normal">
-                                <span className="px-3 py-1 rounded-full bg-purple-50 text-purple-700">
-                                    {formatNumber(overview?.followersChange)} Net change
-                                </span>
-                                <span className="px-3 py-1 rounded-full bg-green-50 text-green-700">
-                                    {formatNumber(overview?.followers)} Total followers
-                                </span>
-                            </div>
-                        </header>
-                        <div className="h-64">
-                            {newFollowersPoints.length || lostFollowersPoints.length ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis
-                                            dataKey="date"
-                                            type="category"
-                                            allowDuplicatedCategory={false}
-                                            tick={{ fontSize: 10 }}
-                                            tickMargin={6}
-                                        />
-                                        <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
-                                        <Tooltip
-                                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                        labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
-                                    />
-                                        <Line
-                                            dataKey="value"
-                                            data={newFollowersPoints}
-                                            name="Acquired"
-                                            stroke="#0ea5e9"
-                                            dot={false}
-                                        />
-                                        <Line
-                                            dataKey="value"
-                                            data={lostFollowersPoints}
-                                            name="Lost"
-                                            stroke="#f97316"
-                                            dot={false}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <p className="text-sm text-gray-900">
-                                    No follower balance data.
-                                </p>
-                            )}
-                        </div>
-                    </section>
-                </div>
+                <SocialPageOverview
+                    platform="instagram"
+                    overview={overview}
+                    growth={growth}
+                    engagement={engagement}
+                    from={activeDates.from}
+                    to={activeDates.to}
+                />
             )}
 
             {/* DEMOGRAPHICS Section */}
             {activeSection === "demographics" && (
                 <div className="space-y-6">
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-normal text-gray-900">Audience Gender</p>
-                            <p className="text-xs text-gray-900">Share of followers by gender</p>
-                        </header>
-                        {genderData.length > 0 ? (
-                            <div className="space-y-3">
-                                {genderData
-                                    .slice()
-                                    .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
-                                    .map((item, index) => (
-                                        <div key={item?.key ?? index} className="space-y-1">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {GENDER_LABELS[item?.key] ?? item?.key ?? "—"}
-                                                </span>
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {(item?.value ?? 0).toFixed(1)}%
-                                                </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Gender Distribution Card */}
+                        <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-4">
+                            <header>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Audience Gender</h3>
+                                <p className="text-xs text-gray-500 font-medium">Share of followers by gender</p>
+                            </header>
+                            {genderData.length > 0 ? (
+                                <div className="space-y-3 pt-2">
+                                    {genderData
+                                        .slice()
+                                        .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                        .map((item, index) => (
+                                            <div key={item?.key ?? index} className="space-y-1">
+                                                <div className="flex justify-between items-center text-xs font-semibold">
+                                                    <span className="text-gray-800">
+                                                        {GENDER_LABELS[item?.key] ?? item?.key ?? "—"}
+                                                    </span>
+                                                    <span className="text-gray-900 font-bold">
+                                                        {(item?.value ?? 0).toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full transition-all duration-300"
+                                                        style={{
+                                                            width: `${item?.value ?? 0}%`,
+                                                            backgroundColor: chartColors[index % chartColors.length],
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full"
-                                                    style={{
-                                                        width: `${item?.value ?? 0}%`,
-                                                        backgroundColor: chartColors[index % chartColors.length],
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-900">No gender data available.</p>
-                        )}
-                    </section>
-
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-normal text-gray-900">Audience Age</p>
-                            <p className="text-xs text-gray-900">Share of followers by age bracket</p>
-                        </header>
-                        <div className="h-80">
-                            {ageData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={ageData
-                                            .slice()
-                                            .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
-                                            .map((item) => ({
-                                                name: item?.key ?? "Unknown",
-                                                value: item?.value ?? 0,
-                                            }))}
-                                        layout="vertical"
-                                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis type="number" tick={{ fontSize: 11 }} />
-                                        <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={60} />
-                                        <Tooltip
-                                            content={({ active, payload }) => {
-                                                if (active && payload && payload.length) {
-                                                    return (
-                                                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
-                                                            <p className="text-xs font-normal text-gray-900">
-                                                                {payload[0].payload.name}
-                                                            </p>
-                                                            <p className="text-xs text-purple-600 font-normal">
-                                                                {payload[0].payload.value.toFixed(1)}% of followers
-                                                            </p>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            }}
-                                        />
-                                        <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                                            {ageData.map((_, index) => (
-                                                <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                        ))}
+                                </div>
                             ) : (
-                                <p className="text-sm text-gray-900">No age data available.</p>
+                                <p className="text-xs text-gray-500 italic py-8 text-center">No gender data available.</p>
                             )}
-                        </div>
-                    </section>
+                        </section>
 
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-normal text-gray-900">Content Types</p>
-                            <p className="text-xs text-gray-900">Share of posts by media type</p>
-                        </header>
-                        {contentTypesData.length > 0 ? (
-                            <div className="space-y-3">
-                                {contentTypesData
-                                    .slice()
-                                    .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
-                                    .map((item, index) => (
-                                        <div key={item?.key ?? index} className="space-y-1">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {CONTENT_TYPE_LABELS[item?.key] ?? item?.key ?? "—"}
-                                                </span>
-                                                <span className="text-sm font-normal text-gray-900">
-                                                    {(item?.value ?? 0).toFixed(1)}%
-                                                </span>
+                        {/* Content Types Breakdown Card */}
+                        <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-4">
+                            <header>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Content Types</h3>
+                                <p className="text-xs text-gray-500 font-medium">Share of posts by media type</p>
+                            </header>
+                            {contentTypesData.length > 0 ? (
+                                <div className="space-y-3 pt-2">
+                                    {contentTypesData
+                                        .slice()
+                                        .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                        .map((item, index) => (
+                                            <div key={item?.key ?? index} className="space-y-1">
+                                                <div className="flex justify-between items-center text-xs font-semibold">
+                                                    <span className="text-gray-800">
+                                                        {CONTENT_TYPE_LABELS[item?.key] ?? item?.key ?? "—"}
+                                                    </span>
+                                                    <span className="text-gray-900 font-bold">
+                                                        {(item?.value ?? 0).toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full transition-all duration-300"
+                                                        style={{
+                                                            width: `${item?.value ?? 0}%`,
+                                                            backgroundColor: chartColors[index % chartColors.length],
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full"
-                                                    style={{
-                                                        width: `${item?.value ?? 0}%`,
-                                                        backgroundColor: chartColors[index % chartColors.length],
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-900">No content type data available.</p>
-                        )}
-                    </section>
-
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-normal text-gray-900">Followers by Country</p>
-                            <p className="text-xs text-gray-900">Geographic distribution of your audience (Top 10)</p>
-                        </header>
-                        <div className="h-96">
-                            {demographicsCountries.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={demographicsCountries
-                                            .slice()
-                                            .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
-                                            .slice(0, 10)
-                                            .map((item) => ({
-                                                name: getCountryName(item?.key ?? "Unknown"),
-                                                value: item?.value ?? 0,
-                                            }))}
-                                        layout="vertical"
-                                        margin={{ top: 5, right: 30, left: 110, bottom: 5 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis type="number" tick={{ fontSize: 11 }} />
-                                        <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={100} />
-                                        <Tooltip
-                                            content={({ active, payload }) => {
-                                                if (active && payload && payload.length) {
-                                                    return (
-                                                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2">
-                                                            <p className="text-xs font-normal text-gray-900">
-                                                                {payload[0].payload.name}
-                                                            </p>
-                                                            <p className="text-xs text-purple-600 font-normal">
-                                                                {payload[0].payload.value.toFixed(1)}% of followers
-                                                            </p>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            }}
-                                        />
-                                        <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                                            {demographicsCountries.slice(0, 10).map((_, index) => (
-                                                <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                        ))}
+                                </div>
                             ) : (
-                                <p className="text-sm text-gray-900">No country data available.</p>
+                                <p className="text-xs text-gray-500 italic py-8 text-center">No content type data available.</p>
                             )}
-                        </div>
-                    </section>
+                        </section>
+                    </div>
 
-                    <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                        <header className="mb-4">
-                            <p className="text-sm font-normal text-gray-900">Top Cities</p>
-                            <p className="text-xs text-gray-900">Cities with the most followers</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Age Bracket Card */}
+                        <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-4">
+                            <header>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Audience Age</h3>
+                                <p className="text-xs text-gray-500 font-medium">Share of followers by age bracket</p>
+                            </header>
+                            <div className="h-72 pt-2">
+                                {ageData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={ageData
+                                                .slice()
+                                                .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                                .map((item) => ({
+                                                    name: item?.key ?? "Unknown",
+                                                    value: item?.value ?? 0,
+                                                }))}
+                                            layout="vertical"
+                                            margin={{ top: 0, right: 20, left: 40, bottom: 0 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
+                                            <XAxis type="number" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                                            <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} width={60} />
+                                            <Tooltip
+                                                content={({ active, payload }) => {
+                                                    if (active && payload && payload.length) {
+                                                        return (
+                                                            <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2 text-xs">
+                                                                <p className="font-bold text-gray-900">{payload[0].payload.name}</p>
+                                                                <p className="text-pink-600 font-semibold">{payload[0].payload.value.toFixed(1)}% of followers</p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={14}>
+                                                {ageData.map((_, index) => (
+                                                    <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <p className="text-xs text-gray-500 italic py-8 text-center">No age data available.</p>
+                                )}
+                            </div>
+                        </section>
+
+                        {/* Top Countries Card */}
+                        <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-4">
+                            <header>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Followers by Country</h3>
+                                <p className="text-xs text-gray-500 font-medium">Top 10 country distribution</p>
+                            </header>
+                            <div className="h-72 pt-2">
+                                {demographicsCountries.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={demographicsCountries
+                                                .slice()
+                                                .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
+                                                .slice(0, 10)
+                                                .map((item) => ({
+                                                    name: getCountryName(item?.key ?? "Unknown"),
+                                                    value: item?.value ?? 0,
+                                                }))}
+                                            layout="vertical"
+                                            margin={{ top: 0, right: 20, left: 60, bottom: 0 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
+                                            <XAxis type="number" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                                            <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} width={90} />
+                                            <Tooltip
+                                                content={({ active, payload }) => {
+                                                    if (active && payload && payload.length) {
+                                                        return (
+                                                            <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2 text-xs">
+                                                                <p className="font-bold text-gray-900">{payload[0].payload.name}</p>
+                                                                <p className="text-pink-600 font-semibold">{payload[0].payload.value.toFixed(1)}% of followers</p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={14}>
+                                                {demographicsCountries.slice(0, 10).map((_, index) => (
+                                                    <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <p className="text-xs text-gray-500 italic py-8 text-center">No country data available.</p>
+                                )}
+                            </div>
+                        </section>
+                    </div>
+
+                    {/* Top Cities Card */}
+                    <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-4">
+                        <header>
+                            <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Top Cities</h3>
+                            <p className="text-xs text-gray-500 font-medium">Cities with highest audience concentration</p>
                         </header>
                         {demographicsCities.length > 0 ? (
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                                 {demographicsCities
                                     .slice()
                                     .sort((a, b) => (b?.value ?? 0) - (a?.value ?? 0))
                                     .slice(0, 10)
                                     .map((item, index) => (
                                         <div key={item?.key ?? index} className="space-y-1">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-normal text-gray-900">
+                                            <div className="flex justify-between items-center text-xs font-semibold">
+                                                <span className="text-gray-800 truncate">
                                                     {item?.key ?? "—"}
                                                 </span>
-                                                <span className="text-sm font-normal text-gray-900">
+                                                <span className="text-gray-900 font-bold">
                                                     {(item?.value ?? 0).toFixed(1)}%
                                                 </span>
                                             </div>
                                             <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                                                 <div
-                                                    className="h-full rounded-full"
+                                                    className="h-full rounded-full transition-all duration-300"
                                                     style={{
                                                         width: `${item?.value ?? 0}%`,
                                                         backgroundColor: chartColors[index % chartColors.length],
@@ -1021,7 +875,7 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                     ))}
                             </div>
                         ) : (
-                            <p className="text-sm text-gray-900">No city breakdown available.</p>
+                            <p className="text-xs text-gray-500 italic py-8 text-center">No city breakdown available.</p>
                         )}
                     </section>
                 </div>
@@ -1029,43 +883,46 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
 
             {/* Timeline Chart - Only show for non-account sections */}
             {activeSection !== "account" && activeSection !== "demographics" && (
-                <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4">
-                        <p className="text-sm font-normal text-gray-900 capitalize">
+                <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-4">
+                    <header>
+                        <h3 className="text-base font-extrabold text-gray-900 capitalize tracking-tight">
                             {activeSection} - Impressions Over Time
-                        </p>
-                        <p className="text-xs text-gray-900">
-                            Showing data for the selected time period
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium">
+                            Daily trend performance for the selected period
                         </p>
                     </header>
-                    <div className="h-64">
+                    <div className="h-64 pt-2">
                         {timelinePoints.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <LineChart data={timelinePoints} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                                     <XAxis
                                         dataKey="date"
                                         type="category"
                                         allowDuplicatedCategory={false}
-                                        tick={{ fontSize: 10 }}
-                                        tickMargin={6}
+                                        tick={{ fontSize: 11, fill: "#94A3B8" }}
+                                        axisLine={false}
+                                        tickLine={false}
                                     />
-                                    <YAxis tick={{ fontSize: 10 }} tickMargin={4} width={60} />
+                                    <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
                                     <Tooltip
-                                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                                        labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 4 }}
+                                        contentStyle={{ borderRadius: 16, border: "1px solid #E2E8F0", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)", fontSize: 12 }}
+                                        labelStyle={{ fontWeight: 700, color: "#0F172A", marginBottom: 4 }}
                                     />
                                     <Line
+                                        type="monotone"
                                         dataKey="value"
-                                        data={timelinePoints}
                                         name="Impressions"
-                                        stroke="#2563eb"
-                                        dot={false}
+                                        stroke="#E1306C"
+                                        strokeWidth={3}
+                                        dot={{ r: 3.5, fill: "#E1306C", strokeWidth: 0 }}
+                                        activeDot={{ r: 6 }}
                                     />
                                 </LineChart>
                             </ResponsiveContainer>
                         ) : (
-                            <p className="text-sm text-gray-900">
+                            <p className="text-xs text-gray-500 italic py-8 text-center">
                                 No timeline data available for this section.
                             </p>
                         )}
@@ -1076,13 +933,13 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
 
             {/* Items List - Only show for non-account sections */}
             {activeSection !== "account" && activeSection !== "demographics" && (
-                <section className="rounded-3xl border border-black/5 bg-white shadow-sm p-5">
-                    <header className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-4">
+                    <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div>
-                            <p className="text-sm font-semibold text-gray-900 capitalize">
+                            <h3 className="text-base font-extrabold text-gray-900 capitalize tracking-tight">
                                 {activeSection} {activeSection === 'competitors' ? 'Analysis' : 'Items'}
-                            </p>
-                            <p className="text-xs text-gray-500">
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium">
                                 {items.length} items found
                             </p>
                         </div>
