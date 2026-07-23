@@ -691,9 +691,9 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Top Countries Card */}
-                        <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-4">
+                        <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 space-y-4">
                             <header>
-                                <h3 className="text-base font-extrabold text-gray-900">Followers by Country</h3>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Followers by Country</h3>
                                 <p className="text-xs text-gray-500 font-medium">Geographic origin of your Facebook audience</p>
                             </header>
                             <div className="h-64 pt-2">
@@ -741,9 +741,9 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                         </section>
 
                         {/* Top Cities Card */}
-                        <section className="rounded-3xl border border-gray-200/80 bg-white shadow-sm p-6 space-y-4">
+                        <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 space-y-4">
                             <header>
-                                <h3 className="text-base font-extrabold text-gray-900">Top Cities</h3>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Top Cities</h3>
                                 <p className="text-xs text-gray-500 font-medium">Cities with highest follower concentration</p>
                             </header>
                             <div className="space-y-3 pt-2">
@@ -779,6 +779,39 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                             </div>
                         </section>
                     </div>
+
+                    {/* Content Types Card */}
+                    {contentTypesData.length > 0 && (
+                        <section className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm hover:shadow-md transition-shadow p-6 space-y-4">
+                            <header>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Content Types Breakdown</h3>
+                                <p className="text-xs text-gray-500 font-medium">Distribution of published posts by type</p>
+                            </header>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                {contentTypesData.map((item, index) => (
+                                    <div key={item?.key ?? index} className="space-y-1">
+                                        <div className="flex justify-between items-center text-xs font-semibold">
+                                            <span className="text-gray-800 truncate uppercase">
+                                                {item?.key ?? "—"}
+                                            </span>
+                                            <span className="text-gray-900 font-bold">
+                                                {(item?.value ?? 0).toFixed(1)}%
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-300"
+                                                style={{
+                                                    width: `${item?.value ?? 0}%`,
+                                                    backgroundColor: chartColors[index % chartColors.length]
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                 </div>
             )}
 

@@ -189,16 +189,18 @@ export default function AccountAnalysisTabs({
                     Interactions
                 </button>
 
-                <button
-                    type="button"
-                    onClick={() => setActiveSubTab("profile")}
-                    className={`flex-1 min-w-[120px] text-center py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all duration-200 ${activeSubTab === "profile"
-                        ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/50"
-                        }`}
-                >
-                    Profile activity
-                </button>
+                {platform !== "youtube" && (
+                    <button
+                        type="button"
+                        onClick={() => setActiveSubTab("profile")}
+                        className={`flex-1 min-w-[120px] text-center py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all duration-200 ${activeSubTab === "profile"
+                            ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
+                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/50"
+                            }`}
+                    >
+                        Profile activity
+                    </button>
+                )}
             </div>
 
             {/* Filter Dropdowns Controls Bar */}
