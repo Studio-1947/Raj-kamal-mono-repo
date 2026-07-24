@@ -1,6 +1,14 @@
 import { apiClient } from "../lib/apiClient";
 
-export type PlatformKey = "facebook" | "instagram" | "youtube";
+export type PlatformKey =
+  | "facebook"
+  | "instagram"
+  | "youtube"
+  | "linkedin"
+  | "tiktok"
+  | "twitter"
+  | "pinterest"
+  | "meta_ads";
 
 export type NetworkFlags = {
   facebook: boolean;
@@ -76,24 +84,74 @@ const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
     reach: "reach",
     clicks: "website_clicks",
   },
-  // YouTube uses dedicated fetchYoutubeOverview/fetchYoutubeGrowth functions
-  // below instead of these generic aliases (see comment there for why).
   youtube: {},
+  linkedin: {
+    likes: "postsInteractions",
+    pageImpressions: "impressions",
+    followers: "followers",
+    newFollowers: "followersGained",
+    reach: "impressions",
+    pageViews: "pageViews",
+    clicks: "clicks",
+  },
+  tiktok: {
+    likes: "likes",
+    pageImpressions: "views",
+    followers: "followers",
+    reach: "views",
+    pageViews: "profileViews",
+  },
+  twitter: {
+    likes: "likes",
+    pageImpressions: "impressions",
+    followers: "followers",
+    reach: "impressions",
+    clicks: "urlClicks",
+  },
+  pinterest: {
+    likes: "saves",
+    pageImpressions: "impressions",
+    followers: "followers",
+    reach: "impressions",
+    clicks: "pinClicks",
+  },
+  meta_ads: {
+    likes: "clicks",
+    pageImpressions: "impressions",
+    pageViews: "clicks",
+    followers: "reach",
+    newFollowers: "reach",
+    lostFollowers: "reach",
+    reach: "reach",
+    clicks: "clicks",
+  },
 };
 
 const distributionMetricAliases: Record<PlatformKey, DistributionMetricMap> = {
   facebook: {
-    // followersByCountry/followersByCity are accepted by the API but return
-    // permanently empty data on this account — page_follows_country/city return
-    // real values, confirmed against the live API.
     country: "page_follows_country",
     city: "page_follows_city",
   },
   instagram: {
-    country: "country", // Instagram uses simple 'country' for distribution
-    city: "city", // Instagram uses simple 'city' for distribution
+    country: "country",
+    city: "city",
   },
-  youtube: {}, // Metricool's distribution/demographics endpoint 500s for youtube.
+  youtube: {},
+  linkedin: {
+    country: "country",
+  },
+  tiktok: {
+    country: "country",
+  },
+  twitter: {
+    country: "country",
+  },
+  pinterest: {
+    country: "country",
+  },
+  meta_ads: {
+    country: "country",
+  },
 };
 
 function extractSeriesValues(payload: any): TimelinePoint[] {
@@ -168,7 +226,7 @@ function resolveDistributionMetric(
   return distributionMetricAliases[platform]?.[kind] ?? kind;
 }
 
-async function fetchTimelineSeries(
+export async function fetchTimelineSeries(
   platform: PlatformKey,
   metric: string,
   params?: Record<string, unknown>,

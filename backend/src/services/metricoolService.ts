@@ -78,10 +78,41 @@ export type TimelineParams = {
   blogId?: string | undefined;
 };
 
+const VALID_META_ADS_METRICS = new Set([
+  "impressions",
+  "reach",
+  "spend",
+  "clicks",
+  "cpc",
+  "cpm",
+  "ctr",
+  "conversions",
+  "purchase_roas",
+  "action_value.omni_purchase",
+]);
+
+const META_ADS_METRIC_MAP: Record<string, string> = {
+  pageViews: "clicks",
+  likes: "clicks",
+  followers: "reach",
+  newFollowers: "reach",
+  lostFollowers: "reach",
+  pageImpressions: "impressions",
+};
+
+function normalizeMetaAdsMetric(metric: string): string {
+  if (VALID_META_ADS_METRICS.has(metric)) return metric;
+  return META_ADS_METRIC_MAP[metric] ?? "impressions";
+}
+
 export async function fetchTimeline(params: TimelineParams) {
-  const isMetaAds = params.network === "meta_ads";
+  const isMetaAds = params.network === "meta_ads" || params.network === "facebookads";
+  const metric = isMetaAds
+    ? normalizeMetaAdsMetric(params.metric)
+    : params.metric;
+
   const baseParams: Record<string, any> = {
-    metric: params.metric,
+    metric,
     network: isMetaAds ? "facebookads" : params.network,
     subject: params.subject ?? "account",
     from: normalizeDateParam(params.from, "from"),
@@ -107,7 +138,8 @@ export async function fetchPosts(
     blogId?: string | undefined;
   },
 ) {
-  const endpoint = `${METRICOOL_ANALYTICS_POSTS_BASE_PATH}/${network}`;
+  const targetNetwork = (network === "meta_ads" || network === "facebookads") ? "facebook" : network;
+  const endpoint = `${METRICOOL_ANALYTICS_POSTS_BASE_PATH}/${targetNetwork}`;
   return metricoolRequest({
     endpoint,
     searchParams: buildMetricoolBaseParams({

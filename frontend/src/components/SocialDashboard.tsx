@@ -4,6 +4,8 @@ import { useLang } from "../modules/lang/LangContext";
 import InstagramView from "./InstagramView";
 import FacebookView from "./FacebookView";
 import YouTubeView from "./YouTubeView";
+import MetaAdsView from "./MetaAdsView";
+import GenericSocialView from "./GenericSocialView";
 import SocialDatePicker from "./SocialDatePicker";
 import {
     fetchBrands,
@@ -19,11 +21,21 @@ import {
     FaTiktok,
     FaTwitter,
     FaPinterest,
+    FaBullhorn,
 } from "react-icons/fa";
 
 type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 
-const IMPLEMENTED_NETWORKS: PlatformKey[] = ["facebook", "instagram", "youtube"];
+const IMPLEMENTED_NETWORKS: PlatformKey[] = [
+    "facebook",
+    "instagram",
+    "youtube",
+    "linkedin",
+    "tiktok",
+    "twitter",
+    "pinterest",
+    "meta_ads",
+];
 
 const SELECTED_BRAND_STORAGE_KEY = "metricool_selected_blog_id";
 
@@ -35,6 +47,7 @@ const NETWORK_ICONS: Partial<Record<keyof NetworkFlags, { Icon: ComponentType<{ 
     tiktok: { Icon: FaTiktok, color: "text-gray-900" },
     twitter: { Icon: FaTwitter, color: "text-[#1DA1F2]" },
     pinterest: { Icon: FaPinterest, color: "text-[#E60023]" },
+    meta_ads: { Icon: FaBullhorn, color: "text-[#0668E1]" },
 };
 
 const BRAND_DETAILS: Record<PlatformKey, {
@@ -72,6 +85,51 @@ const BRAND_DETAILS: Record<PlatformKey, {
         activeText: "text-[#FF0000]",
         brandColor: "#FF0000",
         description: "Channel growth & videos",
+    },
+    linkedin: {
+        name: "LinkedIn",
+        icon: FaLinkedin,
+        activeBg: "bg-[#0A66C2]/10",
+        activeBorder: "border-[#0A66C2]",
+        activeText: "text-[#0A66C2]",
+        brandColor: "#0A66C2",
+        description: "Company page & posts",
+    },
+    tiktok: {
+        name: "TikTok",
+        icon: FaTiktok,
+        activeBg: "bg-gray-900/10",
+        activeBorder: "border-gray-900",
+        activeText: "text-gray-900",
+        brandColor: "#000000",
+        description: "Video views & audience",
+    },
+    twitter: {
+        name: "Twitter / X",
+        icon: FaTwitter,
+        activeBg: "bg-[#1DA1F2]/10",
+        activeBorder: "border-[#1DA1F2]",
+        activeText: "text-[#1DA1F2]",
+        brandColor: "#1DA1F2",
+        description: "Tweets & follower growth",
+    },
+    pinterest: {
+        name: "Pinterest",
+        icon: FaPinterest,
+        activeBg: "bg-[#E60023]/10",
+        activeBorder: "border-[#E60023]",
+        activeText: "text-[#E60023]",
+        brandColor: "#E60023",
+        description: "Pin clicks & saves",
+    },
+    meta_ads: {
+        name: "Meta Ads",
+        icon: FaBullhorn,
+        activeBg: "bg-[#0668E1]/10",
+        activeBorder: "border-[#0668E1]",
+        activeText: "text-[#0668E1]",
+        brandColor: "#0668E1",
+        description: "Ad campaigns & reach",
     },
 };
 
@@ -358,6 +416,38 @@ export default function SocialDashboard() {
                         }}
                     />
                 )}
+
+                {headerTabs.includes(activeNetwork) && activeNetwork === "meta_ads" && (
+                    <MetaAdsView
+                        range={range}
+                        onRangeChange={setRange}
+                        customFrom={customFrom}
+                        customTo={customTo}
+                        blogId={selectedBlogId ?? undefined}
+                        onDateRangeChange={(newFrom, newTo, presetKey) => {
+                            setCustomFrom(newFrom);
+                            setCustomTo(newTo);
+                            setRange("custom");
+                        }}
+                    />
+                )}
+
+                {headerTabs.includes(activeNetwork) &&
+                    ["linkedin", "tiktok", "twitter", "pinterest"].includes(activeNetwork) && (
+                        <GenericSocialView
+                            platform={activeNetwork}
+                            range={range}
+                            onRangeChange={setRange}
+                            customFrom={customFrom}
+                            customTo={customTo}
+                            blogId={selectedBlogId ?? undefined}
+                            onDateRangeChange={(newFrom, newTo, presetKey) => {
+                                setCustomFrom(newFrom);
+                                setCustomTo(newTo);
+                                setRange("custom");
+                            }}
+                        />
+                    )}
             </div>
         </div>
     );

@@ -288,3 +288,193 @@ export function youtubeGrowthMock(range: string) {
         },
     };
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Generic / Meta Ads / LinkedIn / TikTok / Twitter / Pinterest              */
+/* -------------------------------------------------------------------------- */
+
+export function genericOverviewMock(platform: string, range: string) {
+    const { from, to } = isoRange(range);
+    const platformLabel = platform === "meta_ads" ? "Meta Ads (Sample)" : `${platform.charAt(0).toUpperCase() + platform.slice(1)} (Sample)`;
+    return {
+        profileName: platformLabel,
+        profilePictureUrl: "/favicon.svg",
+        likes: 12400,
+        followers: 14800,
+        reach: 184500,
+        impressions: 342000,
+        pageVisits: 6200,
+        pageViews: 6200,
+        totalContent: 45,
+        followersChange: 280,
+        from,
+        to,
+    };
+}
+
+export function genericGrowthMock(platform: string, range: string) {
+    const days = rangeDays(range);
+    return {
+        series: {
+            impressions: { values: buildSeries(days, 12000, 2400, 45) },
+            reach: { values: buildSeries(days, 6800, 1400, 25) },
+            followers: { values: buildSeries(days, 14500, 100, 10) },
+            newFollowers: { values: buildSeries(days, 35, 15) },
+            lostFollowers: { values: buildSeries(days, 10, 6) },
+        },
+    };
+}
+
+export const genericDemographicsCountriesMock = [
+    { key: "IN", value: 65.0 },
+    { key: "US", value: 12.5 },
+    { key: "AE", value: 5.8 },
+    { key: "GB", value: 4.2 },
+    { key: "SG", value: 3.5 },
+    { key: "CA", value: 2.8 },
+    { key: "AU", value: 2.2 },
+    { key: "NP", value: 2.0 },
+    { key: "BD", value: 2.0 },
+];
+
+export function genericPostsMock(platform: string) {
+    const label = platform === "meta_ads" ? "Ad Campaign" : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Post`;
+    return [
+        { id: `${platform}-1`, date: new Date().toISOString().slice(0, 10), message: `${label}: Summer book festival special promotion 📚✨`, mediaType: "Campaign", impressions: 45200, reach: 28400, engagement: 3620, likes: 2980, comments: 164, shares: 240 },
+        { id: `${platform}-2`, date: new Date().toISOString().slice(0, 10), message: `${label}: New bestseller pre-orders now active 💛`, mediaType: "Campaign", impressions: 38400, reach: 23100, engagement: 2940, likes: 2350, comments: 128, shares: 196 },
+        { id: `${platform}-3`, date: new Date().toISOString().slice(0, 10), message: `${label}: Author interview highlight reel 🎬`, mediaType: "Video", impressions: 31600, reach: 19800, engagement: 2450, likes: 1920, comments: 104, shares: 162 },
+        { id: `${platform}-4`, date: new Date().toISOString().slice(0, 10), message: `${label}: Featured collection release 📖`, mediaType: "Image", impressions: 26800, reach: 16500, engagement: 2080, likes: 1610, comments: 84, shares: 128 },
+    ];
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Meta Ads (Facebook Ads & Instagram Ads) Dedicated Mocks                   */
+/* -------------------------------------------------------------------------- */
+
+export function metaAdsOverviewMock(range: string) {
+    const { from, to } = isoRange(range);
+    return {
+        accountName: "Rajkamal Meta Ad Account (Sample)",
+        spend: 48250,
+        impressions: 582400,
+        reach: 312800,
+        clicks: 18420,
+        ctr: 3.16,
+        cpc: 2.62,
+        cpm: 82.85,
+        conversions: 842,
+        roas: 4.25,
+        from,
+        to,
+    };
+}
+
+export function metaAdsSeriesMock(range: string) {
+    const days = rangeDays(range);
+    return {
+        spend: buildSeries(days, 1600, 300, 10),
+        impressions: buildSeries(days, 19000, 3500, 100),
+        reach: buildSeries(days, 10500, 1800, 50),
+        clicks: buildSeries(days, 610, 120, 4),
+    };
+}
+
+export const metaAdsCampaignsMock = [
+    {
+        id: "meta-ad-1",
+        name: "Sales_BookSet_July2026_AdvPlus",
+        status: "ACTIVE",
+        type: "OUTCOME_SALES",
+        spend: 1925.55,
+        impressions: 25650,
+        reach: 11770,
+        clicks: 662,
+        ctr: 2.58,
+        cpc: 2.91,
+        cpm: 75.07,
+        conversions: 1,
+        conversionType: "Leads",
+        format: "SALES AD",
+        adHeadline: "ग्रীষ্মकालीन पुस्तक महोत्सव — राजकमल सेल्स बुकसेट 2026 — विशेष छूट पर उपलब्ध 📚✨",
+        creativeImage: "/images/ads/meta_ad_summer_fest_1784881794246.png",
+        adUrl: "https://www.facebook.com/ads/library/?id=Sales_BookSet_July2026_AdvPlus",
+    },
+    {
+        id: "meta-ad-2",
+        name: "Website Sales Meri Maan Meri Gangster",
+        status: "ACTIVE",
+        type: "OUTCOME_SALES",
+        spend: 1097.05,
+        impressions: 86930,
+        reach: 78750,
+        clicks: 1400,
+        ctr: 1.61,
+        cpc: 0.79,
+        cpm: 12.62,
+        conversions: 946,
+        conversionType: "Link clicks",
+        format: "WEBSITE SALES",
+        adHeadline: "अरुंधति रॉय की बहुचर्चित किताब ‘मेरी माँ मेरी गैंगस्टर’ — आधिकारिक वेबसाइट पर अभी ऑर्डर करें 💛",
+        creativeImage: "/images/ads/meta_ad_new_release_1784881808811.png",
+        adUrl: "https://www.facebook.com/ads/library/?id=Website_Sales_Meri_Maan_Meri_Gangster",
+    },
+    {
+        id: "meta-ad-3",
+        name: "Book set new Catalogue ad_July",
+        status: "ACTIVE",
+        type: "OUTCOME_SALES",
+        spend: 928.00,
+        impressions: 18760,
+        reach: 12810,
+        clicks: 665,
+        ctr: 3.54,
+        cpc: 1.40,
+        cpm: 49.47,
+        conversions: 334,
+        conversionType: "Link clicks",
+        format: "CATALOG AD",
+        adHeadline: "नया कैटलॉग जुलाई 2026 — राजकमल की क्लासिक एवं नवीन कृतियों का नया संग्रह 📖",
+        creativeImage: "/images/ads/meta_ad_lead_gen_1784881826832.png",
+        adUrl: "https://www.facebook.com/ads/library/?id=Book_set_new_Catalogue_ad_July",
+    },
+    {
+        id: "meta-ad-4",
+        name: "Mumbai, Prayagraj, Patna, New Delhi location based awareness ad",
+        status: "ACTIVE",
+        type: "OUTCOME_AWARENESS",
+        spend: 525.60,
+        impressions: 211940,
+        reach: 206310,
+        clicks: 300,
+        ctr: 0.14,
+        cpc: 1.75,
+        cpm: 2.48,
+        conversions: 133,
+        conversionType: "Link clicks",
+        format: "AWARENESS AD",
+        adHeadline: "दिल्ली, मुंबई, प्रयागराज और पटना पुस्तक मेला — निःशुल्क प्रवेश पास एवं विशेष आमंत्रण 🎟️",
+        creativeImage: "/images/ads/meta_ad_retargeting_1784881841450.png",
+        adUrl: "https://www.facebook.com/ads/library/?id=Location_Based_Awareness_Ad",
+    },
+    {
+        id: "meta-ad-5",
+        name: "Amazon Awareness Meri Maan Meri Gangster",
+        status: "ACTIVE",
+        type: "OUTCOME_AWARENESS",
+        spend: 320.48,
+        impressions: 206760,
+        reach: 200580,
+        clicks: 176,
+        ctr: 0.09,
+        cpc: 1.82,
+        cpm: 1.55,
+        conversions: 142,
+        conversionType: "Link clicks",
+        format: "AMAZON AD",
+        adHeadline: "अमेज़न बेस्टसेलर — ‘मेरी माँ मेरी गैंगस्टर’ (Mother Mary Comes To Me) — अभी अमेज़न से मँगवाएँ 🛒",
+        creativeImage: "/images/ads/meta_ad_retargeting_1784881841450.png",
+        adUrl: "https://www.facebook.com/ads/library/?id=Amazon_Awareness_Meri_Maan_Meri_Gangster",
+    },
+];
+
+
