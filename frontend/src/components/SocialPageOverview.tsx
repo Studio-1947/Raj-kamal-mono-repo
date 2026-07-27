@@ -136,6 +136,7 @@ export default function SocialPageOverview({
                 dateStr,
                 followers: folArr[i]?.value ?? baseFol,
                 views: impArr[i]?.value ?? baseViews,
+                impressions: impArr[i]?.value ?? baseViews,
                 pageVisits: baseVisits,
                 totalContent: baseContent,
                 acquired: acqArr[i]?.value ?? baseAcquired,
@@ -522,7 +523,7 @@ export default function SocialPageOverview({
                             />
                             <Line
                                 type="monotone"
-                                dataKey="impressions"
+                                dataKey="views"
                                 name="Reactions / Views"
                                 stroke="#0D9488"
                                 strokeWidth={3}

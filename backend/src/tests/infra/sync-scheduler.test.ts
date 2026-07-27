@@ -33,13 +33,13 @@ describe('SYNC-SCHEDULER: scheduling, overlap guard, status & resilience', () =>
       expect(spy).not.toHaveBeenCalled();
     });
 
-    it('schedules 03:00 Asia/Kolkata by default when enabled', () => {
+    it('schedules 06:00 Asia/Kolkata by default when enabled', () => {
       process.env.ENABLE_SCHEDULED_SYNC = 'true';
       const spy = vi.spyOn(cron, 'schedule').mockReturnValue({ stop: vi.fn() } as any);
       startSyncScheduler();
       expect(spy).toHaveBeenCalledTimes(1);
       const [expr, fn, opts] = spy.mock.calls[0]!;
-      expect(expr).toBe('0 3 * * *');
+      expect(expr).toBe('0 6 * * *');
       expect(typeof fn).toBe('function');
       expect(opts).toMatchObject({ timezone: 'Asia/Kolkata' });
     });

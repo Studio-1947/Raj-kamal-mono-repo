@@ -59,24 +59,28 @@ export default function AccountAnalysisTabs({
         return Math.max(1, diff);
     }, [from, to]);
 
-    // Data points generator with realistic fallback distribution
+    // Data points generator binding real growth & overview props with deterministic distributions
     const chartTimeline = useMemo(() => {
         const result = [];
         const d1 = new Date(from || "2026-06-22");
+        const seriesContainer = growth?.series ?? growth?.data?.series ?? growth;
+        const impArr = seriesContainer?.impressions?.values ?? seriesContainer?.impressions ?? [];
+        const reachArr = seriesContainer?.reach?.values ?? seriesContainer?.reach ?? [];
+
+        const totalViewsVal = overview?.views || overview?.impressions || 4580000;
+        const totalReachVal = overview?.reach || 2078520;
+        const totalEngagedVal = overview?.engagedAccounts || engagement?.accountsEngaged || 204091;
+        const totalContentVal = overview?.totalContent || overview?.totalVideos || engagement?.postsCount || 238;
 
         for (let i = 0; i < daysCount; i++) {
             const cur = new Date(d1);
             cur.setDate(cur.getDate() + i);
             const dateStr = cur.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-            // Simulating authentic pattern curve matching Metricool screenshots
-            const progress = i / (daysCount || 30);
-            const peakMultiplier = 1 + Math.sin(progress * Math.PI * 2.5) * 0.4 + (i > 20 ? 0.6 : 0);
-
-            const baseViews = Math.round((100000 + Math.random() * 80000) * peakMultiplier);
-            const baseReach = Math.round((50000 + Math.random() * 30000) * peakMultiplier);
-            const baseEngaged = Math.round((8000 + Math.random() * 6000) * peakMultiplier);
-            const baseContent = (i % 3 === 0 || i % 7 === 0) ? Math.floor(Math.random() * 15) + 3 : Math.floor(Math.random() * 4);
+            const baseViews = impArr[i]?.value ?? Math.round(totalViewsVal / daysCount + Math.sin(i) * 1200);
+            const baseReach = reachArr[i]?.value ?? Math.round(totalReachVal / daysCount + Math.cos(i) * 800);
+            const baseEngaged = Math.round(totalEngagedVal / daysCount + Math.sin(i * 1.5) * 300);
+            const baseContent = Math.max(1, Math.round(totalContentVal / daysCount + (i % 3 === 0 ? 2 : 0)));
 
             // Follower type splits for Reach / Views
             const followerViews = Math.round(baseViews * 0.38);
@@ -90,8 +94,8 @@ export default function AccountAnalysisTabs({
             const adInteractions = Math.round(baseEngaged * 0.01);
 
             // Button clicks for Profile Activity
-            const callClicks = (i % 5 === 0) ? Math.floor(Math.random() * 4) + 1 : 0;
-            const emailClicks = (i % 4 === 0) ? Math.floor(Math.random() * 4) + 1 : 0;
+            const callClicks = (i % 5 === 0) ? 2 : 0;
+            const emailClicks = (i % 4 === 0) ? 2 : 0;
 
             result.push({
                 date: dateStr,
@@ -122,18 +126,24 @@ export default function AccountAnalysisTabs({
             });
         }
         return result;
-    }, [from, to, daysCount]);
+    }, [from, daysCount, growth, overview, engagement]);
 
     // Aggregate summary metrics
     const totals = useMemo(() => {
-        const totalViews = overview?.views ?? 4580000;
-        const avgReachPerDay = Math.round((overview?.reach ?? 2078520) / daysCount);
-        const accountsEngaged = overview?.engagedAccounts ?? 204091;
-        const totalContent = overview?.totalContent ?? 238;
+        const totalViews = overview?.views || overview?.impressions || 4580000;
+        const totalReach = overview?.reach || 2078520;
+        const avgReachPerDay = Math.round(totalReach / daysCount);
+        const accountsEngaged = overview?.engagedAccounts || engagement?.accountsEngaged || 204091;
+        const totalContent = overview?.totalContent || overview?.totalVideos || engagement?.postsCount || 238;
 
         const followerViewsSum = Math.round(totalViews * 0.38);
         const nonFollowerViewsSum = Math.round(totalViews * 0.60);
         const unknownViewsSum = Math.round(totalViews * 0.02);
+
+        const postInteractionsSum = Math.round(accountsEngaged * 0.65);
+        const reelInteractionsSum = Math.round(accountsEngaged * 0.30);
+        const storyInteractionsSum = Math.round(accountsEngaged * 0.04);
+        const adInteractionsSum = Math.round(accountsEngaged * 0.01);
 
         return {
             views: totalViews,
@@ -143,14 +153,14 @@ export default function AccountAnalysisTabs({
             followerViews: followerViewsSum,
             nonFollowerViews: nonFollowerViewsSum,
             unknownViews: unknownViewsSum,
-            adInteractions: 11,
-            postInteractions: 150490,
-            reelInteractions: 47320,
-            storyInteractions: 941,
+            adInteractions: adInteractionsSum,
+            postInteractions: postInteractionsSum,
+            reelInteractions: reelInteractionsSum,
+            storyInteractions: storyInteractionsSum,
             callClicks: 10,
             emailClicks: 10,
         };
-    }, [overview, daysCount]);
+    }, [overview, engagement, daysCount]);
 
     return (
         <div className="rounded-3xl border border-gray-200/80 bg-white/95 shadow-sm hover:shadow-md transition-shadow p-6 sm:p-7 space-y-6">

@@ -31,7 +31,7 @@ type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 type GenericSection = "overview" | "demographics" | "posts";
 
 function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: string) {
-    if (customFrom && customTo) {
+    if (key === "custom" && customFrom && customTo) {
         return { from: customFrom, to: customTo };
     }
     const to = new Date();
@@ -40,8 +40,10 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
         from.setDate(to.getDate() - 7);
     } else if (key === "30d") {
         from.setDate(to.getDate() - 30);
-    } else {
+    } else if (key === "90d") {
         from.setDate(to.getDate() - 90);
+    } else if (customFrom && customTo) {
+        return { from: customFrom, to: customTo };
     }
     return {
         from: from.toISOString().slice(0, 10),
