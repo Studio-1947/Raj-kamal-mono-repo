@@ -252,8 +252,15 @@ async function fetchDistributionMetric(
   });
 }
 
+const BLOCKED_BRANDS_CLIENT = ["1947.io"];
+
 export async function fetchBrands(): Promise<Brand[]> {
-  return getMetricool<Brand[]>("/metricool/brands");
+  const brands = await getMetricool<Brand[]>("/metricool/brands");
+  return (brands || []).filter((b) => {
+    if (!b.label || !b.label.trim()) return false;
+    const labelLower = b.label.toLowerCase();
+    return !BLOCKED_BRANDS_CLIENT.some((blocked) => labelLower.includes(blocked.toLowerCase()));
+  });
 }
 
 export async function fetchOverview(

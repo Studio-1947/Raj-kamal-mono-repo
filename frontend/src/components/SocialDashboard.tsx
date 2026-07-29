@@ -282,7 +282,7 @@ export default function SocialDashboard() {
                                 className="fixed inset-0 z-10"
                                 onClick={() => setSwitcherOpen(false)}
                             />
-                            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-gray-200 bg-white shadow-lg py-2">
+                            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-2xl border border-gray-200 bg-white shadow-lg py-2 max-h-64 overflow-y-auto">
                                 {brands.map((brand) => (
                                     <button
                                         key={brand.blogId}

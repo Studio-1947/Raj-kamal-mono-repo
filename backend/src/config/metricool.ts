@@ -13,6 +13,13 @@ export const METRICOOL_DEFAULT_TIMEZONE =
   process.env.METRICOOL_DEFAULT_TIMEZONE ?? "Asia/Kolkata";
 export const METRICOOL_USER_ID = process.env.METRICOOL_USER_ID ?? "";
 export const METRICOOL_BLOG_ID = process.env.METRICOOL_BLOG_ID ?? "";
+export const METRICOOL_BLOCKED_BRANDS = (
+  process.env.METRICOOL_BLOCKED_BRANDS ?? "1947.io"
+)
+  .split(",")
+  .map((b) => b.trim().toLowerCase())
+  .filter(Boolean);
+
 
 export const METRICOOL_ANALYTICS_DISTRIBUTION_PATH =
   "/api/v2/analytics/distribution";

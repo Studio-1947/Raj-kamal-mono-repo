@@ -6,6 +6,7 @@ import {
   METRICOOL_BLOG_ID,
   METRICOOL_DEFAULT_TIMEZONE,
   METRICOOL_USER_ID,
+  METRICOOL_BLOCKED_BRANDS,
   metricoolRequest,
   buildMetricoolBaseParams,
 } from "../config/metricool.js";
@@ -37,6 +38,7 @@ export type DistributionParams = {
 };
 
 export async function fetchDistribution(params: DistributionParams) {
+  await assertBlogIdNotBlocked(params.blogId);
   let subject = params.subject?.trim();
 
   if (!subject || subject.length === 0) {
@@ -106,6 +108,7 @@ function normalizeMetaAdsMetric(metric: string): string {
 }
 
 export async function fetchTimeline(params: TimelineParams) {
+  await assertBlogIdNotBlocked(params.blogId);
   const isMetaAds = params.network === "meta_ads" || params.network === "facebookads";
   const metric = isMetaAds
     ? normalizeMetaAdsMetric(params.metric)
@@ -138,6 +141,7 @@ export async function fetchPosts(
     blogId?: string | undefined;
   },
 ) {
+  await assertBlogIdNotBlocked(options?.blogId);
   const targetNetwork = (network === "meta_ads" || network === "facebookads") ? "facebook" : network;
   const endpoint = `${METRICOOL_ANALYTICS_POSTS_BASE_PATH}/${targetNetwork}`;
   return metricoolRequest({
@@ -165,6 +169,7 @@ export async function fetchCompetitors(
     blogId?: string | undefined;
   },
 ) {
+  await assertBlogIdNotBlocked(options?.blogId);
   const endpoint = `${METRICOOL_ANALYTICS_COMPETITORS_BASE_PATH}/${network}`;
   return metricoolRequest({
     endpoint,
@@ -235,6 +240,31 @@ function toNetworkFlags(brand: PublicBlog): NetworkFlags {
   };
 }
 
+export function isBrandBlocked(brand: { id?: number | string; label?: string | null }): boolean {
+  if (!brand) return false;
+  const label = (brand.label ?? "").trim().toLowerCase();
+  const idStr = String(brand.id ?? "").trim().toLowerCase();
+
+  return METRICOOL_BLOCKED_BRANDS.some((blocked) => {
+    if (!blocked) return false;
+    return (
+      (label && (label === blocked || label.includes(blocked))) ||
+      (idStr && idStr === blocked)
+    );
+  });
+}
+
+export async function assertBlogIdNotBlocked(blogId?: string): Promise<void> {
+  if (!blogId) return;
+  const brands = await fetchAllBrands();
+  const target = brands.find((b) => String(b.id) === String(blogId));
+  if (target && isBrandBlocked(target)) {
+    const error = new Error("Access to this brand profile is restricted.");
+    (error as any).status = 403;
+    throw error;
+  }
+}
+
 // simpleProfiles is cached 5 minutes by metricoolRequest, so listing all
 // brands and resolving a single brand's connected networks share one cheap
 // underlying call instead of hammering Metricool per lookup.
@@ -249,12 +279,15 @@ async function fetchAllBrands(): Promise<PublicBlog[]> {
 /** All brands on this Metricool account, with their connected networks and logo. */
 export async function listBrands(): Promise<Brand[]> {
   const brands = await fetchAllBrands();
-  return brands.map((brand) => ({
-    blogId: String(brand.id),
-    label: brand.label ?? null,
-    picture: brand.picture ?? null,
-    ...toNetworkFlags(brand),
-  }));
+  return brands
+    .filter((brand) => brand.label && brand.label.trim().length > 0)
+    .filter((brand) => !isBrandBlocked(brand))
+    .map((brand) => ({
+      blogId: String(brand.id),
+      label: brand.label ?? null,
+      picture: brand.picture ?? null,
+      ...toNetworkFlags(brand),
+    }));
 }
 
 /**
@@ -273,6 +306,12 @@ export async function fetchConnectedNetworks(
     throw new Error(
       `blogId (${blogId}) was not found in this Metricool account's brand list`,
     );
+  }
+
+  if (isBrandBlocked(brand)) {
+    const error = new Error("Access to this brand profile is restricted.");
+    (error as any).status = 403;
+    throw error;
   }
 
   return {

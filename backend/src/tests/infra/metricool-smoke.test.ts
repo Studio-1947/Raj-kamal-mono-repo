@@ -73,4 +73,12 @@ describe("Metricool Integration Smoke Tests", () => {
             expect(err).toBeDefined();
         }
     });
+
+    it("should correctly block 1947.io brand and allow valid internal brands", async () => {
+        const { isBrandBlocked } = await import("../../services/metricoolService.js");
+        expect(isBrandBlocked({ label: "1947.io" })).toBe(true);
+        expect(isBrandBlocked({ label: "1947.IO" })).toBe(true);
+        expect(isBrandBlocked({ label: "Rajkamal Prakashan" })).toBe(false);
+        expect(isBrandBlocked({ label: "Radhakrishna Prakashan" })).toBe(false);
+    });
 });
