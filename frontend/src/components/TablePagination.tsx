@@ -16,7 +16,7 @@ export default function TablePagination({
     pageSize,
     onPageChange,
     onPageSizeChange,
-    pageSizeOptions = [10, 20, 50, 100],
+    pageSizeOptions = [5, 10],
 }: TablePaginationProps) {
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;

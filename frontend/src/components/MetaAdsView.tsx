@@ -117,7 +117,10 @@ export default function MetaAdsView({
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState("spend_desc");
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(6);
+    const [pageSize, setPageSize] = useState(10);
+
+    const [chartPage, setChartPage] = useState(1);
+    const chartPageSize = 10;
 
     const sections: { key: MetaAdsSection; label: string }[] = [
         { key: "overview", label: "CAMPAIGN OVERVIEW" },
@@ -375,6 +378,11 @@ function buildDateMap(arr: any[]) {
         return filteredCampaigns.slice(start, start + pageSize);
     }, [filteredCampaigns, currentPage, pageSize]);
 
+    const paginatedChartCampaigns = useMemo(() => {
+        const start = (chartPage - 1) * chartPageSize;
+        return campaigns.slice(start, start + chartPageSize);
+    }, [campaigns, chartPage, chartPageSize]);
+
     const chartColors = ["#0668E1", "#10B981", "#F59E0B", "#8B5CF6"];
 
     return (
@@ -618,11 +626,11 @@ function buildDateMap(arr: any[]) {
                             </div>
                         </header>
 
-                        <div className="w-full pt-2 overflow-hidden" style={{ height: Math.max(300, campaigns.length * 36) }}>
+                        <div className="w-full pt-2 overflow-hidden" style={{ height: Math.max(260, paginatedChartCampaigns.length * 36) }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
                                     layout="vertical"
-                                    data={campaigns.map((c) => ({
+                                    data={paginatedChartCampaigns.map((c) => ({
                                         ...c,
                                         shortName: c.name.length > 26 ? c.name.slice(0, 26) + "..." : c.name,
                                     }))}
@@ -676,6 +684,16 @@ function buildDateMap(arr: any[]) {
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
+
+                        {campaigns.length > 10 && (
+                            <TablePagination
+                                currentPage={chartPage}
+                                totalItems={campaigns.length}
+                                pageSize={chartPageSize}
+                                onPageChange={setChartPage}
+                                pageSizeOptions={[5, 10]}
+                            />
+                        )}
                     </div>
                 </div>
             )}
@@ -763,10 +781,10 @@ function buildDateMap(arr: any[]) {
                             currentPage={currentPage}
                             totalItems={filteredCampaigns.length}
                             pageSize={pageSize}
-                            pageSizeOptions={[6, 12, 24, 48]}
+                            pageSizeOptions={[5, 10]}
                             onPageChange={setCurrentPage}
                             onPageSizeChange={(sz) => {
-                                setPageSize(sz);
+                                setPageSize(Math.min(10, sz));
                                 setCurrentPage(1);
                             }}
                         />
@@ -874,9 +892,10 @@ function buildDateMap(arr: any[]) {
                                 currentPage={currentPage}
                                 totalItems={filteredCampaigns.length}
                                 pageSize={pageSize}
+                                pageSizeOptions={[5, 10]}
                                 onPageChange={setCurrentPage}
                                 onPageSizeChange={(sz) => {
-                                    setPageSize(sz);
+                                    setPageSize(Math.min(10, sz));
                                     setCurrentPage(1);
                                 }}
                             />
