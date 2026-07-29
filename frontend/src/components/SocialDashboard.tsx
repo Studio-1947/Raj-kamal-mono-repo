@@ -336,7 +336,7 @@ export default function SocialDashboard() {
                                         }`}
                                     />
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-semibold capitalize">{key}</p>
+                                        <p className="text-xs font-semibold">{details.name}</p>
                                         <p className={`text-[9px] mt-0.5 truncate ${isActive ? "opacity-90" : "text-gray-400"}`}>
                                             {details.description}
                                         </p>
@@ -356,11 +356,11 @@ export default function SocialDashboard() {
                 {/* Header card with title */}
                 <div className="rounded-3xl border border-gray-200/60 bg-white shadow-sm p-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900 capitalize flex items-center gap-2">
-                            {activeNetwork} Insights
+                        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            {BRAND_DETAILS[activeNetwork]?.name ?? activeNetwork} Insights
                         </h1>
                         <p className="text-xs text-gray-500 mt-1">
-                            Metricool analysis for your connected {activeNetwork} page.
+                            Metricool analysis for your connected {BRAND_DETAILS[activeNetwork]?.name ?? activeNetwork} page.
                         </p>
                     </div>
                 </div>
