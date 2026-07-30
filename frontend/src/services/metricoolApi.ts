@@ -64,24 +64,41 @@ function buildCacheKey(url: string, params?: Record<string, unknown>) {
   return `${url}?${stableStringify(params ?? {})}`;
 }
 
+// Every mapping below is a real metric name accepted by Metricool's
+// /analytics/timelines enum for that network+subject=account, verified against
+// the live API. Anything the network genuinely doesn't expose is absent here and
+// listed in UNSUPPORTED_ACCOUNT_METRICS instead — aliasing a missing metric onto
+// a different one (e.g. reach -> postsInteractions) silently mislabels
+// interactions as reach, which is what this table used to do.
 const timelineMetricAliases: Record<PlatformKey, TimelineMetricAlias> = {
   facebook: {
-    likes: "postsInteractions",
-    pageImpressions: "postsInteractions",
     followers: "pageFollows",
     newFollowers: "page_daily_follows_unique",
     lostFollowers: "page_daily_unfollows_unique",
-    reach: "postsInteractions",
-    clicks: "page_media_view",
+    pageViews: "pageViews",
+    mediaViews: "page_media_view",
+    interactions: "postsInteractions",
+    reactions: "page_actions_post_reactions_total",
+    postsCount: "postsCount",
+    clicks: "page_website_clicks_logged_in_unique",
+    // pageImpressions/likes are valid FB metric names but return no points on
+    // Page-admin tokens without the impressions permission — kept as-is so an
+    // empty series reads as "no data", never as another metric's numbers.
+    likes: "likes",
+    pageImpressions: "pageImpressions",
   },
   instagram: {
-    likes: "postsInteractions",
-    pageImpressions: "impressions",
-    pageViews: "profile_views",
     followers: "followers",
-    newFollowers: "delta_followers",
-    lostFollowers: "delta_followers",
+    following: "Friends",
+    // Instagram exposes only a NET daily delta, not gained/lost separately.
+    netFollowers: "delta_followers",
+    pageImpressions: "impressions",
+    views: "views",
     reach: "reach",
+    pageViews: "profile_views",
+    interactions: "postsInteractions",
+    accountsEngaged: "accounts_engaged",
+    postsCount: "postsCount",
     clicks: "website_clicks",
   },
   youtube: {},
@@ -154,25 +171,51 @@ const distributionMetricAliases: Record<PlatformKey, DistributionMetricMap> = {
   },
 };
 
+// Metricool does NOT return timeline points in chronological order — verified
+// against the live API, e.g. Instagram `followers` for Jun 29–Jul 29 comes back
+// as [Jun 29, Jul 28, Jul 27, ... Jul 9]. Every consumer here (latest value,
+// chart X axis) depends on date order, so sort once at the boundary.
+export function sortSeriesByDate(points: TimelinePoint[]): TimelinePoint[] {
+  return [...points].sort((a, b) =>
+    String(a?.dateTime ?? "").localeCompare(String(b?.dateTime ?? "")),
+  );
+}
+
 function extractSeriesValues(payload: any): TimelinePoint[] {
   if (!payload) return [];
   if (Array.isArray(payload?.data)) {
     const first = payload.data[0];
     if (Array.isArray(first?.values)) {
-      return first.values;
+      return sortSeriesByDate(first.values);
     }
   }
   if (Array.isArray(payload?.values)) {
-    return payload.values;
+    return sortSeriesByDate(payload.values);
   }
   return [];
 }
 
+/** Most recent numeric point in the series (by date, not array position). */
 function extractLatestValue(payload: any): number | null {
   const values = extractSeriesValues(payload);
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (typeof values[i]?.value === "number") return values[i].value as number;
+  }
+  return null;
+}
+
+/**
+ * Sum of a series, or null when the metric returned no points at all.
+ * Distinguishing "no data" from 0 matters: the old `sum || latest` idiom turned
+ * a legitimate 0 into an unrelated snapshot value, and a missing metric into a
+ * hardcoded placeholder further up the stack.
+ */
+function sumSeriesOrNull(payload: any): number | null {
+  const values = extractSeriesValues(payload).filter(
+    (point) => typeof point?.value === "number",
+  );
   if (!values.length) return null;
-  const last = values[values.length - 1];
-  return typeof last?.value === "number" ? last.value : null;
+  return values.reduce((sum, point) => sum + (point.value as number), 0);
 }
 
 async function getMetricool<T>(
@@ -263,57 +306,157 @@ export async function fetchBrands(): Promise<Brand[]> {
   });
 }
 
+/**
+ * Account-level metrics each network genuinely does not expose via Metricool
+ * (verified against the live /analytics/timelines enums). The UI uses this to
+ * label a blank tile "Not reported by <network>" rather than "0" or a guess.
+ */
+export const UNSUPPORTED_ACCOUNT_METRICS: Partial<Record<PlatformKey, string[]>> = {
+  instagram: ["followersGained", "followersLost", "reactions"],
+  facebook: ["reach", "following", "accountsEngaged"],
+  youtube: ["pageVisits", "reach", "following", "accountsEngaged"],
+};
+
+export type SocialOverview = {
+  from: string;
+  to: string;
+  /** Follower count on the most recent day in range (a snapshot, not a sum). */
+  followers: number | null;
+  following: number | null;
+  /** Net follower change across the range. */
+  followersChange: number | null;
+  followersGained: number | null;
+  followersLost: number | null;
+  views: number | null;
+  /** Which Metricool metric the views figure came from, for honest labelling. */
+  viewsSource: "impressions" | "page_media_view" | null;
+  impressions: number | null;
+  reach: number | null;
+  pageVisits: number | null;
+  interactions: number | null;
+  reactions: number | null;
+  accountsEngaged: number | null;
+  /** Posts + reels + stories published in range, from Metricool's own counter. */
+  totalContent: number | null;
+  contentBreakdown: { posts: number | null; reels: number | null; stories: number | null };
+  unsupported: string[];
+};
+
+/** Count of items published in range for one content subject. */
+async function fetchSubjectCount(
+  platform: PlatformKey,
+  subject: "posts" | "reels" | "stories",
+  params?: Record<string, unknown>,
+): Promise<number | null> {
+  const { timezone, ...rest } = params ?? {};
+  try {
+    const payload = await getMetricool<any>("/metricool/" + platform + "/timeline", {
+      metric: "count",
+      subject,
+      timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+      ...rest,
+    });
+    return sumSeriesOrNull(payload);
+  } catch {
+    return null;
+  }
+}
+
+const nullOnFailure = (promise: Promise<any>) => promise.catch(() => null);
+
 export async function fetchOverview(
   platform: PlatformKey,
   params?: Record<string, unknown>,
-) {
-  const [likes, followers, impressions, reach, pageVisits, posts] =
-    await Promise.all([
-      fetchTimelineSeries(platform, "likes", params),
-      fetchTimelineSeries(platform, "followers", params),
-      fetchTimelineSeries(platform, "pageImpressions", params),
-      fetchTimelineSeries(platform, "reach", params),
-      fetchTimelineSeries(platform, "pageViews", params),
-      getMetricool<any>("/metricool/" + platform + "/posts", params).catch(
-        () => ({ items: [] }),
-      ),
-    ]);
+): Promise<{ data: SocialOverview }> {
+  const series = (metric: string) =>
+    nullOnFailure(fetchTimelineSeries(platform, metric, params));
 
-  // Extract values from series
-  const likesValue = sumSeriesValues(likes) || extractLatestValue(likes);
-  const followersValue = extractLatestValue(followers);
-  const impressionsSum = sumSeriesValues(impressions) || extractLatestValue(impressions);
-  const reachSum = sumSeriesValues(reach) || extractLatestValue(reach);
-  const pageVisitsSum = sumSeriesValues(pageVisits) || extractLatestValue(pageVisits);
+  const [
+    followers,
+    following,
+    impressions,
+    views,
+    reach,
+    pageVisits,
+    interactions,
+    reactions,
+    accountsEngaged,
+    postsCount,
+    netFollowers,
+    followersGained,
+    followersLost,
+    mediaViews,
+    postsSubject,
+    reelsSubject,
+    storiesSubject,
+  ] = await Promise.all([
+    series("followers"),
+    series("following"),
+    series("pageImpressions"),
+    series("views"),
+    series("reach"),
+    series("pageViews"),
+    series("interactions"),
+    series("reactions"),
+    series("accountsEngaged"),
+    series("postsCount"),
+    series("netFollowers"),
+    series("newFollowers"),
+    series("lostFollowers"),
+    series("mediaViews"),
+    fetchSubjectCount(platform, "posts", params),
+    fetchSubjectCount(platform, "reels", params),
+    fetchSubjectCount(platform, "stories", params),
+  ]);
 
-  // Calculate total content from posts
-  const totalContentValue =
-    posts?.items?.length ??
-    posts?.data?.items?.length ??
-    posts?.data?.length ??
-    null;
+  const gained = sumSeriesOrNull(followersGained);
+  const lost = sumSeriesOrNull(followersLost);
+  const net = sumSeriesOrNull(netFollowers);
+  // Instagram reports only a net delta; Facebook reports gained and lost.
+  const followersChange =
+    net ?? (gained !== null || lost !== null ? (gained ?? 0) - (lost ?? 0) : null);
+
+  const impressionsSum = sumSeriesOrNull(impressions);
+  const viewsSum = sumSeriesOrNull(views);
+  const mediaViewsSum = sumSeriesOrNull(mediaViews);
+  const totalContent = sumSeriesOrNull(postsCount);
+
+  // Meta retired page-level impressions in favour of a views metric, so a
+  // Facebook Page returns nothing for `pageImpressions` while `page_media_view`
+  // is populated. Prefer the explicit metric and fall back to media views,
+  // recording which one produced the number so the UI can label it.
+  const resolvedViews = viewsSum ?? impressionsSum ?? mediaViewsSum;
+  const viewsSource =
+    viewsSum !== null || impressionsSum !== null
+      ? "impressions"
+      : mediaViewsSum !== null
+        ? "page_media_view"
+        : null;
 
   return {
     data: {
       from: params?.from as string,
       to: params?.to as string,
-      likes: likesValue,
-      followers: followersValue,
-      views: impressionsSum,
+      followers: extractLatestValue(followers),
+      following: extractLatestValue(following),
+      followersChange,
+      followersGained: gained,
+      followersLost: lost,
+      views: resolvedViews,
+      viewsSource,
       impressions: impressionsSum,
-      reach: reachSum,
-      pageVisits: pageVisitsSum,
-      totalContent: totalContentValue,
-      followersChange: null,
-      dailyPageViews: null,
-      postsPerWeek: null,
-      reactions: null,
-      interactions: null,
-      avgReachPerPost: null,
-      posts: null,
-      engagement: null,
-      profileName: "",
-      profilePictureUrl: "",
+      reach: sumSeriesOrNull(reach),
+      pageVisits: sumSeriesOrNull(pageVisits),
+      interactions: sumSeriesOrNull(interactions),
+      reactions: sumSeriesOrNull(reactions),
+      accountsEngaged: sumSeriesOrNull(accountsEngaged),
+      totalContent,
+      contentBreakdown: {
+        posts: postsSubject,
+        reels: reelsSubject,
+        stories: storiesSubject,
+      },
+      unsupported: UNSUPPORTED_ACCOUNT_METRICS[platform] ?? [],
     },
   };
 }
@@ -322,33 +465,287 @@ export async function fetchGrowth(
   platform: PlatformKey,
   params?: Record<string, unknown>,
 ) {
+  const series = (metric: string) =>
+    nullOnFailure(fetchTimelineSeries(platform, metric, params));
+
   const [
     impressions,
+    views,
     reach,
     pageViews,
     followers,
     newFollowers,
     lostFollowers,
+    netFollowers,
+    interactions,
+    postsCount,
+    mediaViews,
   ] = await Promise.all([
-    fetchTimelineSeries(platform, "pageImpressions", params),
-    fetchTimelineSeries(platform, "reach", params),
-    fetchTimelineSeries(platform, "pageViews", params),
-    fetchTimelineSeries(platform, "followers", params),
-    fetchTimelineSeries(platform, "newFollowers", params),
-    fetchTimelineSeries(platform, "lostFollowers", params),
+    series("pageImpressions"),
+    series("views"),
+    series("reach"),
+    series("pageViews"),
+    series("followers"),
+    series("newFollowers"),
+    series("lostFollowers"),
+    series("netFollowers"),
+    series("interactions"),
+    series("postsCount"),
+    series("mediaViews"),
   ]);
+
+  const impressionsPoints = extractSeriesValues(impressions);
+  const viewsPoints = extractSeriesValues(views);
+  const mediaViewsPoints = extractSeriesValues(mediaViews);
 
   return {
     data: {
       from: params?.from as string,
       to: params?.to as string,
       series: {
-        impressions: extractSeriesValues(impressions),
+        impressions: impressionsPoints,
+        // Same precedence as fetchOverview: explicit views, then impressions,
+        // then Meta's page_media_view replacement.
+        views: viewsPoints.length
+          ? viewsPoints
+          : impressionsPoints.length
+            ? impressionsPoints
+            : mediaViewsPoints,
         reach: extractSeriesValues(reach),
         pageViews: extractSeriesValues(pageViews),
         followers: extractSeriesValues(followers),
         newFollowers: extractSeriesValues(newFollowers),
         lostFollowers: extractSeriesValues(lostFollowers),
+        netFollowers: extractSeriesValues(netFollowers),
+        interactions: extractSeriesValues(interactions),
+        postsCount: extractSeriesValues(postsCount),
+      },
+    },
+  };
+}
+
+/**
+ * Per-content-type interaction and view series, straight from Metricool's
+ * subject-scoped timelines. Verified additive: Instagram posts (241,335) +
+ * reels (28,740) interactions == the account-level postsInteractions total
+ * (270,075) for Jun 29–Jul 29.
+ *
+ * Instagram/Facebook stories expose no interaction metric at all — stories
+ * interactions is therefore null, not zero and not an assumed share of the
+ * total.
+ */
+export type ContentTypeBreakdown = {
+  interactions: { posts: number | null; reels: number | null; stories: number | null };
+  views: { posts: number | null; reels: number | null; stories: number | null };
+  series: {
+    postsInteractions: TimelinePoint[];
+    reelsInteractions: TimelinePoint[];
+    postsViews: TimelinePoint[];
+    reelsViews: TimelinePoint[];
+    storiesViews: TimelinePoint[];
+  };
+};
+
+export async function fetchContentTypeBreakdown(
+  platform: PlatformKey,
+  params?: Record<string, unknown>,
+): Promise<{ data: ContentTypeBreakdown }> {
+  const { timezone, ...rest } = params ?? {};
+  const subjectSeries = (subject: string, metric: string) =>
+    nullOnFailure(
+      getMetricool<any>("/metricool/" + platform + "/timeline", {
+        metric,
+        subject,
+        timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+        ...rest,
+      }),
+    );
+
+  // Each network/subject pair accepts a different metric enum. Facebook reels
+  // expose neither `views` nor `impressions` (their play counter is
+  // blue_reels_play_count), and Facebook stories expose only `count` — so no
+  // story view series exists there at all.
+  const isFacebook = platform === "facebook";
+  const postsViewsMetric = isFacebook ? "impressions" : "views";
+  const reelsViewsMetric = isFacebook ? "blue_reels_play_count" : "views";
+
+  const [
+    postsInteractions,
+    reelsInteractions,
+    postsViews,
+    reelsViews,
+    storiesViews,
+  ] = await Promise.all([
+    subjectSeries("posts", "interactions"),
+    subjectSeries("reels", "interactions"),
+    subjectSeries("posts", postsViewsMetric),
+    subjectSeries("reels", reelsViewsMetric),
+    isFacebook ? Promise.resolve(null) : subjectSeries("stories", "impressions"),
+  ]);
+
+  return {
+    data: {
+      interactions: {
+        posts: sumSeriesOrNull(postsInteractions),
+        reels: sumSeriesOrNull(reelsInteractions),
+        stories: null,
+      },
+      views: {
+        posts: sumSeriesOrNull(postsViews),
+        reels: sumSeriesOrNull(reelsViews),
+        stories: sumSeriesOrNull(storiesViews),
+      },
+      series: {
+        postsInteractions: extractSeriesValues(postsInteractions),
+        reelsInteractions: extractSeriesValues(reelsInteractions),
+        postsViews: extractSeriesValues(postsViews),
+        reelsViews: extractSeriesValues(reelsViews),
+        storiesViews: extractSeriesValues(storiesViews),
+      },
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Meta Ads                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export type MetaAdsCampaign = {
+  id: string;
+  name: string;
+  status: string | null;
+  objective: string | null;
+  buyingType: string | null;
+  impressions: number | null;
+  reach: number | null;
+  clicks: number | null;
+  uniqueClicks: number | null;
+  spend: number | null;
+  ctr: number | null;
+  cpc: number | null;
+  cpm: number | null;
+  conversions: number | null;
+  results: number | null;
+  resultsLabel: string | null;
+  startedAt: string | null;
+};
+
+const num = (value: unknown): number | null =>
+  typeof value === "number" && !Number.isNaN(value) ? value : null;
+
+/**
+ * Real Meta Ads campaigns. Metricool's field is `spent` (not `spend`), and rate
+ * fields (ctr/cpc/cpm) are already computed per campaign — they must never be
+ * summed across campaigns.
+ */
+export async function fetchMetaAdsCampaigns(
+  params?: Record<string, unknown>,
+): Promise<{ data: MetaAdsCampaign[] }> {
+  const { timezone, ...rest } = params ?? {};
+  const payload = await getMetricool<any>("/metricool/meta_ads/campaigns", {
+    timezone: timezone ?? METRICOOL_DEFAULT_TIMEZONE,
+    ...rest,
+  });
+  const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+
+  return {
+    data: items.map((item: any, index: number) => ({
+      id: String(item.id ?? item.providerCampaignId ?? `campaign-${index}`),
+      name: item.name ?? `Campaign ${index + 1}`,
+      status: item.status ?? null,
+      objective: item.objective ?? null,
+      buyingType: item.buyingType ?? null,
+      impressions: num(item.impressions),
+      reach: num(item.reach),
+      clicks: num(item.clicks),
+      uniqueClicks: num(item.uniqueClicks),
+      spend: num(item.spent ?? item.spend),
+      ctr: num(item.ctr),
+      cpc: num(item.cpc),
+      cpm: num(item.cpm),
+      conversions: num(item.conversions),
+      results: num(item.results),
+      resultsLabel: item.resultsLabel ?? null,
+      startedAt: item.start?.dateTime ?? item.created?.dateTime ?? null,
+    })),
+  };
+}
+
+export type MetaAdsOverview = {
+  from: string;
+  to: string;
+  spend: number | null;
+  impressions: number | null;
+  reach: number | null;
+  clicks: number | null;
+  /** Derived from period totals — never a sum of daily rates. */
+  ctr: number | null;
+  cpc: number | null;
+  cpm: number | null;
+  conversions: number | null;
+  /** Metricool reports no purchase value for this account, so ROAS is unknown. */
+  roas: number | null;
+  series: {
+    spend: TimelinePoint[];
+    impressions: TimelinePoint[];
+    reach: TimelinePoint[];
+    clicks: TimelinePoint[];
+  };
+};
+
+export async function fetchMetaAdsOverview(
+  params?: Record<string, unknown>,
+): Promise<{ data: MetaAdsOverview }> {
+  const series = (metric: string) =>
+    nullOnFailure(fetchTimelineSeries("meta_ads", metric, params));
+
+  const [spend, impressions, reach, clicks, campaigns] = await Promise.all([
+    series("spend"),
+    series("impressions"),
+    series("reach"),
+    series("clicks"),
+    fetchMetaAdsCampaigns(params).catch(() => ({ data: [] as MetaAdsCampaign[] })),
+  ]);
+
+  const spendSum = sumSeriesOrNull(spend);
+  const impressionsSum = sumSeriesOrNull(impressions);
+  const clicksSum = sumSeriesOrNull(clicks);
+
+  // Account-level `conversions` returns no points, but each campaign carries a
+  // real conversion count — so the period total comes from the campaign list.
+  const conversionValues = campaigns.data
+    .map((campaign) => campaign.conversions)
+    .filter((value): value is number => value !== null);
+  const conversions = conversionValues.length
+    ? conversionValues.reduce((sum, value) => sum + value, 0)
+    : null;
+
+  // Rates are recomputed from totals: averaging or summing daily CPC/CPM/CTR
+  // would weight a ₹5 day the same as a ₹5,000 day.
+  const ctr =
+    impressionsSum && clicksSum !== null ? (clicksSum / impressionsSum) * 100 : null;
+  const cpc = clicksSum && spendSum !== null ? spendSum / clicksSum : null;
+  const cpm =
+    impressionsSum && spendSum !== null ? (spendSum / impressionsSum) * 1000 : null;
+
+  return {
+    data: {
+      from: params?.from as string,
+      to: params?.to as string,
+      spend: spendSum,
+      impressions: impressionsSum,
+      reach: sumSeriesOrNull(reach),
+      clicks: clicksSum,
+      ctr,
+      cpc,
+      cpm,
+      conversions,
+      roas: null,
+      series: {
+        spend: extractSeriesValues(spend),
+        impressions: extractSeriesValues(impressions),
+        reach: extractSeriesValues(reach),
+        clicks: extractSeriesValues(clicks),
       },
     },
   };
@@ -498,13 +895,14 @@ export async function fetchInstagramContentTypes(
   return { data };
 }
 
-// YouTube: Metricool only exposes channel-level timeline metrics for this
-// network (no per-video list, no demographics — confirmed against the live
-// API: /analytics/posts/youtube returns [] and /analytics/distribution
-// 500s as "not implemented" for youtube). So unlike Facebook/Instagram this
-// isn't routed through the generic PlatformKey aliases — it has its own
-// metric names entirely: totalSubscribers, views, totalVideos,
-// subscribersGained, subscribersLost.
+// YouTube has its own metric names entirely (totalSubscribers, views,
+// totalVideos, subscribersGained, subscribersLost), so it isn't routed through
+// the generic PlatformKey aliases.
+//
+// /analytics/distribution does 500 as "not implemented" for youtube, so there
+// are no demographics. /analytics/posts/youtube, however, DOES return the video
+// catalogue (330 items on this channel) with per-video views, watch minutes,
+// likes and comments — see fetchYoutubeVideos.
 async function fetchYoutubeTimeline(
   metric: string,
   params?: Record<string, unknown>,
@@ -528,22 +926,98 @@ export type YoutubeOverview = {
 
 export async function fetchYoutubeOverview(
   params?: Record<string, unknown>,
-): Promise<{ data: YoutubeOverview }> {
-  const [subscribers, views, totalVideos] = await Promise.all([
-    fetchYoutubeTimeline("totalSubscribers", params),
-    fetchYoutubeTimeline("views", params),
-    fetchYoutubeTimeline("totalVideos", params),
+): Promise<{ data: YoutubeOverview & Partial<SocialOverview> }> {
+  const [subscribers, views, totalVideos, gained, lost] = await Promise.all([
+    nullOnFailure(fetchYoutubeTimeline("totalSubscribers", params)),
+    nullOnFailure(fetchYoutubeTimeline("views", params)),
+    nullOnFailure(fetchYoutubeTimeline("totalVideos", params)),
+    nullOnFailure(fetchYoutubeTimeline("subscribersGained", params)),
+    nullOnFailure(fetchYoutubeTimeline("subscribersLost", params)),
   ]);
+
+  const gainedSum = sumSeriesOrNull(gained);
+  const lostSum = sumSeriesOrNull(lost);
+  const viewsSum = sumSeriesOrNull(views);
 
   return {
     data: {
       subscribers: extractLatestValue(subscribers),
-      views: sumSeriesValues(views),
-      totalVideos: sumSeriesValues(totalVideos),
+      views: viewsSum,
+      totalVideos: sumSeriesOrNull(totalVideos),
+      followers: extractLatestValue(subscribers),
+      impressions: viewsSum,
+      followersGained: gainedSum,
+      followersLost: lostSum,
+      followersChange:
+        gainedSum !== null || lostSum !== null ? (gainedSum ?? 0) - (lostSum ?? 0) : null,
+      totalContent: sumSeriesOrNull(totalVideos),
+      unsupported: UNSUPPORTED_ACCOUNT_METRICS.youtube ?? [],
       from: params?.from as string,
       to: params?.to as string,
     },
   };
+}
+
+export type YoutubeVideo = {
+  videoId: string;
+  title: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  watchUrl: string | null;
+  publishedAt: string | null;
+  views: number | null;
+  watchMinutes: number | null;
+  averageViewDuration: number | null;
+  likes: number | null;
+  dislikes: number | null;
+  comments: number | null;
+};
+
+/**
+ * Videos that accrued views in the requested window — verified live: a 2026
+ * July range returns 324 videos published as far back as 2017, and a 2020 range
+ * returns none. So `items` is "videos with activity in this period", NOT
+ * "videos published in this period"; `publishedInRange` counts the latter by
+ * filtering on publishedAt, because the account-level `totalVideos` timeline
+ * returns no points at all for this channel.
+ */
+export async function fetchYoutubeVideos(
+  params?: Record<string, unknown>,
+): Promise<{ data: { items: YoutubeVideo[]; publishedInRange: number | null } }> {
+  const { timezone, from, to, ...rest } = params ?? {};
+  const payload = await getMetricool<any>("/metricool/youtube/posts", {
+    from,
+    to,
+    ...rest,
+  });
+  const raw = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+
+  const items: YoutubeVideo[] = raw.map((item: any, index: number) => ({
+    videoId: String(item.videoId ?? `video-${index}`),
+    title: item.title ?? "(untitled)",
+    description: item.description ?? null,
+    thumbnailUrl: item.thumbnailUrl ?? null,
+    watchUrl: item.watchUrl ?? null,
+    publishedAt: item.publishedAt?.dateTime ?? item.publishedAt ?? null,
+    views: num(item.views),
+    watchMinutes: num(item.watchMinutes),
+    averageViewDuration: num(item.averageViewDuration),
+    likes: num(item.likes),
+    dislikes: num(item.dislikes),
+    comments: num(item.comments),
+  }));
+
+  const fromStr = typeof from === "string" ? from.slice(0, 10) : null;
+  const toStr = typeof to === "string" ? to.slice(0, 10) : null;
+  const publishedInRange =
+    fromStr && toStr
+      ? items.filter((video) => {
+          const day = video.publishedAt?.slice(0, 10);
+          return Boolean(day && day >= fromStr && day <= toStr);
+        }).length
+      : null;
+
+  return { data: { items, publishedInRange } };
 }
 
 export async function fetchYoutubeGrowth(

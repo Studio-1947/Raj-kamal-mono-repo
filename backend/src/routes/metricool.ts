@@ -5,6 +5,7 @@ import {
   fetchDistribution,
   fetchTimeline,
   fetchPosts,
+  fetchCampaigns,
   fetchCompetitors,
   fetchConnectedNetworks,
   listBrands,
@@ -122,6 +123,18 @@ router.get("/:network/posts", async (req, res, next) => {
     const network = networkSchema.parse(req.params.network);
     const query = postsQuerySchema.parse(req.query);
     const data = await fetchPosts(network, query);
+    res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
+    res.json({ success: true, data, error: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:network/campaigns", async (req, res, next) => {
+  try {
+    const network = networkSchema.parse(req.params.network);
+    const query = competitorsQuerySchema.parse(req.query);
+    const data = await fetchCampaigns(network, query);
     res.set("Cache-Control", "private, max-age=300, stale-while-revalidate=600");
     res.json({ success: true, data, error: null });
   } catch (error) {

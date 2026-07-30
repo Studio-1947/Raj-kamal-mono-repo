@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchOverview, fetchGrowth, fetchTimelineSeries, fetchPosts } from "../services/metricoolApi";
+import {
+    fetchMetaAdsOverview,
+    fetchMetaAdsCampaigns,
+    sortSeriesByDate,
+    type MetaAdsCampaign,
+} from "../services/metricoolApi";
 import {
     LineChart,
     Line,
@@ -10,7 +15,6 @@ import {
     Tooltip,
     CartesianGrid,
     ResponsiveContainer,
-    Cell,
 } from "recharts";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import SocialCommonHeader from "./SocialCommonHeader";
@@ -20,7 +24,7 @@ import {
     metaAdsSeriesMock,
     metaAdsCampaignsMock,
 } from "./socialMockData";
-import { FaBullhorn, FaDollarSign, FaMousePointer, FaEye, FaArrowUp } from "react-icons/fa";
+import { FaBullhorn, FaDollarSign, FaMousePointer, FaEye } from "react-icons/fa";
 
 type TimeRangeKey = "7d" | "30d" | "90d" | "custom";
 type MetaAdsSection = "overview" | "performance" | "campaigns";
@@ -46,32 +50,36 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
     };
 }
 
-function formatCurrency(value?: number): string {
-    if (value === undefined || value === null || Number.isNaN(value)) return "₹0";
+// "—" rather than "0"/"₹0": Meta not reporting a metric is not the same as the
+// metric being zero, and the ads tiles were the worst offender for this.
+const NO_DATA = "—";
+
+function formatCurrency(value?: number | null): string {
+    if (value === undefined || value === null || Number.isNaN(value)) return NO_DATA;
     return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
-function formatNumber(value?: number): string {
-    if (value === undefined || value === null || Number.isNaN(value)) return "0";
+function formatNumber(value?: number | null): string {
+    if (value === undefined || value === null || Number.isNaN(value)) return NO_DATA;
     if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + "M";
     if (value >= 1_000) return (value / 1_000).toFixed(1) + "K";
     return value.toLocaleString("en-IN");
 }
 
-function extractRawValues(res: any) {
-    if (!res) return [];
-    if (Array.isArray(res?.data?.[0]?.values)) return res.data[0].values;
-    if (Array.isArray(res?.data?.data?.[0]?.values)) return res.data.data[0].values;
-    if (Array.isArray(res?.data?.values)) return res.data.values;
-    if (Array.isArray(res?.values)) return res.values;
-    if (Array.isArray(res?.data)) return res.data;
-    if (Array.isArray(res)) return res;
-    return [];
+function formatRate(value?: number | null, suffix = "%"): string {
+    if (value === undefined || value === null || Number.isNaN(value)) return NO_DATA;
+    return `${value.toFixed(2)}${suffix}`;
 }
 
+const compareValue = (campaign: any, key: string): number => {
+    const value = campaign?.[key];
+    return typeof value === "number" ? value : -Infinity;
+};
+
+// Sorted because Metricool returns timeline points out of chronological order.
 function toChartPoints(points: any[]) {
     if (!Array.isArray(points)) return [];
-    return points.map((point) => ({
+    return sortSeriesByDate(points).map((point: any) => ({
         fullDate: point.dateTime?.slice(0, 10) ?? point.date ?? "",
         date: point.date ?? point.dateTime?.slice(5, 10) ?? "",
         dateTime: point.dateTime,
@@ -138,86 +146,36 @@ export default function MetaAdsView({
             try {
                 const { from, to } = computeRangeDates(range, customFrom, customTo);
 
-                const [spendRes, impRes, clicksRes, reachRes, postsResRaw] = await Promise.all([
-                    fetchTimelineSeries("meta_ads", "spend", { from, to, blogId }).catch(() => null),
-                    fetchTimelineSeries("meta_ads", "impressions", { from, to, blogId }).catch(() => null),
-                    fetchTimelineSeries("meta_ads", "clicks", { from, to, blogId }).catch(() => null),
-                    fetchTimelineSeries("meta_ads", "reach", { from, to, blogId }).catch(() => null),
-                    fetchPosts("meta_ads", { from, to, pageSize: 20, blogId }).catch(() => null),
+                // Campaigns come from Metricool's own campaigns endpoint — the
+                // real source for ads. (The posts endpoint 404s for
+                // facebookads, and routing meta_ads through Facebook posts
+                // returns Page posts, not ads.)
+                const [overviewRes, campaignsRes] = await Promise.all([
+                    fetchMetaAdsOverview({ from, to, blogId }),
+                    fetchMetaAdsCampaigns({ from, to, blogId }).catch(() => ({ data: [] as MetaAdsCampaign[] })),
                 ]);
 
                 if (!cancelled) {
-                    const liveSpend = toChartPoints(extractRawValues(spendRes));
-                    const liveImp = toChartPoints(extractRawValues(impRes));
-                    const liveClicks = toChartPoints(extractRawValues(clicksRes));
-                    const liveReach = toChartPoints(extractRawValues(reachRes));
+                    const overview = overviewRes.data;
+                    const hasSpend = overview.spend !== null;
+                    const hasImpressions = overview.impressions !== null;
+                    const hasClicks = overview.clicks !== null;
 
-                    const rawPosts = postsResRaw?.data?.items ?? postsResRaw?.data?.data ?? postsResRaw?.data ?? (Array.isArray(postsResRaw) ? postsResRaw : []);
-
-                    if (Array.isArray(rawPosts) && rawPosts.length > 0) {
-                        const mappedCampaigns = rawPosts.map((item: any, idx: number) => {
-                            const textContent = item.text || item.message || item.caption || item.title || `Campaign #${idx + 1}`;
-                            const firstLine = textContent.split("\n")[0];
-                            const impressions = typeof item.impressions === "number" && item.impressions > 0 ? item.impressions : (typeof item.reach === "number" && item.reach > 0 ? item.reach : 1200 + idx * 250);
-                            const clicks = typeof item.clicks === "number" && item.clicks > 0 ? item.clicks : Math.round(impressions * 0.038) + (idx * 3 + 12);
-                            const rawSpend = typeof item.spend === "number" && item.spend > 0 ? item.spend : 0;
-                            const fallbackSpend = Math.max(150, Math.round(impressions * 0.08 + (idx * 40 + 80)));
-                            const spend = rawSpend > 0 ? rawSpend : fallbackSpend;
-                            const conversions = typeof item.conversions === "number" && item.conversions > 0 ? item.conversions : (item.reactions ?? item.shares ?? item.comments ?? Math.round(clicks * 0.05) + 1);
-
-                            return {
-                                id: item.postId || item.id || `live-ad-${idx}`,
-                                name: firstLine.length > 45 ? firstLine.slice(0, 45) + "..." : firstLine,
-                                status: "ACTIVE",
-                                spend,
-                                impressions,
-                                reach: item.impressionsUnique ?? item.reach ?? impressions,
-                                clicks,
-                                ctr: impressions > 0 ? Number(((clicks / impressions) * 100).toFixed(2)) : 0,
-                                cpc: clicks > 0 ? Number((spend / clicks).toFixed(2)) : 0,
-                                cpm: impressions > 0 ? Number(((spend / impressions) * 1000).toFixed(2)) : 0,
-                                conversions,
-                                format: (item.type || "POST").toUpperCase() + " AD",
-                                adHeadline: textContent,
-                                creativeImage: item.picture || item.mediaUrl || item.imageUrl || metaAdsCampaignsMock[idx % 4].creativeImage,
-                                adUrl: item.link || item.permalink || item.url || metaAdsCampaignsMock[idx % 4].adUrl,
-                            };
-                        });
-                        setCampaigns(mappedCampaigns);
-                    } else {
-                        setCampaigns(metaAdsCampaignsMock);
-                    }
-
-                    if (!liveSpend.length && !liveImp.length && !liveClicks.length) {
+                    if (!hasSpend && !hasImpressions && !hasClicks && campaignsRes.data.length === 0) {
                         setUsingMock(true);
                         setOverviewData(metaAdsOverviewMock(range));
                         setSeriesData(metaAdsSeriesMock(range));
+                        setCampaigns(metaAdsCampaignsMock);
                     } else {
                         setUsingMock(false);
-                        const totalSpend = liveSpend.reduce((sum, p) => sum + p.value, 0);
-                        const totalImp = liveImp.reduce((sum, p) => sum + p.value, 0);
-                        const totalClicks = liveClicks.reduce((sum, p) => sum + p.value, 0);
-                        const totalReach = liveReach.reduce((sum, p) => sum + p.value, 0);
-
-                        setOverviewData({
-                            accountName: "Rajkamal Meta Ads",
-                            spend: totalSpend,
-                            impressions: totalImp,
-                            reach: totalReach,
-                            clicks: totalClicks,
-                            ctr: totalImp > 0 ? Number(((totalClicks / totalImp) * 100).toFixed(2)) : 0,
-                            cpc: totalClicks > 0 ? Number((totalSpend / totalClicks).toFixed(2)) : 0,
-                            cpm: totalImp > 0 ? Number(((totalSpend / totalImp) * 1000).toFixed(2)) : 0,
-                            conversions: Math.round(totalClicks * 0.045),
-                            roas: 4.2,
-                        });
-
+                        setOverviewData(overview);
                         setSeriesData({
-                            spend: liveSpend,
-                            impressions: liveImp,
-                            reach: liveReach,
-                            clicks: liveClicks,
+                            spend: toChartPoints(overview.series.spend),
+                            impressions: toChartPoints(overview.series.impressions),
+                            reach: toChartPoints(overview.series.reach),
+                            clicks: toChartPoints(overview.series.clicks),
                         });
+                        setCampaigns(campaignsRes.data);
                     }
                 }
             } catch {
@@ -278,99 +236,47 @@ function buildDateMap(arr: any[]) {
     return map;
 }
 
+    // Daily points are the API's own values joined on date. Days Meta reported
+    // nothing for stay absent rather than being back-filled from the period
+    // total — a spend curve invented from an average is not a spend curve.
     const combinedChartData = useMemo(() => {
-        const fromDate = activeDates.from;
-        const toDate = activeDates.to;
-        const d1 = new Date(fromDate + "T00:00:00");
-        const d2 = new Date(toDate + "T00:00:00");
-        const daysCount = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        const spendMap = buildDateMap(seriesData?.spend?.values ?? seriesData?.spend ?? []);
+        const impMap = buildDateMap(seriesData?.impressions?.values ?? seriesData?.impressions ?? []);
+        const clickMap = buildDateMap(seriesData?.clicks?.values ?? seriesData?.clicks ?? []);
 
-        const spendArr = seriesData?.spend?.values ?? seriesData?.spend ?? [];
-        const impArr = seriesData?.impressions?.values ?? seriesData?.impressions ?? [];
-        const clickArr = seriesData?.clicks?.values ?? seriesData?.clicks ?? [];
-
-        const spendMap = buildDateMap(spendArr);
-        const impMap = buildDateMap(impArr);
-        const clickMap = buildDateMap(clickArr);
-
-        const sumMapSpend = Array.from(spendMap.values()).reduce((a, b) => a + b, 0);
-        const sumMapImp = Array.from(impMap.values()).reduce((a, b) => a + b, 0);
-        const sumMapClicks = Array.from(clickMap.values()).reduce((a, b) => a + b, 0);
-
-        const totalSpend = overviewData?.spend ?? 0;
-        const totalImp = overviewData?.impressions ?? 0;
-        const totalClicks = overviewData?.clicks ?? 0;
-
-        const points: any[] = [];
-        for (let i = 0; i < daysCount; i++) {
-            const cur = new Date(d1);
-            cur.setDate(d1.getDate() + i);
-            const yyyy = cur.getFullYear();
-            const mm = String(cur.getMonth() + 1).padStart(2, "0");
-            const dd = String(cur.getDate()).padStart(2, "0");
-            const isoKey = `${yyyy}-${mm}-${dd}`;
-            const shortKey = `${mm}-${dd}`;
-            const dayLabel = cur.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-            // 1. Try Map lookup
-            let valSpend = spendMap.get(isoKey) ?? spendMap.get(shortKey);
-            let valImp = impMap.get(isoKey) ?? impMap.get(shortKey);
-            let valClicks = clickMap.get(isoKey) ?? clickMap.get(shortKey);
-
-            // 2. Try array index fallback if available
-            if (valSpend === undefined && spendArr[i] !== undefined) {
-                valSpend = extractNumValue(spendArr[i]) ?? undefined;
+        const isoDays = new Set<string>();
+        for (const map of [spendMap, impMap, clickMap]) {
+            for (const key of map.keys()) {
+                if (key.length === 10) isoDays.add(key);
             }
-            if (valImp === undefined && impArr[i] !== undefined) {
-                valImp = extractNumValue(impArr[i]) ?? undefined;
-            }
-            if (valClicks === undefined && clickArr[i] !== undefined) {
-                valClicks = extractNumValue(clickArr[i]) ?? undefined;
-            }
-
-            // 3. Fallback to overview proportional distribution if series points are missing/0 while totals exist
-            const dayWave = 0.7 + 0.6 * Math.abs(Math.sin(i * 0.85 + 0.5));
-            if ((valSpend === undefined || (valSpend === 0 && sumMapSpend === 0)) && totalSpend > 0) {
-                valSpend = Math.round((totalSpend / daysCount) * dayWave * 100) / 100;
-            } else {
-                valSpend = valSpend ?? 0;
-            }
-
-            if ((valImp === undefined || (valImp === 0 && sumMapImp === 0)) && totalImp > 0) {
-                valImp = Math.round((totalImp / daysCount) * dayWave);
-            } else {
-                valImp = valImp ?? 0;
-            }
-
-            if ((valClicks === undefined || (valClicks === 0 && sumMapClicks === 0)) && totalClicks > 0) {
-                valClicks = Math.round((totalClicks / daysCount) * dayWave);
-            } else {
-                valClicks = valClicks ?? 0;
-            }
-
-            points.push({
-                date: dayLabel,
-                fullDate: isoKey,
-                spend: valSpend,
-                impressions: valImp,
-                clicks: valClicks,
-            });
         }
-        return points;
-    }, [activeDates.from, activeDates.to, seriesData, overviewData]);
+
+        return Array.from(isoDays)
+            .sort()
+            .map((isoKey) => ({
+                date: new Date(isoKey + "T00:00:00").toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                }),
+                fullDate: isoKey,
+                spend: spendMap.get(isoKey),
+                impressions: impMap.get(isoKey),
+                clicks: clickMap.get(isoKey),
+            }));
+    }, [seriesData]);
 
     const filteredCampaigns = useMemo(() => {
         let result = campaigns.filter((item) =>
             item.name.toLowerCase().includes(searchQuery.toLowerCase())
         );
 
-        return result.sort((a, b) => {
-            if (sortBy === "spend_desc") return b.spend - a.spend;
-            if (sortBy === "clicks_desc") return b.clicks - a.clicks;
-            if (sortBy === "impressions_desc") return b.impressions - a.impressions;
-            if (sortBy === "ctr_desc") return b.ctr - a.ctr;
-            return 0;
-        });
+        const key =
+            sortBy === "clicks_desc" ? "clicks"
+                : sortBy === "impressions_desc" ? "impressions"
+                    : sortBy === "ctr_desc" ? "ctr"
+                        : "spend";
+
+        return result.sort((a, b) => compareValue(b, key) - compareValue(a, key));
     }, [campaigns, searchQuery, sortBy]);
 
     const paginatedCampaigns = useMemo(() => {
@@ -382,8 +288,6 @@ function buildDateMap(arr: any[]) {
         const start = (chartPage - 1) * chartPageSize;
         return campaigns.slice(start, start + chartPageSize);
     }, [campaigns, chartPage, chartPageSize]);
-
-    const chartColors = ["#0668E1", "#10B981", "#F59E0B", "#8B5CF6"];
 
     return (
         <div className="space-y-6">
@@ -441,8 +345,8 @@ function buildDateMap(arr: any[]) {
                             <p className="text-2xl font-black text-gray-900 tracking-tight">
                                 {formatCurrency(overviewData?.spend)}
                             </p>
-                            <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                                <FaArrowUp className="h-2.5 w-2.5" /> +12.4% vs prev period
+                            <p className="text-[11px] text-gray-500 font-semibold">
+                                {activeDates.from} → {activeDates.to}
                             </p>
                         </div>
 
@@ -457,8 +361,8 @@ function buildDateMap(arr: any[]) {
                             <p className="text-2xl font-black text-gray-900 tracking-tight">
                                 {formatNumber(overviewData?.impressions)}
                             </p>
-                            <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                                <FaArrowUp className="h-2.5 w-2.5" /> +18.2% vs prev period
+                            <p className="text-[11px] text-gray-500 font-semibold">
+                                Reach: {formatNumber(overviewData?.reach)}
                             </p>
                         </div>
 
@@ -473,8 +377,8 @@ function buildDateMap(arr: any[]) {
                             <p className="text-2xl font-black text-gray-900 tracking-tight">
                                 {formatNumber(overviewData?.clicks)}
                             </p>
-                            <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                                <FaArrowUp className="h-2.5 w-2.5" /> +8.6% vs prev period
+                            <p className="text-[11px] text-gray-500 font-semibold">
+                                Conversions: {formatNumber(overviewData?.conversions)}
                             </p>
                         </div>
 
@@ -487,7 +391,7 @@ function buildDateMap(arr: any[]) {
                                 </div>
                             </div>
                             <p className="text-2xl font-black text-gray-900 tracking-tight">
-                                {overviewData?.ctr ?? 3.16}%
+                                {formatRate(overviewData?.ctr)}
                             </p>
                             <p className="text-[11px] text-purple-700 font-semibold">
                                 CPC: {formatCurrency(overviewData?.cpc)}
@@ -535,6 +439,11 @@ function buildDateMap(arr: any[]) {
                         </header>
 
                         <div className="h-72 w-full pt-2">
+                            {combinedChartData.length === 0 ? (
+                                <div className="h-full w-full flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 text-xs font-medium text-slate-500">
+                                    No daily ad delivery data returned for this period.
+                                </div>
+                            ) : (
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={combinedChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
@@ -546,11 +455,12 @@ function buildDateMap(arr: any[]) {
                                         labelStyle={{ fontWeight: 800, color: "#0F172A", fontSize: 13, marginBottom: 4 }}
                                         itemStyle={{ fontWeight: 600, fontSize: 12 }}
                                     />
-                                    {showSpend && <Line yAxisId="left" type="monotone" dataKey="spend" name="Spend (₹)" stroke="#0668E1" strokeWidth={3} dot={false} />}
-                                    {showImpressions && <Line yAxisId="right" type="monotone" dataKey="impressions" name="Impressions" stroke="#10B981" strokeWidth={3} dot={false} />}
-                                    {showClicks && <Line yAxisId="left" type="monotone" dataKey="clicks" name="Link Clicks" stroke="#F59E0B" strokeWidth={3} dot={false} />}
+                                    {showSpend && <Line yAxisId="left" type="monotone" dataKey="spend" name="Spend (₹)" stroke="#0668E1" strokeWidth={3} dot={false} connectNulls />}
+                                    {showImpressions && <Line yAxisId="right" type="monotone" dataKey="impressions" name="Impressions" stroke="#10B981" strokeWidth={3} dot={false} connectNulls />}
+                                    {showClicks && <Line yAxisId="left" type="monotone" dataKey="clicks" name="Link Clicks" stroke="#F59E0B" strokeWidth={3} dot={false} connectNulls />}
                                 </LineChart>
                             </ResponsiveContainer>
+                            )}
                         </div>
                     </section>
                 </div>
@@ -574,8 +484,16 @@ function buildDateMap(arr: any[]) {
 
                         <div className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm p-6 space-y-2 text-center">
                             <p className="text-xs font-semibold text-gray-500 uppercase">Return on Ad Spend (ROAS)</p>
-                            <p className="text-3xl font-black text-gray-900">{overviewData?.roas ?? 4.25}x</p>
-                            <p className="text-xs text-purple-600 font-medium">Estimated revenue multiplier</p>
+                            <p className="text-3xl font-black text-gray-900">
+                                {overviewData?.roas === null || overviewData?.roas === undefined
+                                    ? NO_DATA
+                                    : `${overviewData.roas.toFixed(2)}x`}
+                            </p>
+                            <p className="text-xs text-gray-500 font-medium">
+                                {overviewData?.roas === null || overviewData?.roas === undefined
+                                    ? "No purchase value reported by Meta for this ad account"
+                                    : "Revenue per rupee of ad spend"}
+                            </p>
                         </div>
                     </div>
 
@@ -701,57 +619,60 @@ function buildDateMap(arr: any[]) {
             {/* SECTION 3: CAMPAIGNS & ADS TABLE + VISUAL CREATIVES */}
             {activeSection === "campaigns" && (
                 <div className="space-y-6">
-                    {/* Visual Ad Creatives Gallery Grid */}
+                    {/* Campaign cards. Metricool's campaigns payload carries no
+                        creative image or ad permalink, so this shows the campaign
+                        objective and delivery figures it does report instead of a
+                        thumbnail gallery. */}
                     <div className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm p-6 space-y-4">
                         <header className="flex items-center justify-between">
                             <div>
-                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Active Ad Creatives & Copy</h3>
-                                <p className="text-xs text-gray-500 font-medium">Visual preview of ad copy, format, and direct links</p>
+                                <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Campaign Detail</h3>
+                                <p className="text-xs text-gray-500 font-medium">Objective, delivery and cost per campaign</p>
                             </div>
                             <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-extrabold border border-blue-200">
-                                {filteredCampaigns.length} Active Creatives
+                                {filteredCampaigns.length} campaigns
                             </span>
                         </header>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {paginatedCampaigns.map((ad) => (
-                                <div key={`creative-${ad.id}`} className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm hover:shadow-md transition-all space-y-3.5 group">
-                                    {/* Visual Creative Image Thumbnail */}
-                                    {ad.creativeImage && (
-                                        <div className="relative overflow-hidden rounded-xl bg-gray-100 border border-gray-200/80">
-                                            <img
-                                                src={ad.creativeImage}
-                                                alt={ad.name}
-                                                className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-300"
-                                                onError={(e: any) => {
-                                                    e.target.style.display = "none";
-                                                }}
-                                            />
-                                            <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-extrabold uppercase tracking-wider border border-white/20">
-                                                {ad.format ?? "META AD"}
-                                            </div>
-                                        </div>
-                                    )}
+                            {paginatedCampaigns.map((ad: any) => (
+                                <div key={`campaign-${ad.id}`} className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm hover:shadow-md transition-all space-y-3.5">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <h4 className="text-sm font-bold text-gray-900 line-clamp-2">{ad.name}</h4>
+                                        <span
+                                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                                                ad.status === "ACTIVE"
+                                                    ? "bg-emerald-100 text-emerald-800"
+                                                    : "bg-gray-100 text-gray-600"
+                                            }`}
+                                        >
+                                            {ad.status ?? NO_DATA}
+                                        </span>
+                                    </div>
 
-                                    <div className="flex items-start justify-between gap-3 pt-1">
-                                        <div>
-                                            <h4 className="text-sm font-bold text-gray-900 line-clamp-1">{ad.name}</h4>
-                                        </div>
-                                        {ad.adUrl && (
-                                            <a
-                                                href={ad.adUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1 shrink-0"
-                                            >
-                                                View Ad ↗
-                                            </a>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {ad.objective && (
+                                            <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider border border-blue-100">
+                                                {String(ad.objective).replace(/_/g, " ")}
+                                            </span>
+                                        )}
+                                        {ad.buyingType && (
+                                            <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-600 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
+                                                {ad.buyingType}
+                                            </span>
+                                        )}
+                                        {ad.startedAt && (
+                                            <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-500 text-[10px] font-semibold border border-slate-200">
+                                                from {String(ad.startedAt).slice(0, 10)}
+                                            </span>
                                         )}
                                     </div>
 
-                                    {ad.adHeadline && (
-                                        <p className="text-xs text-gray-800 bg-gray-50 p-3 rounded-xl border border-gray-200/60 font-medium italic leading-relaxed">
-                                            "{ad.adHeadline}"
+                                    {ad.resultsLabel && (
+                                        <p className="text-xs text-gray-700 bg-gray-50 p-2.5 rounded-xl border border-gray-200/60 font-medium">
+                                            <span className="font-extrabold text-gray-900">{formatNumber(ad.results)}</span>
+                                            {" "}
+                                            {String(ad.resultsLabel).replace(/\./g, " ").toLowerCase()}
                                         </p>
                                     )}
 
@@ -766,11 +687,11 @@ function buildDateMap(arr: any[]) {
                                         </div>
                                         <div>
                                             <p className="text-[10px] text-gray-400 font-bold uppercase">CTR</p>
-                                            <p className="font-extrabold text-purple-600 mt-0.5">{ad.ctr}%</p>
+                                            <p className="font-extrabold text-purple-600 mt-0.5">{formatRate(ad.ctr)}</p>
                                         </div>
                                         <div>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase">Conversions</p>
-                                            <p className="font-extrabold text-emerald-600 mt-0.5">{ad.conversions}</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase">Reach</p>
+                                            <p className="font-extrabold text-emerald-600 mt-0.5">{formatNumber(ad.reach)}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -825,7 +746,7 @@ function buildDateMap(arr: any[]) {
                                     <tr className="border-b border-gray-100 text-gray-400 font-semibold uppercase text-[10px]">
                                         <th className="py-3 px-2">Campaign Name</th>
                                         <th className="py-3 px-2">Status</th>
-                                        <th className="py-3 px-2">Creative Reference</th>
+                                        <th className="py-3 px-2">Objective</th>
                                         <th className="py-3 px-2 text-right">Spend (₹)</th>
                                         <th className="py-3 px-2 text-right">Impressions</th>
                                         <th className="py-3 px-2 text-right">Clicks</th>
@@ -835,7 +756,7 @@ function buildDateMap(arr: any[]) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {paginatedCampaigns.map((ad) => (
+                                    {paginatedCampaigns.map((ad: any) => (
                                         <tr key={ad.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                                             <td className="py-3 px-2 text-gray-900 font-semibold max-w-xs truncate">
                                                 {ad.name}
@@ -848,22 +769,11 @@ function buildDateMap(arr: any[]) {
                                                             : "bg-gray-100 text-gray-600"
                                                     }`}
                                                 >
-                                                    {ad.status}
+                                                    {ad.status ?? NO_DATA}
                                                 </span>
                                             </td>
-                                            <td className="py-3 px-2">
-                                                {ad.adUrl ? (
-                                                    <a
-                                                        href={ad.adUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-blue-600 hover:underline font-bold text-[11px] inline-flex items-center gap-0.5"
-                                                    >
-                                                        View Creative ↗
-                                                    </a>
-                                                ) : (
-                                                    <span className="text-gray-400">—</span>
-                                                )}
+                                            <td className="py-3 px-2 text-gray-600 font-semibold text-[11px] uppercase tracking-wide">
+                                                {ad.objective ? String(ad.objective).replace(/_/g, " ") : NO_DATA}
                                             </td>
                                             <td className="py-3 px-2 text-right font-bold text-blue-600">
                                                 {formatCurrency(ad.spend)}
@@ -875,13 +785,13 @@ function buildDateMap(arr: any[]) {
                                                 {formatNumber(ad.clicks)}
                                             </td>
                                             <td className="py-3 px-2 text-right font-semibold text-purple-600">
-                                                {ad.ctr}%
+                                                {formatRate(ad.ctr)}
                                             </td>
                                             <td className="py-3 px-2 text-right font-semibold text-gray-700">
                                                 {formatCurrency(ad.cpc)}
                                             </td>
                                             <td className="py-3 px-2 text-right font-extrabold text-emerald-600">
-                                                {ad.conversions}
+                                                {formatNumber(ad.conversions)}
                                             </td>
                                         </tr>
                                     ))}

@@ -11,6 +11,8 @@ import {
     fetchFacebookCompetitors,
     fetchFacebookEngagement,
     fetchFacebookContentTypes,
+    fetchContentTypeBreakdown,
+    sortSeriesByDate,
     type FacebookEngagement,
 } from "../services/metricoolApi";
 import {
@@ -107,8 +109,10 @@ function normalizeSeries(seriesContainer: any, key: string): any[] {
     return [];
 }
 
+// Sorted here because Metricool returns timeline points out of chronological
+// order — an unsorted array plots a scrambled X axis.
 function toChartPoints(points: any[]) {
-    return points.map((point) => ({
+    return sortSeriesByDate(points).map((point: any) => ({
         date: point.dateTime?.slice(0, 10) ?? "",
         value: typeof point.value === "number" ? point.value : 0,
     }));
@@ -116,12 +120,38 @@ function toChartPoints(points: any[]) {
 
 const chartColors = ["#2563eb", "#16a34a", "#f97316", "#e11d48", "#9333ea"];
 
-// Emptiness checks used to decide when to fall back to sample data.
+// Metricool's reels and stories collections carry their own field names — FB
+// reels report blueReelsPlayCount / postImpressionsUnique / postVideoReactions,
+// FB stories carry a thumbnail and no metrics at all — so media rows read
+// through one accessor set instead of post-only keys. `??` (not `||`) so a real
+// zero stays a zero rather than falling through to another field.
+const mediaThumb = (item: any) => item.picture ?? item.thumbnailUrl ?? item.imageUrl;
+const mediaCaption = (item: any) =>
+    item.message ?? item.text ?? item.description ?? item.caption ?? item.content;
+const mediaImpressions = (item: any) =>
+    item.impressions ?? item.impressionsTotal ?? item.views ?? item.blueReelsPlayCount;
+const mediaReach = (item: any) =>
+    item.reach ?? item.impressionsUnique ?? item.reachTotal ?? item.postImpressionsUnique;
+const mediaLikes = (item: any) =>
+    item.likes ?? item.reactions ?? item.likesCount ?? item.postVideoReactions;
+const mediaEngagement = (item: any) =>
+    item.engagement ?? item.engagementTotal ?? item.postVideoSocialActions;
+
+// Emptiness checks used to decide when to fall back to sample data. Facebook
+// pages commonly report followers/visits/content but no impressions or reach at
+// all, so a single missing metric must not flip the panel to sample numbers.
 function overviewIsEmpty(data: any) {
-    return (
-        !data ||
-        (!data.followers && !data.likes && !data.reach && !data.impressions && !data.pageVisits && !data.totalContent)
-    );
+    if (!data) return true;
+    const signals = [
+        data.followers,
+        data.views,
+        data.impressions,
+        data.pageVisits,
+        data.interactions,
+        data.totalContent,
+        data.followersChange,
+    ];
+    return !signals.some((value) => typeof value === "number");
 }
 
 function growthIsEmpty(data: any) {
@@ -164,6 +194,9 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
     const [storiesData, setStoriesData] = useState<any>(null);
     const [competitorsData, setCompetitorsData] = useState<any>(null);
     const [engagement, setEngagement] = useState<FacebookEngagement | null>(null);
+    const [contentTypeBreakdown, setContentTypeBreakdown] = useState<any>(null);
+    const [hasReels, setHasReels] = useState(false);
+    const [hasStories, setHasStories] = useState(false);
     const [hasCompetitors, setHasCompetitors] = useState(false);
 
     const sections: { key: FacebookSection; label: string }[] = [
@@ -171,37 +204,46 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
         { key: "demographics", label: "DEMOGRAPHICS" },
         { key: "page_views", label: "PAGE VIEWS" },
         { key: "posts", label: "POSTS" },
-        { key: "reels", label: "REELS" },
-        { key: "stories", label: "STORIES" },
+        ...(hasReels ? [{ key: "reels" as const, label: "REELS" }] : []),
+        ...(hasStories ? [{ key: "stories" as const, label: "STORIES" }] : []),
         ...(hasCompetitors ? [{ key: "competitors" as const, label: "COMPETITORS" }] : []),
     ];
 
-    // Competitors only shows up once Metricool actually has competitor pages
-    // configured for this brand (a Metricool-side setup step, not a code
-    // issue) — checked independently of activeSection so the tab itself is
-    // hidden/shown correctly, not just its content.
     useEffect(() => {
         let cancelled = false;
-        async function checkCompetitors() {
+        async function checkAvailability() {
             try {
                 const { from, to } = computeRangeDates(range, customFrom, customTo);
-                const res = await fetchFacebookCompetitors({ from, to, blogId });
-                if (!cancelled) setHasCompetitors(!listIsEmpty(res.data?.items));
+                const [reelsRes, storiesRes, competitorsRes] = await Promise.all([
+                    fetchFacebookReels({ from, to, pageSize: 5, blogId }).catch(() => null),
+                    fetchFacebookStories({ from, to, pageSize: 5, blogId }).catch(() => null),
+                    fetchFacebookCompetitors({ from, to, blogId }).catch(() => null),
+                ]);
+                if (!cancelled) {
+                    setHasReels(!listIsEmpty(reelsRes?.data?.items ?? []));
+                    setHasStories(!listIsEmpty(storiesRes?.data?.items ?? []));
+                    setHasCompetitors(!listIsEmpty(competitorsRes?.data?.items ?? []));
+                }
             } catch {
-                if (!cancelled) setHasCompetitors(false);
+                if (!cancelled) {
+                    setHasReels(false);
+                    setHasStories(false);
+                    setHasCompetitors(false);
+                }
             }
         }
-        checkCompetitors();
+        checkAvailability();
         return () => {
             cancelled = true;
         };
     }, [range, customFrom, customTo, blogId]);
 
     useEffect(() => {
-        if (!hasCompetitors && activeSection === "competitors") {
+        const availableKeys = sections.map((s) => s.key);
+        if (!availableKeys.includes(activeSection)) {
             setActiveSection("page_overview");
         }
-    }, [hasCompetitors, activeSection]);
+    }, [sections, activeSection]);
 
     useEffect(() => {
         let cancelled = false;
@@ -215,16 +257,18 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
 
                 // Load data based on active section to reduce parallel API calls
                 if (activeSection === "page_overview") {
-                    const [overviewRes, growthRes, engagementRes] = await Promise.all([
+                    const [overviewRes, growthRes, engagementRes, contentTypesRes] = await Promise.all([
                         fetchOverview("facebook", { from, to, blogId }),
                         fetchGrowth("facebook", { from, to, blogId }),
                         fetchFacebookEngagement({ from, to, blogId }),
+                        fetchContentTypeBreakdown("facebook", { from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
                         const emptyOverview = overviewIsEmpty(overviewRes.data);
                         const emptyGrowth = growthIsEmpty(growthRes.data);
                         setEngagement(engagementRes.data);
+                        setContentTypeBreakdown(contentTypesRes.data);
                         setOverview(emptyOverview ? facebookOverviewMock(range) : overviewRes.data);
                         setGrowth(emptyGrowth ? facebookGrowthMock(range) : growthRes.data ?? null);
                         if (emptyOverview || emptyGrowth) setUsingMock(true);
@@ -259,14 +303,15 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                     ]);
 
                     if (!cancelled) {
-                        const emptyClicks =
-                            normalizeSeries(clicksRes.data, "clicks").length === 0 &&
-                            !(Array.isArray(clicksRes.data?.values) && clicksRes.data.values.length);
+                        // Meta reports no click metrics for this Page, but pageViews
+                        // (rendered from the growth series) is populated — so an
+                        // empty clicks response is expected and must not swap this
+                        // section over to sample data.
                         const emptyOverview = overviewIsEmpty(overviewRes.data);
-                        setClicksData(emptyClicks ? facebookClicksMock(range) : clicksRes.data);
+                        setClicksData(clicksRes.data);
                         setOverview(emptyOverview ? facebookOverviewMock(range) : overviewRes.data);
                         setGrowth(growthIsEmpty(growthRes.data) ? facebookGrowthMock(range) : growthRes.data ?? null);
-                        if (emptyClicks || emptyOverview) setUsingMock(true);
+                        if (emptyOverview) setUsingMock(true);
                     }
                 } else if (activeSection === "posts") {
                     const postsResRaw = await fetchPosts("facebook", { from, to, pageSize: 10, blogId });
@@ -363,6 +408,11 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
     const impressionsPoints = toChartPoints(
         normalizeSeries(growthSeriesContainer, "impressions")
     );
+    // `views` falls back to page_media_view in fetchGrowth, which is the only
+    // populated view metric for Facebook Pages.
+    const viewsPoints = toChartPoints(
+        normalizeSeries(growthSeriesContainer, "views")
+    );
     const reachPoints = toChartPoints(
         normalizeSeries(growthSeriesContainer, "reach")
     );
@@ -375,16 +425,19 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
     const lostFollowersPoints = toChartPoints(
         normalizeSeries(growthSeriesContainer, "lostFollowers")
     );
-    // Try multiple possible structures for clicks data
-    const clicksPoints = toChartPoints(
-        normalizeSeries(clicksData, "series") ??
+    // Facebook page visits. The `pageViews` metric is the real, populated one;
+    // Meta returns nothing for the click metrics (page_website_clicks_*,
+    // ctaClicks, page_total_actions) on this Page, so the clicks response is
+    // only used if it actually carried points.
+    const pageViewsPoints = toChartPoints(
+        normalizeSeries(growthSeriesContainer, "pageViews")
+    );
+    const clicksSeriesPoints = toChartPoints(
         normalizeSeries(clicksData, "clicks") ??
-        normalizeSeries(clicksData, "page_total_actions") ??
-        normalizeSeries(clicksData, "pageActions") ??
         (Array.isArray(clicksData?.values) ? clicksData.values : []) ??
-        (Array.isArray(clicksData?.data?.values) ? clicksData.data.values : []) ??
         []
     );
+    const clicksPoints = pageViewsPoints.length ? pageViewsPoints : clicksSeriesPoints;
 
     const demographicsPie = demographicsCountries.map((item, index) => ({
         name: item?.key ?? `Group ${index + 1}`,
@@ -685,6 +738,7 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                     overview={overview}
                     growth={growth}
                     engagement={engagement}
+                    contentTypes={contentTypeBreakdown}
                     from={activeDates.from}
                     to={activeDates.to}
                 />
@@ -833,19 +887,19 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 rounded-2xl p-5 text-center transition-all duration-200 shadow-sm">
                             <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                                {formatNumber(clicksPoints.reduce((sum, point) => sum + (point.value || 0), 0), "0")}
-                            </p>
-                            <p className="text-xs font-semibold text-slate-500 mt-1">Total Page Views</p>
-                        </div>
-                        <div className="bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 rounded-2xl p-5 text-center transition-all duration-200 shadow-sm">
-                            <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                                {formatNumber(overview?.pageVisits ?? 3965, "0")}
+                                {formatNumber(overview?.pageVisits)}
                             </p>
                             <p className="text-xs font-semibold text-slate-500 mt-1">Page Visits</p>
                         </div>
                         <div className="bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 rounded-2xl p-5 text-center transition-all duration-200 shadow-sm">
                             <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                                {formatNumber(overview?.totalContent ?? 58, "0")}
+                                {formatNumber(overview?.views)}
+                            </p>
+                            <p className="text-xs font-semibold text-slate-500 mt-1">Content Views</p>
+                        </div>
+                        <div className="bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 rounded-2xl p-5 text-center transition-all duration-200 shadow-sm">
+                            <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                                {formatNumber(overview?.totalContent)}
                             </p>
                             <p className="text-xs font-semibold text-slate-500 mt-1">Total Content</p>
                         </div>
@@ -874,21 +928,21 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                         <Line
                                             dataKey="value"
                                             data={clicksPoints}
-                                            name="Page views"
-                                            stroke="#F59E0B"
-                                            strokeWidth={3}
-                                            dot={{ r: 4, fill: "#F59E0B", strokeWidth: 0 }}
-                                            activeDot={{ r: 6 }}
-                                        />
-                                    )}
-                                    {impressionsPoints.length > 0 && (
-                                        <Line
-                                            dataKey="value"
-                                            data={impressionsPoints}
-                                            name="Page Visits"
+                                            name="Page visits"
                                             stroke="#8B5CF6"
                                             strokeWidth={3}
                                             dot={{ r: 4, fill: "#8B5CF6", strokeWidth: 0 }}
+                                            activeDot={{ r: 6 }}
+                                        />
+                                    )}
+                                    {viewsPoints.length > 0 && (
+                                        <Line
+                                            dataKey="value"
+                                            data={viewsPoints}
+                                            name="Content views"
+                                            stroke="#F59E0B"
+                                            strokeWidth={3}
+                                            dot={{ r: 4, fill: "#F59E0B", strokeWidth: 0 }}
                                             activeDot={{ r: 6 }}
                                         />
                                     )}
@@ -1113,15 +1167,15 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                         <tr key={item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
                                             <td className="py-3.5 px-3">
                                                 <ImageWithHover
-                                                    src={item.picture}
-                                                    alt={item.message || item.text || item.description || "Reel media"}
+                                                    src={mediaThumb(item)}
+                                                    alt={mediaCaption(item) || "Reel media"}
                                                     className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm"
                                                     showName={true}
-                                                    name={(item.message || item.text || item.description || item.caption)?.substring(0, 50) || "Reel"}
+                                                    name={mediaCaption(item)?.substring(0, 50) || "Reel"}
                                                 />
                                             </td>
                                             <td className="py-3.5 px-3 max-w-xs truncate text-gray-800 font-medium">
-                                                {item.message || item.text || item.description || item.caption || "—"}
+                                                {mediaCaption(item) || "—"}
                                             </td>
                                             <td className="py-3.5 px-3">
                                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
@@ -1129,16 +1183,16 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                                 </span>
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(item.impressions || item.impressionsTotal || item.views)}
+                                                {formatNumber(mediaImpressions(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
+                                                {formatNumber(mediaReach(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-bold text-gray-900">
-                                                {formatNumber(item.engagement || item.engagementTotal)}
+                                                {formatNumber(mediaEngagement(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.likes || item.reactions || item.likesCount)}
+                                                {formatNumber(mediaLikes(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.comments || item.commentsCount)}
@@ -1238,15 +1292,15 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                         <tr key={item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
                                             <td className="py-3.5 px-3">
                                                 <ImageWithHover
-                                                    src={item.picture}
-                                                    alt={item.text || "Story media"}
+                                                    src={mediaThumb(item)}
+                                                    alt={mediaCaption(item) || "Story media"}
                                                     className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm"
                                                     showName={true}
-                                                    name={item.text?.substring(0, 50) || "Story"}
+                                                    name={mediaCaption(item)?.substring(0, 50) || "Story"}
                                                 />
                                             </td>
                                             <td className="py-3.5 px-3 max-w-xs truncate text-gray-800 font-medium">
-                                                {item.text || "—"}
+                                                {mediaCaption(item) || "—"}
                                             </td>
                                             <td className="py-3.5 px-3">
                                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
@@ -1254,16 +1308,16 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                                 </span>
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(item.impressions)}
+                                                {formatNumber(mediaImpressions(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(item.impressionsUnique)}
+                                                {formatNumber(mediaReach(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-bold text-gray-900">
-                                                {formatNumber(item.engagement)}
+                                                {formatNumber(mediaEngagement(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.reactions)}
+                                                {formatNumber(mediaLikes(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(item.comments)}

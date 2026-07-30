@@ -14,6 +14,25 @@ import {
 const METRICOOL_ANALYTICS_POSTS_BASE_PATH = "/api/v2/analytics/posts";
 const METRICOOL_ADMIN_SIMPLE_PROFILES_PATH = "/api/admin/simpleProfiles";
 
+// Reels and stories are separate collections in Metricool, not a filter on the
+// posts list: /analytics/posts/instagram returns only FEED_* items and ignores a
+// `subject` query param entirely (verified against the live API — passing
+// subject=reels still returns the same 90 feed posts). Their own endpoints
+// return the real items with their own field shapes.
+const METRICOOL_SUBJECT_BASE_PATHS: Record<string, string> = {
+  posts: METRICOOL_ANALYTICS_POSTS_BASE_PATH,
+  reels: "/api/v2/analytics/reels",
+  stories: "/api/v2/analytics/stories",
+};
+
+function resolvePostsBasePath(subject?: string): string {
+  if (!subject) return METRICOOL_ANALYTICS_POSTS_BASE_PATH;
+  return (
+    METRICOOL_SUBJECT_BASE_PATHS[subject.trim().toLowerCase()] ??
+    METRICOOL_ANALYTICS_POSTS_BASE_PATH
+  );
+}
+
 function normalizeDateParam(
   value: string | undefined,
   type: "from" | "to",
@@ -143,7 +162,7 @@ export async function fetchPosts(
 ) {
   await assertBlogIdNotBlocked(options?.blogId);
   const targetNetwork = (network === "meta_ads" || network === "facebookads") ? "facebook" : network;
-  const endpoint = `${METRICOOL_ANALYTICS_POSTS_BASE_PATH}/${targetNetwork}`;
+  const endpoint = `${resolvePostsBasePath(options?.subject)}/${targetNetwork}`;
   return metricoolRequest({
     endpoint,
     searchParams: buildMetricoolBaseParams({
@@ -151,6 +170,39 @@ export async function fetchPosts(
       to: normalizeDateParam(options?.to, "to"),
       page: options?.page?.toString(),
       pageSize: options?.pageSize?.toString(),
+      blogId: options?.blogId,
+    }),
+  });
+}
+
+const METRICOOL_ANALYTICS_CAMPAIGNS_BASE_PATH =
+  "/api/v2/analytics/campaigns";
+
+/**
+ * Ad campaigns. This is the only real source of per-campaign data for Meta Ads —
+ * `/analytics/posts/facebookads` is a 404, and mapping meta_ads onto the
+ * Facebook posts endpoint (as the posts path does) returns Page posts, not ads.
+ * Verified live: campaign impressions and clicks sum to exactly the
+ * account-level timeline totals.
+ */
+export async function fetchCampaigns(
+  network: string,
+  options?: {
+    from?: string | undefined;
+    to?: string | undefined;
+    timezone?: string | undefined;
+    blogId?: string | undefined;
+  },
+) {
+  await assertBlogIdNotBlocked(options?.blogId);
+  const targetNetwork =
+    network === "meta_ads" || network === "facebook" ? "facebookads" : network;
+  return metricoolRequest({
+    endpoint: `${METRICOOL_ANALYTICS_CAMPAIGNS_BASE_PATH}/${targetNetwork}`,
+    searchParams: buildMetricoolBaseParams({
+      from: normalizeDateParam(options?.from, "from"),
+      to: normalizeDateParam(options?.to, "to"),
+      timezone: options?.timezone ?? METRICOOL_DEFAULT_TIMEZONE,
       blogId: options?.blogId,
     }),
   });

@@ -30,10 +30,6 @@ const IMPLEMENTED_NETWORKS: PlatformKey[] = [
     "facebook",
     "instagram",
     "youtube",
-    "linkedin",
-    "tiktok",
-    "twitter",
-    "pinterest",
     "meta_ads",
 ];
 

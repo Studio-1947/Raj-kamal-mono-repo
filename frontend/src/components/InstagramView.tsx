@@ -14,6 +14,8 @@ import {
     fetchInstagramContentTypes,
     fetchDemographicsCountries,
     fetchDemographicsCities,
+    fetchContentTypeBreakdown,
+    sortSeriesByDate,
     type InstagramSection,
     type InstagramEngagement,
 } from "../services/metricoolApi";
@@ -81,33 +83,45 @@ function formatNumber(value?: number, fallback = "—") {
     return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
+// Metricool returns timeline points out of chronological order, so every series
+// is sorted before it reaches a chart axis (see sortSeriesByDate).
 function extractSeriesValues(payload: any): any[] {
     if (!payload) return [];
     if (Array.isArray(payload?.data)) {
         const first = payload.data[0];
         if (Array.isArray(first?.values)) {
-            return first.values;
+            return sortSeriesByDate(first.values);
         }
     }
     if (Array.isArray(payload?.values)) {
-        return payload.values;
+        return sortSeriesByDate(payload.values);
     }
     return [];
 }
 
 function toChartPoints(points: any[]) {
-    return points.map((point) => ({
+    return sortSeriesByDate(points).map((point: any) => ({
         date: point.dateTime?.slice(0, 10) ?? "",
         value: typeof point.value === "number" ? point.value : 0,
     }));
 }
 
-// Emptiness checks used to decide when to fall back to sample data.
+// Emptiness checks used to decide when to fall back to sample data. Only a
+// response with no usable metric at all counts as empty — a single missing
+// metric (e.g. Instagram's profile_views, which this account doesn't report)
+// must not swap the whole panel over to sample numbers.
 function overviewIsEmpty(data: any) {
-    return (
-        !data ||
-        (!data.followers && !data.likes && !data.reach && !data.impressions && !data.pageVisits)
-    );
+    if (!data) return true;
+    const signals = [
+        data.followers,
+        data.views,
+        data.impressions,
+        data.reach,
+        data.interactions,
+        data.totalContent,
+        data.followersChange,
+    ];
+    return !signals.some((value) => typeof value === "number");
 }
 
 function asSeriesArray(candidate: any): any[] {
@@ -172,49 +186,60 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
     const [engagement, setEngagement] = useState<InstagramEngagement | null>(null);
+    const [contentTypeBreakdown, setContentTypeBreakdown] = useState<any>(null);
     const [genderData, setGenderData] = useState<any[]>([]);
     const [ageData, setAgeData] = useState<any[]>([]);
     const [contentTypesData, setContentTypesData] = useState<any[]>([]);
     const [demographicsCountries, setDemographicsCountries] = useState<any[]>([]);
     const [demographicsCities, setDemographicsCities] = useState<any[]>([]);
+    const [hasReels, setHasReels] = useState(false);
+    const [hasStories, setHasStories] = useState(false);
     const [hasCompetitors, setHasCompetitors] = useState(false);
 
     const sections: { key: LocalInstagramSection; label: string }[] = [
         { key: "account", label: "ACCOUNT OVERVIEW" },
         { key: "demographics", label: "DEMOGRAPHICS" },
-        { key: "community", label: "COMMUNITY" },
         { key: "posts", label: "POSTS" },
-        { key: "reels", label: "REELS" },
-        { key: "stories", label: "STORIES" },
+        ...(hasReels ? [{ key: "reels" as const, label: "REELS" }] : []),
+        ...(hasStories ? [{ key: "stories" as const, label: "STORIES" }] : []),
         ...(hasCompetitors ? [{ key: "competitors" as const, label: "COMPETITORS" }] : []),
     ];
 
-    // Competitors only shows up once Metricool actually has competitor pages
-    // configured for this brand (a Metricool-side setup step, not a code
-    // issue) — checked independently of activeSection so the tab itself is
-    // hidden/shown correctly, not just its content.
     useEffect(() => {
         let cancelled = false;
-        async function checkCompetitors() {
+        async function checkAvailability() {
             try {
                 const { from, to } = computeRangeDates(range, customFrom, customTo);
-                const res = await fetchInstagramCompetitors({ from, to, blogId });
-                if (!cancelled) setHasCompetitors(!listIsEmpty(res.data?.items));
+                const [reelsRes, storiesRes, competitorsRes] = await Promise.all([
+                    fetchInstagramReels({ from, to, blogId }).catch(() => null),
+                    fetchInstagramStories({ from, to, blogId }).catch(() => null),
+                    fetchInstagramCompetitors({ from, to, blogId }).catch(() => null),
+                ]);
+                if (!cancelled) {
+                    setHasReels(!listIsEmpty(reelsRes?.data?.items ?? []));
+                    setHasStories(!listIsEmpty(storiesRes?.data?.items ?? []));
+                    setHasCompetitors(!listIsEmpty(competitorsRes?.data?.items ?? []));
+                }
             } catch {
-                if (!cancelled) setHasCompetitors(false);
+                if (!cancelled) {
+                    setHasReels(false);
+                    setHasStories(false);
+                    setHasCompetitors(false);
+                }
             }
         }
-        checkCompetitors();
+        checkAvailability();
         return () => {
             cancelled = true;
         };
     }, [range, customFrom, customTo, blogId]);
 
     useEffect(() => {
-        if (!hasCompetitors && activeSection === "competitors") {
+        const availableKeys = sections.map((s) => s.key);
+        if (!availableKeys.includes(activeSection)) {
             setActiveSection("account");
         }
-    }, [hasCompetitors, activeSection]);
+    }, [sections, activeSection]);
 
     useEffect(() => {
         let cancelled = false;
@@ -229,10 +254,11 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                 // Load data based on active section
                 if (activeSection === "account") {
                     // Fetch overview and growth data for account overview
-                    const [overviewRes, growthRes, engagementRes] = await Promise.all([
+                    const [overviewRes, growthRes, engagementRes, contentTypesRes] = await Promise.all([
                         fetchOverview("instagram", { from, to, blogId }),
                         fetchGrowth("instagram", { from, to, blogId }),
                         fetchInstagramEngagement({ from, to, blogId }),
+                        fetchContentTypeBreakdown("instagram", { from, to, blogId }),
                     ]);
 
                     if (!cancelled) {
@@ -241,6 +267,7 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                         setOverview(emptyOverview ? instagramOverviewMock(range) : overviewRes.data);
                         setGrowth(emptyGrowth ? instagramGrowthMock(range) : growthRes.data ?? null);
                         setEngagement(engagementRes.data);
+                        setContentTypeBreakdown(contentTypesRes.data);
                         setSectionData(null); // Clear section data for overview
                         if (emptyOverview || emptyGrowth) setUsingMock(true);
                     }
@@ -655,6 +682,7 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                     overview={overview}
                     growth={growth}
                     engagement={engagement}
+                    contentTypes={contentTypeBreakdown}
                     from={activeDates.from}
                     to={activeDates.to}
                 />

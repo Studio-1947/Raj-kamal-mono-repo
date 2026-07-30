@@ -58,11 +58,21 @@ function formatNumber(value?: number, fallback = "—") {
     return value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
+// Empty only when no metric at all came back — a single unreported metric must
+// not flip the panel to sample data (`likes` is no longer part of the overview
+// shape, so checking it here would have made every response look non-empty).
 function overviewIsEmpty(data: any) {
-    return (
-        !data ||
-        (!data.followers && !data.likes && !data.reach && !data.impressions && !data.pageVisits && !data.totalContent)
-    );
+    if (!data) return true;
+    const signals = [
+        data.followers,
+        data.views,
+        data.impressions,
+        data.reach,
+        data.pageVisits,
+        data.interactions,
+        data.totalContent,
+    ];
+    return !signals.some((value) => typeof value === "number");
 }
 
 const NETWORK_COLORS: Record<string, string> = {
