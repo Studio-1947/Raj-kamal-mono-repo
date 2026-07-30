@@ -761,8 +761,16 @@ export type MetaAdsOverview = {
   cpc: number | null;
   cpm: number | null;
   conversions: number | null;
-  /** Metricool reports no purchase value for this account, so ROAS is unknown. */
+  /**
+   * ROAS needs purchase *value*, which Metricool does not expose (the
+   * `action_value.omni_purchase` timeline returns no points and the campaigns
+   * payload carries action counts only). So it stays null rather than guessed.
+   */
   roas: number | null;
+  /** Spend per purchase — computable from data we do have, unlike ROAS. */
+  costPerPurchase: number | null;
+  /** Spend per landing page view. */
+  costPerLandingPageView: number | null;
   /** Account-wide funnel, summed from the per-campaign action counters. */
   funnel: MetaAdsFunnel;
   series: {
@@ -835,6 +843,12 @@ export async function fetchMetaAdsOverview(
       cpm,
       conversions,
       roas: null,
+      costPerPurchase:
+        spendSum !== null && funnel.purchases ? spendSum / funnel.purchases : null,
+      costPerLandingPageView:
+        spendSum !== null && funnel.landingPageViews
+          ? spendSum / funnel.landingPageViews
+          : null,
       funnel,
       series: {
         spend: extractSeriesValues(spend),

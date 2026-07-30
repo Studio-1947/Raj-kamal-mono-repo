@@ -271,6 +271,17 @@ function extractNumValue(item: any): number | null {
     return null;
 }
 
+// `candidate.values` must only be read when candidate is NOT already an array:
+// every array inherits Array.prototype.values, so `arr?.values ?? arr` yields the
+// built-in iterator function instead of the data. That silently emptied this
+// chart — previously hidden because the old code back-filled a synthetic curve
+// from the period total whenever the map came back empty.
+function asPointArray(candidate: any): any[] {
+    if (Array.isArray(candidate)) return candidate;
+    if (Array.isArray(candidate?.values)) return candidate.values;
+    return [];
+}
+
 function buildDateMap(arr: any[]) {
     const map = new Map<string, number>();
     if (!Array.isArray(arr)) return map;
@@ -291,9 +302,9 @@ function buildDateMap(arr: any[]) {
     // nothing for stay absent rather than being back-filled from the period
     // total — a spend curve invented from an average is not a spend curve.
     const combinedChartData = useMemo(() => {
-        const spendMap = buildDateMap(seriesData?.spend?.values ?? seriesData?.spend ?? []);
-        const impMap = buildDateMap(seriesData?.impressions?.values ?? seriesData?.impressions ?? []);
-        const clickMap = buildDateMap(seriesData?.clicks?.values ?? seriesData?.clicks ?? []);
+        const spendMap = buildDateMap(asPointArray(seriesData?.spend));
+        const impMap = buildDateMap(asPointArray(seriesData?.impressions));
+        const clickMap = buildDateMap(asPointArray(seriesData?.clicks));
 
         const isoDays = new Set<string>();
         for (const map of [spendMap, impMap, clickMap]) {
@@ -536,17 +547,19 @@ function buildDateMap(arr: any[]) {
                             <p className="text-xs text-blue-600 font-medium">Broad audience reach cost</p>
                         </div>
 
+                        {/* ROAS needs purchase *value*, which Metricool doesn't
+                            expose — only purchase counts. Cost per purchase is
+                            computable from spend ÷ purchases, so this slot shows a
+                            real efficiency figure instead of a permanent dash. */}
                         <div className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm p-6 space-y-2 text-center">
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Return on Ad Spend (ROAS)</p>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Cost Per Purchase</p>
                             <p className="text-3xl font-black text-gray-900">
-                                {overviewData?.roas === null || overviewData?.roas === undefined
-                                    ? NO_DATA
-                                    : `${overviewData.roas.toFixed(2)}x`}
+                                {formatCurrency(overviewData?.costPerPurchase)}
                             </p>
                             <p className="text-xs text-gray-500 font-medium">
-                                {overviewData?.roas === null || overviewData?.roas === undefined
-                                    ? "No purchase value reported by Meta for this ad account"
-                                    : "Revenue per rupee of ad spend"}
+                                {overviewData?.costPerPurchase != null
+                                    ? `${formatNumber(overviewData?.funnel?.purchases)} purchases · ROAS needs purchase value, which Meta doesn't report here`
+                                    : "No purchases attributed in this period"}
                             </p>
                         </div>
                     </div>
