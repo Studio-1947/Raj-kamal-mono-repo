@@ -550,6 +550,15 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
     };
 
     // Columns configuration for CSV and PDF exports
+    // Facebook stories carry no metrics, so exporting the post columns would
+    // emit six empty fields per row.
+    const fbStoryExportColumns = [
+        { header: "Published", getValue: (item: any) => (item.created?.dateTime ?? item.created ?? "").slice(0, 10) },
+        { header: "Type", getValue: (item: any) => item.mediaType ?? "" },
+        { header: "Story URL", getValue: (item: any) => item.storyUrl ?? "" },
+        { header: "Story ID", getValue: (item: any) => item.storyId ?? "" },
+    ];
+
     const postExportColumns = [
         { header: "Date", getValue: (item: any) => item.date || item.dateTime || "" },
         { header: "Message", getValue: (item: any) => item.message || item.text || item.description || item.caption || "" },
@@ -1253,6 +1262,19 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                             <p className="text-xs text-gray-500 font-medium">
                                 Showing {filteredStories.length} stories in this period
                             </p>
+                            {/* Verified against the live API: Facebook's stories
+                                endpoint returns only pageId, storyId, created,
+                                mediaType, mediaId, storyUrl and thumbnailUrl — no
+                                impressions, reach or engagement at all. The metric
+                                columns this table used to show could never fill. */}
+                            <p className="text-[11px] text-slate-500 mt-1 flex items-start gap-1.5">
+                                <span className="shrink-0">ℹ️</span>
+                                <span>
+                                    Meta doesn't report per-story insights for Facebook Pages through Metricool,
+                                    so only the story itself is listed. Instagram stories do include
+                                    impressions, reach, taps and replies.
+                                </span>
+                            </p>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <select
@@ -1262,12 +1284,6 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                             >
                                 <option value="date_desc">Newest First</option>
                                 <option value="date_asc">Oldest First</option>
-                                <option value="impressions_desc">Impressions (High to Low)</option>
-                                <option value="reach_desc">Reach (High to Low)</option>
-                                <option value="likes_desc">Likes (High to Low)</option>
-                                <option value="comments_desc">Comments (High to Low)</option>
-                                <option value="shares_desc">Shares (High to Low)</option>
-                                <option value="engagement_desc">Engagement Rate (High to Low)</option>
                             </select>
                             <input
                                 type="text"
@@ -1278,14 +1294,14 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                             />
                             <button
                                 type="button"
-                                onClick={() => exportToCSV(filteredStories, "facebook_stories.csv", postExportColumns)}
+                                onClick={() => exportToCSV(filteredStories, "facebook_stories.csv", fbStoryExportColumns)}
                                 className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
                             >
                                 ⬇ CSV
                             </button>
                             <button
                                 type="button"
-                                onClick={() => exportToPDF(filteredStories, "Facebook Stories Analysis", postExportColumns)}
+                                onClick={() => exportToPDF(filteredStories, "Facebook Stories Analysis", fbStoryExportColumns)}
                                 className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
                             >
                                 ⬇ PDF
@@ -1298,53 +1314,44 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                 <thead>
                                     <tr className="text-gray-500 font-semibold border-b border-gray-200/80 bg-slate-50/50">
                                         <th className="py-3 px-3 rounded-l-xl">Media</th>
-                                        <th className="py-3 px-3">Message</th>
                                         <th className="py-3 px-3">Type</th>
-                                        <th className="py-3 px-3 text-right">Impressions</th>
-                                        <th className="py-3 px-3 text-right">Reach</th>
-                                        <th className="py-3 px-3 text-right">Engagement</th>
-                                        <th className="py-3 px-3 text-right">Likes</th>
-                                        <th className="py-3 px-3 text-right">Comments</th>
-                                        <th className="py-3 px-3 text-right rounded-r-xl">Shares</th>
+                                        <th className="py-3 px-3">Published</th>
+                                        <th className="py-3 px-3 rounded-r-xl">Story</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {paginatedStories.map((item: any, index: number) => (
-                                        <tr key={item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
+                                        <tr key={item.storyId ?? item.id ?? index} className="hover:bg-slate-50/60 transition-colors">
                                             <td className="py-3.5 px-3">
                                                 <ImageWithHover
                                                     src={mediaThumb(item)}
-                                                    alt={mediaCaption(item) || "Story media"}
+                                                    alt={item.mediaType || "Story media"}
                                                     className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm"
                                                     showName={true}
-                                                    name={mediaCaption(item)?.substring(0, 50) || "Story"}
+                                                    name={`Story${item.mediaType ? ` · ${item.mediaType}` : ""}`}
                                                 />
-                                            </td>
-                                            <td className="py-3.5 px-3 max-w-xs truncate text-gray-800 font-medium">
-                                                {mediaCaption(item) || "—"}
                                             </td>
                                             <td className="py-3.5 px-3">
                                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
                                                     {item.mediaType || "Story"}
                                                 </span>
                                             </td>
-                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(mediaImpressions(item))}
+                                            <td className="py-3.5 px-3 text-gray-600 font-medium whitespace-nowrap">
+                                                {(item.created?.dateTime ?? item.created ?? "").slice(0, 10) || "—"}
                                             </td>
-                                            <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(mediaReach(item))}
-                                            </td>
-                                            <td className="py-3.5 px-3 text-right font-bold text-gray-900">
-                                                {formatNumber(mediaEngagement(item))}
-                                            </td>
-                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(mediaLikes(item))}
-                                            </td>
-                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.comments)}
-                                            </td>
-                                            <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.shares)}
+                                            <td className="py-3.5 px-3">
+                                                {item.storyUrl ? (
+                                                    <a
+                                                        href={item.storyUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:underline font-bold text-[11px]"
+                                                    >
+                                                        Open on Facebook ↗
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-gray-400">—</span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

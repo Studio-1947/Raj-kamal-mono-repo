@@ -517,6 +517,32 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
     };
 
     // Columns configurations
+    // Verified against the live API: all 174 Instagram stories in a month carry
+    // these six metrics numerically (impressions 70,559 / reach 68,820 /
+    // taps forward 61,451 / taps back 3,542 / exits 9,736 / replies 14).
+    const STORY_METRIC_COLUMNS: { label: string; key: string }[] = [
+        { label: "Impressions", key: "impressions" },
+        { label: "Reach", key: "reach" },
+        { label: "Taps fwd", key: "tapsForward" },
+        { label: "Taps back", key: "tapsBack" },
+        { label: "Exits", key: "exits" },
+        { label: "Replies", key: "replies" },
+    ];
+
+    const storyExportColumns = [
+        { header: "Published", getValue: (item: any) => (item.publishedAt?.dateTime ?? item.publishedAt ?? "").slice(0, 10) },
+        { header: "Type", getValue: (item: any) => item.type ?? "" },
+        { header: "Permalink", getValue: (item: any) => item.permalink ?? "" },
+        ...[
+            ["Impressions", "impressions"], ["Reach", "reach"], ["Taps forward", "tapsForward"],
+            ["Taps back", "tapsBack"], ["Exits", "exits"], ["Replies", "replies"],
+        ].map(([header, key]) => ({
+            header,
+            getValue: (item: any) => (typeof item[key] === "number" ? item[key] : ""),
+            align: "right" as const,
+        })),
+    ];
+
     const postExportColumns = [
         { header: "Date", getValue: (item: any) => item.date || item.dateTime || "" },
         { header: "Message", getValue: (item: any) => item.content || item.message || item.text || item.caption || item.description || item.title || "" },
@@ -550,13 +576,18 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
         return Array.from(types);
     }, [rawItems]);
 
+    const itemDate = (item: any): string =>
+        item.publishedAt?.dateTime ?? item.publishedAt ?? item.date ?? item.dateTime ?? 0;
+
     const sortItems = (items: any[], type: string) => {
         return [...items].sort((a, b) => {
             switch (type) {
+                // Stories/reels carry publishedAt.dateTime rather than a flat
+                // date field, so date sorting has to look there too.
                 case "date_desc":
-                    return new Date(b.date || b.dateTime || 0).getTime() - new Date(a.date || a.dateTime || 0).getTime();
+                    return new Date(itemDate(b)).getTime() - new Date(itemDate(a)).getTime();
                 case "date_asc":
-                    return new Date(a.date || a.dateTime || 0).getTime() - new Date(b.date || b.dateTime || 0).getTime();
+                    return new Date(itemDate(a)).getTime() - new Date(itemDate(b)).getTime();
                 case "impressions_desc":
                     return (b.impressions || b.impressionsTotal || b.views || 0) - (a.impressions || a.impressionsTotal || a.views || 0);
                 case "reach_desc":
@@ -569,6 +600,12 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                     return (b.shares || b.sharesCount || 0) - (a.shares || a.sharesCount || 0);
                 case "engagement_desc":
                     return (b.engagement || b.engagementTotal || 0) - (a.engagement || a.engagementTotal || 0);
+                case "taps_forward_desc":
+                    return (b.tapsForward ?? 0) - (a.tapsForward ?? 0);
+                case "exits_desc":
+                    return (b.exits ?? 0) - (a.exits ?? 0);
+                case "replies_desc":
+                    return (b.replies ?? 0) - (a.replies ?? 0);
                 case "followers_desc":
                     return (b.followers || 0) - (a.followers || 0);
                 case "posts_desc":
@@ -1013,6 +1050,16 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                         <option value="followers_desc">Followers (High to Low)</option>
                                         <option value="posts_desc">Posts (High to Low)</option>
                                     </>
+                                ) : activeSection === "stories" ? (
+                                    /* Stories have no likes/comments/shares/engagement
+                                       to sort by — only the story metric set. */
+                                    <>
+                                        <option value="impressions_desc">Impressions (High to Low)</option>
+                                        <option value="reach_desc">Reach (High to Low)</option>
+                                        <option value="taps_forward_desc">Taps forward (High to Low)</option>
+                                        <option value="exits_desc">Exits (High to Low)</option>
+                                        <option value="replies_desc">Replies (High to Low)</option>
+                                    </>
                                 ) : (
                                     <>
                                         <option value="impressions_desc">Impressions (High to Low)</option>
@@ -1036,7 +1083,11 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                 onClick={() => exportToCSV(
                                     items,
                                     `instagram_${activeSection}.csv`,
-                                    activeSection === "competitors" ? competitorExportColumns : postExportColumns
+                                    activeSection === "competitors"
+                                        ? competitorExportColumns
+                                        : activeSection === "stories"
+                                            ? storyExportColumns
+                                            : postExportColumns
                                 )}
                                 className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
                             >
@@ -1047,7 +1098,11 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                 onClick={() => exportToPDF(
                                     items,
                                     `Instagram ${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} Analysis`,
-                                    activeSection === "competitors" ? competitorExportColumns : postExportColumns
+                                    activeSection === "competitors"
+                                        ? competitorExportColumns
+                                        : activeSection === "stories"
+                                            ? storyExportColumns
+                                            : postExportColumns
                                 )}
                                 className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
                             >
@@ -1109,6 +1164,70 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                         ))}
                                     </tbody>
                                 </table>
+                            ) : activeSection === "stories" ? (
+                                // Stories report a completely different metric set:
+                                // impressions, reach, taps forward/back, exits and
+                                // replies. Engagement/likes/comments/shares do not
+                                // exist for stories, so those columns could only
+                                // ever render as dashes.
+                                <>
+                                    <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+                                        {STORY_METRIC_COLUMNS.map(({ label, key }) => {
+                                            const values = items
+                                                .map((item: any) => item[key])
+                                                .filter((value: any) => typeof value === "number");
+                                            return (
+                                                <div key={key} className="bg-slate-50/80 border border-slate-200/60 rounded-2xl p-3.5 text-center">
+                                                    <p className="text-lg font-extrabold text-slate-900 tracking-tight">
+                                                        {values.length
+                                                            ? formatNumber(values.reduce((a: number, b: number) => a + b, 0))
+                                                            : "—"}
+                                                    </p>
+                                                    <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{label}</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <table className="min-w-full text-sm">
+                                        <thead>
+                                            <tr className="text-left text-gray-900 border-b border-gray-100">
+                                                <th className="py-4 pr-3">Media</th>
+                                                <th className="py-4 pr-3">Published</th>
+                                                <th className="py-4 pr-3">Type</th>
+                                                {STORY_METRIC_COLUMNS.map(({ label, key }) => (
+                                                    <th key={key} className="py-4 pr-3 text-right">{label}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {paginatedItems.map((item: any, index: number) => (
+                                                <tr key={item.postId ?? index} className="border-b border-gray-100 hover:bg-gray-50/30">
+                                                    <td className="py-4 pr-3">
+                                                        <ImageWithHover
+                                                            src={item.thumbnailUrl || item.mediaUrl}
+                                                            alt={item.type || "Story"}
+                                                            className="w-14 h-14 rounded-xl object-cover border border-gray-200"
+                                                            showName={true}
+                                                            name={`Story${item.type ? ` · ${item.type}` : ""}`}
+                                                        />
+                                                    </td>
+                                                    <td className="py-4 pr-3 text-xs font-medium text-gray-600 whitespace-nowrap">
+                                                        {(item.publishedAt?.dateTime ?? item.publishedAt ?? "").slice(0, 10) || "—"}
+                                                    </td>
+                                                    <td className="py-4 pr-3 text-xs font-semibold text-gray-500 uppercase">
+                                                        {item.type ?? "story"}
+                                                    </td>
+                                                    {STORY_METRIC_COLUMNS.map(({ key }) => (
+                                                        <td key={key} className="py-4 pr-3 text-right text-gray-900">
+                                                            {formatNumber(item[key])}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </>
                             ) : (
                                 <table className="min-w-full text-sm">
                                     <thead>
