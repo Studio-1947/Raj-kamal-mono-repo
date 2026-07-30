@@ -35,6 +35,7 @@ import { ImageWithHover } from "./ImageWithHover";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { getCountryName } from "../lib/countryNames";
 import SocialCommonHeader from "./SocialCommonHeader";
+import { formatDateISO } from "./SocialDatePicker";
 import SocialPageOverview from "./SocialPageOverview";
 import TablePagination from "./TablePagination";
 import {
@@ -70,8 +71,8 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
     } else if (customFrom && customTo) {
         return { from: customFrom, to: customTo };
     }
-    const isoFrom = from.toISOString().slice(0, 10);
-    const isoTo = to.toISOString().slice(0, 10);
+    const isoFrom = formatDateISO(from);
+    const isoTo = formatDateISO(to);
     return { from: isoFrom, to: isoTo };
 }
 
@@ -182,6 +183,8 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [usingMock, setUsingMock] = useState(false);
+    // Request succeeded, but Metricool reported nothing for this date range.
+    const [noDataForRange, setNoDataForRange] = useState(false);
     const [sectionData, setSectionData] = useState<any>(null);
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
@@ -248,6 +251,7 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
             setLoading(true);
             setError(null);
             setUsingMock(false);
+            setNoDataForRange(false);
             try {
                 const { from, to } = computeRangeDates(range, customFrom, customTo);
 
@@ -262,14 +266,19 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                     ]);
 
                     if (!cancelled) {
+                        // A successful-but-empty response means Metricool has no
+                        // data for this range yet (its data lags ~a day, so a
+                        // range ending today returns nothing). That is not a
+                        // failure, so it must not substitute sample numbers —
+                        // real empty data plus an explanatory notice instead.
                         const emptyOverview = overviewIsEmpty(overviewRes.data);
                         const emptyGrowth = growthIsEmpty(growthRes.data);
-                        setOverview(emptyOverview ? instagramOverviewMock(range) : overviewRes.data);
-                        setGrowth(emptyGrowth ? instagramGrowthMock(range) : growthRes.data ?? null);
+                        setOverview(overviewRes.data);
+                        setGrowth(growthRes.data ?? null);
                         setEngagement(engagementRes.data);
                         setContentTypeBreakdown(contentTypesRes.data);
                         setSectionData(null); // Clear section data for overview
-                        if (emptyOverview || emptyGrowth) setUsingMock(true);
+                        setNoDataForRange(emptyOverview && emptyGrowth);
                     }
                 } else if (activeSection === "demographics") {
                     const [genderRes, ageRes, contentTypesRes, countriesRes, citiesRes] = await Promise.all([
@@ -326,17 +335,8 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
 
                     if (!cancelled) {
                         const data = result?.data;
-                        if (sectionDataIsEmpty(data)) {
-                            const mock = instagramSectionMock[activeSection];
-                            setSectionData(
-                                activeSection === "competitors"
-                                    ? mock
-                                    : { ...mock, timeline: instagramTimelineMock(range) }
-                            );
-                            setUsingMock(true);
-                        } else {
-                            setSectionData(data);
-                        }
+                        setSectionData(data);
+                        setNoDataForRange(sectionDataIsEmpty(data));
                         setOverview(null); // Clear overview data for other sections
                         setGrowth(null);
                     }
@@ -620,7 +620,10 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                         onRangeChange("custom");
                     }
                 }}
-                activePresetKey={range}
+                // No activePresetKey: the range prop uses a different key space
+                // ("30d"/"custom") than DATE_PRESETS ("last_30_days"), which
+                // suppressed the picker's own from/to inference and left every
+                // preset chip unhighlighted. The picker derives it correctly.
                 brandColor="#E1306C"
             />
 
@@ -671,6 +674,18 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                     <span>
                         Live Instagram metrics aren't available right now — showing sample data so you
                         can preview how this section looks.
+                    </span>
+                </div>
+            )}
+
+            {!loading && !usingMock && noDataForRange && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-700">
+                    <span className="text-sm leading-none shrink-0 mt-0.5">📅</span>
+                    <span>
+                        Metricool reported no Instagram data for{" "}
+                        <strong className="font-semibold">{activeDates.from} → {activeDates.to}</strong>.
+                        Its analytics lag by about a day, so a range ending today is usually still empty —
+                        try a range ending yesterday or earlier.
                     </span>
                 </div>
             )}

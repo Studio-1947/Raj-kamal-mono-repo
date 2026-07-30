@@ -8,6 +8,7 @@ import {
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import { youtubeOverviewMock, youtubeGrowthMock } from "./socialMockData";
 import SocialCommonHeader from "./SocialCommonHeader";
+import { formatDateISO } from "./SocialDatePicker";
 import SocialPageOverview from "./SocialPageOverview";
 import TablePagination from "./TablePagination";
 
@@ -29,8 +30,8 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
         return { from: customFrom, to: customTo };
     }
     return {
-        from: from.toISOString().slice(0, 10),
-        to: to.toISOString().slice(0, 10),
+        from: formatDateISO(from),
+        to: formatDateISO(to),
     };
 }
 
@@ -85,6 +86,8 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
     const [activeSection, setActiveSection] = useState<YouTubeSection>("channel_overview");
     const [loading, setLoading] = useState(false);
     const [usingMock, setUsingMock] = useState(false);
+    // Request succeeded, but Metricool reported nothing for this date range.
+    const [noDataForRange, setNoDataForRange] = useState(false);
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
     const [videos, setVideos] = useState<YoutubeVideo[]>([]);
@@ -98,6 +101,7 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
         async function load() {
             setLoading(true);
             setUsingMock(false);
+            setNoDataForRange(false);
             try {
                 const { from, to } = computeRangeDates(range, customFrom, customTo);
                 const [overviewRes, growthRes, videosRes] = await Promise.all([
@@ -114,17 +118,14 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
                     // Metricool's `totalVideos` timeline is empty for this
                     // channel, so the published-in-period count is derived from
                     // the video catalogue instead of left blank.
-                    const overviewData = emptyOverview
-                        ? youtubeOverviewMock(range)
-                        : {
-                            ...overviewRes.data,
-                            totalVideos: overviewRes.data.totalVideos ?? videosRes.data.publishedInRange,
-                            totalContent: overviewRes.data.totalContent ?? videosRes.data.publishedInRange,
-                        };
-                    setOverview(overviewData);
-                    setGrowth(emptyGrowth ? youtubeGrowthMock(range) : growthRes.data ?? null);
+                    setOverview({
+                        ...overviewRes.data,
+                        totalVideos: overviewRes.data.totalVideos ?? videosRes.data.publishedInRange,
+                        totalContent: overviewRes.data.totalContent ?? videosRes.data.publishedInRange,
+                    });
+                    setGrowth(growthRes.data ?? null);
                     setVideos(videosRes.data.items);
-                    if (emptyOverview || emptyGrowth) setUsingMock(true);
+                    setNoDataForRange(emptyOverview && emptyGrowth);
                 }
             } catch {
                 // Live data failed (offline backend, rate limit, not connected):
@@ -197,7 +198,10 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
                         onRangeChange("custom");
                     }
                 }}
-                activePresetKey={range}
+                // No activePresetKey: the range prop uses a different key space
+                // ("30d"/"custom") than DATE_PRESETS ("last_30_days"), which
+                // suppressed the picker's own from/to inference and left every
+                // preset chip unhighlighted. The picker derives it correctly.
                 brandColor="#FF0000"
             />
 
@@ -209,6 +213,18 @@ export default function YouTubeView({ range, onRangeChange, customFrom, customTo
                     <span>
                         Live YouTube metrics aren't available right now — showing sample data so you
                         can preview how this section looks.
+                    </span>
+                </div>
+            )}
+
+            {!loading && !usingMock && noDataForRange && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-700">
+                    <span className="text-sm leading-none shrink-0 mt-0.5">📅</span>
+                    <span>
+                        Metricool reported no YouTube data for{" "}
+                        <strong className="font-semibold">{activeDates.from} → {activeDates.to}</strong>.
+                        Its analytics lag by about a day, so a range ending today is usually still empty —
+                        try a range ending yesterday or earlier.
                     </span>
                 </div>
             )}

@@ -6,7 +6,7 @@ import FacebookView from "./FacebookView";
 import YouTubeView from "./YouTubeView";
 import MetaAdsView from "./MetaAdsView";
 import GenericSocialView from "./GenericSocialView";
-import SocialDatePicker from "./SocialDatePicker";
+import { formatDateISO } from "./SocialDatePicker";
 import {
     fetchBrands,
     type Brand,
@@ -165,14 +165,15 @@ export default function SocialDashboard() {
     const { t } = useLang();
 
     const [range, setRange] = useState<TimeRangeKey>("30d");
+    // Local-time dates (formatDateISO), matching the date picker's presets.
+    // toISOString() is UTC and shifted the default range a day back for IST
+    // users before 05:30 local.
     const [customFrom, setCustomFrom] = useState(() => {
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        return d.toISOString().slice(0, 10);
+        return formatDateISO(d);
     });
-    const [customTo, setCustomTo] = useState(() => {
-        return new Date().toISOString().slice(0, 10);
-    });
+    const [customTo, setCustomTo] = useState(() => formatDateISO(new Date()));
     const [searchParams, setSearchParams] = useSearchParams();
     const platformParam = searchParams.get("platform") as PlatformKey | null;
 

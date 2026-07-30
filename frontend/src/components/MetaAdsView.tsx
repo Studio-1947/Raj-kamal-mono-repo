@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import SocialCommonHeader from "./SocialCommonHeader";
+import { formatDateISO } from "./SocialDatePicker";
 import TablePagination from "./TablePagination";
 import {
     metaAdsOverviewMock,
@@ -45,8 +46,8 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
         return { from: customFrom, to: customTo };
     }
     return {
-        from: from.toISOString().slice(0, 10),
-        to: to.toISOString().slice(0, 10),
+        from: formatDateISO(from),
+        to: formatDateISO(to),
     };
 }
 
@@ -75,6 +76,56 @@ const compareValue = (campaign: any, key: string): number => {
     const value = campaign?.[key];
     return typeof value === "number" ? value : -Infinity;
 };
+
+// Meta's action counters, in funnel order. Every value is reported per campaign
+// by the API — Metricool's public API exposes no creative image or ad permalink,
+// so this is what genuinely replaces a thumbnail gallery.
+const FUNNEL_STEPS: { key: string; label: string; color: string }[] = [
+    { key: "videoViews", label: "Video views", color: "bg-sky-500" },
+    { key: "engagement", label: "Engagement", color: "bg-indigo-500" },
+    { key: "linkClicks", label: "Link clicks", color: "bg-blue-600" },
+    { key: "landingPageViews", label: "Landing page views", color: "bg-violet-500" },
+    { key: "addToCart", label: "Add to cart", color: "bg-amber-500" },
+    { key: "purchases", label: "Purchases", color: "bg-emerald-600" },
+    { key: "leads", label: "Leads", color: "bg-teal-500" },
+    { key: "registrations", label: "Registrations", color: "bg-cyan-600" },
+    { key: "messagingStarted", label: "Conversations started", color: "bg-pink-500" },
+];
+
+function FunnelBars({ funnel, dense = false }: { funnel?: Record<string, number | null>; dense?: boolean }) {
+    const steps = FUNNEL_STEPS.map((step) => ({ ...step, value: funnel?.[step.key] ?? null })).filter(
+        (step) => typeof step.value === "number",
+    );
+
+    if (steps.length === 0) {
+        return (
+            <p className="text-[11px] text-gray-400 font-medium italic">
+                Meta reported no action breakdown for this campaign.
+            </p>
+        );
+    }
+
+    const max = Math.max(...steps.map((step) => step.value as number), 1);
+
+    return (
+        <div className={dense ? "space-y-1.5" : "space-y-2"}>
+            {steps.map((step) => (
+                <div key={step.key}>
+                    <div className="flex items-center justify-between text-[10px] font-bold mb-0.5">
+                        <span className="text-gray-500 uppercase tracking-wider">{step.label}</span>
+                        <span className="text-gray-900">{formatNumber(step.value)}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                            className={`h-full ${step.color} rounded-full`}
+                            style={{ width: `${Math.max(2, ((step.value as number) / max) * 100)}%` }}
+                        />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
 
 // Sorted because Metricool returns timeline points out of chronological order.
 function toChartPoints(points: any[]) {
@@ -304,7 +355,10 @@ function buildDateMap(arr: any[]) {
                         onRangeChange("custom");
                     }
                 }}
-                activePresetKey={range}
+                // No activePresetKey: the range prop uses a different key space
+                // ("30d"/"custom") than DATE_PRESETS ("last_30_days"), which
+                // suppressed the picker's own from/to inference and left every
+                // preset chip unhighlighted. The picker derives it correctly.
                 brandColor="#0668E1"
             />
 
@@ -497,6 +551,20 @@ function buildDateMap(arr: any[]) {
                         </div>
                     </div>
 
+                    {/* Account-wide action funnel, summed from Meta's own
+                        per-campaign action counters. */}
+                    <div className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm p-6 space-y-4">
+                        <header>
+                            <h3 className="text-base font-extrabold text-gray-900 tracking-tight">Conversion Funnel</h3>
+                            <p className="text-xs text-gray-500 font-medium">
+                                Actions Meta attributed to these ads across the period
+                            </p>
+                        </header>
+                        <div className="max-w-2xl">
+                            <FunnelBars funnel={overviewData?.funnel} />
+                        </div>
+                    </div>
+
                     <div className="rounded-3xl border border-gray-200/80 bg-white/90 shadow-sm p-6 space-y-4">
                         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div>
@@ -675,6 +743,13 @@ function buildDateMap(arr: any[]) {
                                             {String(ad.resultsLabel).replace(/\./g, " ").toLowerCase()}
                                         </p>
                                     )}
+
+                                    <div className="pt-2 border-t border-gray-100">
+                                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-2">
+                                            Action funnel
+                                        </p>
+                                        <FunnelBars funnel={ad.funnel} dense />
+                                    </div>
 
                                     <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-100 text-center text-xs">
                                         <div>

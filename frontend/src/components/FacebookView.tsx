@@ -31,6 +31,7 @@ import { ImageWithHover } from "./ImageWithHover";
 import { getCountryName } from "../lib/countryNames";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import SocialCommonHeader from "./SocialCommonHeader";
+import { formatDateISO } from "./SocialDatePicker";
 import SocialPageOverview from "./SocialPageOverview";
 import TablePagination from "./TablePagination";
 import {
@@ -63,8 +64,8 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
     } else if (customFrom && customTo) {
         return { from: customFrom, to: customTo };
     }
-    const isoFrom = from.toISOString().slice(0, 10);
-    const isoTo = to.toISOString().slice(0, 10);
+    const isoFrom = formatDateISO(from);
+    const isoTo = formatDateISO(to);
     return { from: isoFrom, to: isoTo };
 }
 
@@ -182,6 +183,8 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [usingMock, setUsingMock] = useState(false);
+    // Request succeeded, but Metricool reported nothing for this date range.
+    const [noDataForRange, setNoDataForRange] = useState(false);
 
     const [overview, setOverview] = useState<any>(null);
     const [growth, setGrowth] = useState<any>(null);
@@ -252,6 +255,7 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
             setLoading(true);
             setError(null);
             setUsingMock(false);
+            setNoDataForRange(false);
             try {
                 const { from, to } = computeRangeDates(range, customFrom, customTo);
 
@@ -269,9 +273,11 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                         const emptyGrowth = growthIsEmpty(growthRes.data);
                         setEngagement(engagementRes.data);
                         setContentTypeBreakdown(contentTypesRes.data);
-                        setOverview(emptyOverview ? facebookOverviewMock(range) : overviewRes.data);
-                        setGrowth(emptyGrowth ? facebookGrowthMock(range) : growthRes.data ?? null);
-                        if (emptyOverview || emptyGrowth) setUsingMock(true);
+                        // Empty-but-successful means no data for the range, not a
+                        // broken integration — see the notice, not sample numbers.
+                        setOverview(overviewRes.data);
+                        setGrowth(growthRes.data ?? null);
+                        setNoDataForRange(emptyOverview && emptyGrowth);
                     }
                 } else if (activeSection === "demographics") {
                     const [countriesRes, citiesRes, contentTypesRes] = await Promise.all([
@@ -309,9 +315,9 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                         // section over to sample data.
                         const emptyOverview = overviewIsEmpty(overviewRes.data);
                         setClicksData(clicksRes.data);
-                        setOverview(emptyOverview ? facebookOverviewMock(range) : overviewRes.data);
-                        setGrowth(growthIsEmpty(growthRes.data) ? facebookGrowthMock(range) : growthRes.data ?? null);
-                        if (emptyOverview) setUsingMock(true);
+                        setOverview(overviewRes.data);
+                        setGrowth(growthRes.data ?? null);
+                        setNoDataForRange(emptyOverview);
                     }
                 } else if (activeSection === "posts") {
                     const postsResRaw = await fetchPosts("facebook", { from, to, pageSize: 10, blogId });
@@ -682,7 +688,10 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                         onRangeChange("custom");
                     }
                 }}
-                activePresetKey={range}
+                // No activePresetKey: the range prop uses a different key space
+                // ("30d"/"custom") than DATE_PRESETS ("last_30_days"), which
+                // suppressed the picker's own from/to inference and left every
+                // preset chip unhighlighted. The picker derives it correctly.
                 brandColor="#1877F2"
             />
 
@@ -727,6 +736,18 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                     <span>
                         Live Facebook metrics aren't available right now — showing sample data so you
                         can preview how this section looks.
+                    </span>
+                </div>
+            )}
+
+            {!loading && !usingMock && noDataForRange && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-700">
+                    <span className="text-sm leading-none shrink-0 mt-0.5">📅</span>
+                    <span>
+                        Metricool reported no Facebook data for{" "}
+                        <strong className="font-semibold">{activeDates.from} → {activeDates.to}</strong>.
+                        Its analytics lag by about a day, so a range ending today is usually still empty —
+                        try a range ending yesterday or earlier.
                     </span>
                 </div>
             )}

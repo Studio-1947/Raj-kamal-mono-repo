@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { LoadingSpinner, SampleDataBadge } from "./LoadingSkeletons";
 import SocialCommonHeader from "./SocialCommonHeader";
+import { formatDateISO } from "./SocialDatePicker";
 import SocialPageOverview from "./SocialPageOverview";
 import TablePagination from "./TablePagination";
 import { getCountryName } from "../lib/countryNames";
@@ -46,8 +47,8 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
         return { from: customFrom, to: customTo };
     }
     return {
-        from: from.toISOString().slice(0, 10),
-        to: to.toISOString().slice(0, 10),
+        from: formatDateISO(from),
+        to: formatDateISO(to),
     };
 }
 
@@ -248,7 +249,10 @@ export default function GenericSocialView({
                         onRangeChange("custom");
                     }
                 }}
-                activePresetKey={range}
+                // No activePresetKey: the range prop uses a different key space
+                // ("30d"/"custom") than DATE_PRESETS ("last_30_days"), which
+                // suppressed the picker's own from/to inference and left every
+                // preset chip unhighlighted. The picker derives it correctly.
                 brandColor={brandColor}
             />
 

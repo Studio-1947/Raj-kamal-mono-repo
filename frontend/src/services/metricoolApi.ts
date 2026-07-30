@@ -261,6 +261,27 @@ function resolveTimelineMetric(platform: PlatformKey, metric: string): string {
   return timelineMetricAliases[platform]?.[metric] ?? metric;
 }
 
+/**
+ * Platforms whose timeline enums are verified against the live API, so a logical
+ * metric with no alias entry genuinely does not exist there.
+ *
+ * Requesting one anyway costs a real round-trip that can only 400: it queues
+ * behind the backend's rate limiter, logs an error, and spends rate-limit budget
+ * that a 429 would then turn into a sample-data fallback. Overview + growth were
+ * firing ~7 such calls per platform per load (Instagram: reactions,
+ * newFollowers, lostFollowers, mediaViews; Facebook: following, views, reach,
+ * accountsEngaged, netFollowers).
+ *
+ * Deliberately excludes meta_ads, whose callers pass real metric names
+ * (spend/impressions) that aren't in its logical alias map.
+ */
+const VERIFIED_METRIC_PLATFORMS = new Set<PlatformKey>(["facebook", "instagram"]);
+
+function supportsMetric(platform: PlatformKey, metric: string): boolean {
+  if (timelineMetricAliases[platform]?.[metric]) return true;
+  return !VERIFIED_METRIC_PLATFORMS.has(platform);
+}
+
 function resolveDistributionMetric(
   platform: PlatformKey,
   kind: "country" | "city",
@@ -369,7 +390,9 @@ export async function fetchOverview(
   params?: Record<string, unknown>,
 ): Promise<{ data: SocialOverview }> {
   const series = (metric: string) =>
-    nullOnFailure(fetchTimelineSeries(platform, metric, params));
+    supportsMetric(platform, metric)
+      ? nullOnFailure(fetchTimelineSeries(platform, metric, params))
+      : Promise.resolve(null);
 
   const [
     followers,
@@ -466,7 +489,9 @@ export async function fetchGrowth(
   params?: Record<string, unknown>,
 ) {
   const series = (metric: string) =>
-    nullOnFailure(fetchTimelineSeries(platform, metric, params));
+    supportsMetric(platform, metric)
+      ? nullOnFailure(fetchTimelineSeries(platform, metric, params))
+      : Promise.resolve(null);
 
   const [
     impressions,
@@ -610,6 +635,24 @@ export async function fetchContentTypeBreakdown(
 /*  Meta Ads                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Meta's own action counters for a campaign, keyed exactly as Meta reports them.
+ * These are real per-campaign funnel steps that the campaigns payload has always
+ * carried; nothing here is derived or estimated.
+ */
+export type MetaAdsFunnel = {
+  videoViews: number | null;
+  engagement: number | null;
+  linkClicks: number | null;
+  landingPageViews: number | null;
+  addToCart: number | null;
+  purchases: number | null;
+  leads: number | null;
+  registrations: number | null;
+  messagingStarted: number | null;
+  estimatedAdRecall: number | null;
+};
+
 export type MetaAdsCampaign = {
   id: string;
   name: string;
@@ -628,7 +671,33 @@ export type MetaAdsCampaign = {
   results: number | null;
   resultsLabel: string | null;
   startedAt: string | null;
+  funnel: MetaAdsFunnel;
+  /** Every action key Meta returned, for anything the funnel doesn't name. */
+  actions: Record<string, number>;
 };
+
+function buildFunnel(actions: Record<string, number>): MetaAdsFunnel {
+  const pick = (...keys: string[]): number | null => {
+    for (const key of keys) {
+      const value = actions[key];
+      if (typeof value === "number") return value;
+    }
+    return null;
+  };
+
+  return {
+    videoViews: pick("video_play_actions.video_views", "video_view"),
+    engagement: pick("post_engagement", "page_engagement"),
+    linkClicks: pick("link_click", "outbound_click"),
+    landingPageViews: pick("landing_page_view", "omni_landing_page_view"),
+    addToCart: pick("add_to_cart", "omni_add_to_cart"),
+    purchases: pick("purchase", "omni_purchase"),
+    leads: pick("lead", "onsite_conversion.lead"),
+    registrations: pick("complete_registration", "omni_complete_registration"),
+    messagingStarted: pick("onsite_conversion.messaging_conversation_started_7d"),
+    estimatedAdRecall: pick("estimated_ad_recallers"),
+  };
+}
 
 const num = (value: unknown): number | null =>
   typeof value === "number" && !Number.isNaN(value) ? value : null;
@@ -649,25 +718,34 @@ export async function fetchMetaAdsCampaigns(
   const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
 
   return {
-    data: items.map((item: any, index: number) => ({
-      id: String(item.id ?? item.providerCampaignId ?? `campaign-${index}`),
-      name: item.name ?? `Campaign ${index + 1}`,
-      status: item.status ?? null,
-      objective: item.objective ?? null,
-      buyingType: item.buyingType ?? null,
-      impressions: num(item.impressions),
-      reach: num(item.reach),
-      clicks: num(item.clicks),
-      uniqueClicks: num(item.uniqueClicks),
-      spend: num(item.spent ?? item.spend),
-      ctr: num(item.ctr),
-      cpc: num(item.cpc),
-      cpm: num(item.cpm),
-      conversions: num(item.conversions),
-      results: num(item.results),
-      resultsLabel: item.resultsLabel ?? null,
-      startedAt: item.start?.dateTime ?? item.created?.dateTime ?? null,
-    })),
+    data: items.map((item: any, index: number) => {
+      const actions: Record<string, number> = {};
+      for (const [key, value] of Object.entries(item.actions ?? {})) {
+        if (typeof value === "number") actions[key] = value;
+      }
+
+      return {
+        id: String(item.id ?? item.providerCampaignId ?? `campaign-${index}`),
+        name: item.name ?? `Campaign ${index + 1}`,
+        status: item.status ?? null,
+        objective: item.objective ?? null,
+        buyingType: item.buyingType ?? null,
+        impressions: num(item.impressions),
+        reach: num(item.reach),
+        clicks: num(item.clicks),
+        uniqueClicks: num(item.uniqueClicks),
+        spend: num(item.spent ?? item.spend),
+        ctr: num(item.ctr),
+        cpc: num(item.cpc),
+        cpm: num(item.cpm),
+        conversions: num(item.conversions),
+        results: num(item.results),
+        resultsLabel: item.resultsLabel ?? null,
+        startedAt: item.start?.dateTime ?? item.created?.dateTime ?? null,
+        funnel: buildFunnel(actions),
+        actions,
+      };
+    }),
   };
 }
 
@@ -685,6 +763,8 @@ export type MetaAdsOverview = {
   conversions: number | null;
   /** Metricool reports no purchase value for this account, so ROAS is unknown. */
   roas: number | null;
+  /** Account-wide funnel, summed from the per-campaign action counters. */
+  funnel: MetaAdsFunnel;
   series: {
     spend: TimelinePoint[];
     impressions: TimelinePoint[];
@@ -720,6 +800,20 @@ export async function fetchMetaAdsOverview(
     ? conversionValues.reduce((sum, value) => sum + value, 0)
     : null;
 
+  // Account funnel = the sum of each campaign's real action counters. A step no
+  // campaign reported stays null rather than becoming a zero.
+  const funnelKeys = [
+    "videoViews", "engagement", "linkClicks", "landingPageViews", "addToCart",
+    "purchases", "leads", "registrations", "messagingStarted", "estimatedAdRecall",
+  ] as const;
+  const funnel = funnelKeys.reduce((acc, key) => {
+    const values = campaigns.data
+      .map((campaign) => campaign.funnel[key])
+      .filter((value): value is number => value !== null);
+    acc[key] = values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+    return acc;
+  }, {} as MetaAdsFunnel);
+
   // Rates are recomputed from totals: averaging or summing daily CPC/CPM/CTR
   // would weight a ₹5 day the same as a ₹5,000 day.
   const ctr =
@@ -741,6 +835,7 @@ export async function fetchMetaAdsOverview(
       cpm,
       conversions,
       roas: null,
+      funnel,
       series: {
         spend: extractSeriesValues(spend),
         impressions: extractSeriesValues(impressions),
