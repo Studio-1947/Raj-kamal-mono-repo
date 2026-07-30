@@ -126,6 +126,18 @@ const chartColors = ["#2563eb", "#16a34a", "#f97316", "#e11d48", "#9333ea"];
 // FB stories carry a thumbnail and no metrics at all — so media rows read
 // through one accessor set instead of post-only keys. `??` (not `||`) so a real
 // zero stays a zero rather than falling through to another field.
+// Facebook's `engagement` on posts is a RATE, not a count: a post with 19
+// reactions+comments+shares plus 64 clicks over 1,164 unique impressions reports
+// engagement = 7.13 (= 7.13%). Rendered bare it read as "7.13 engagements".
+const formatPercent = (value?: number | null, fallback = "—") =>
+    value === undefined || value === null || Number.isNaN(value) ? fallback : `${value.toFixed(2)}%`;
+
+// Facebook items date themselves via created.dateTime (Instagram uses
+// publishedAt.dateTime); neither carries a flat `date`, which left every
+// exported Date cell blank.
+const itemPublishedAt = (item: any): string =>
+    String(item?.created?.dateTime ?? item?.created ?? item?.publishedAt?.dateTime ?? item?.date ?? item?.dateTime ?? "").slice(0, 10);
+
 const mediaThumb = (item: any) => item.picture ?? item.thumbnailUrl ?? item.imageUrl;
 const mediaCaption = (item: any) =>
     item.message ?? item.text ?? item.description ?? item.caption ?? item.content;
@@ -559,13 +571,26 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
         { header: "Story ID", getValue: (item: any) => item.storyId ?? "" },
     ];
 
+    const fbReelExportColumns = [
+        { header: "Published", getValue: (item: any) => itemPublishedAt(item) },
+        { header: "Description", getValue: (item: any) => item.description ?? "" },
+        { header: "Plays", getValue: (item: any) => (typeof item.blueReelsPlayCount === "number" ? item.blueReelsPlayCount : ""), align: "right" as const },
+        { header: "Reach", getValue: (item: any) => (typeof item.postImpressionsUnique === "number" ? item.postImpressionsUnique : ""), align: "right" as const },
+        { header: "Social actions", getValue: (item: any) => (typeof item.postVideoSocialActions === "number" ? item.postVideoSocialActions : ""), align: "right" as const },
+        { header: "Reactions", getValue: (item: any) => (typeof item.postVideoReactions === "number" ? item.postVideoReactions : ""), align: "right" as const },
+        { header: "Avg. watch (s)", getValue: (item: any) => (typeof item.postVideoAvgTimeWatchedSeconds === "number" ? item.postVideoAvgTimeWatchedSeconds.toFixed(1) : ""), align: "right" as const },
+        { header: "Length (s)", getValue: (item: any) => (typeof item.length === "number" ? item.length.toFixed(0) : ""), align: "right" as const },
+        { header: "Reel URL", getValue: (item: any) => item.reelUrl ?? "" },
+    ];
+
     const postExportColumns = [
-        { header: "Date", getValue: (item: any) => item.date || item.dateTime || "" },
+        { header: "Date", getValue: (item: any) => itemPublishedAt(item) },
         { header: "Message", getValue: (item: any) => item.message || item.text || item.description || item.caption || "" },
         { header: "Type", getValue: (item: any) => item.mediaType || item.type || "" },
         { header: "Impressions", getValue: (item: any) => item.impressions || item.impressionsTotal || item.views || 0, align: "right" as const },
         { header: "Reach", getValue: (item: any) => item.reach || item.impressionsUnique || item.reachTotal || 0, align: "right" as const },
-        { header: "Engagement", getValue: (item: any) => item.engagement || item.engagementTotal || 0, align: "right" as const },
+        { header: "Engagement %", getValue: (item: any) => (typeof item.engagement === "number" ? item.engagement.toFixed(2) : ""), align: "right" as const },
+        { header: "Clicks", getValue: (item: any) => (typeof item.clicks === "number" ? item.clicks : ""), align: "right" as const },
         { header: "Likes/Reactions", getValue: (item: any) => item.likes || item.reactions || item.likesCount || 0, align: "right" as const },
         { header: "Comments", getValue: (item: any) => item.comments || item.commentsCount || 0, align: "right" as const },
         { header: "Shares", getValue: (item: any) => item.shares || item.sharesCount || 0, align: "right" as const },
@@ -593,14 +618,21 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
     const sortItems = (items: any[], type: string) => {
         return [...items].sort((a, b) => {
             switch (type) {
+                // Facebook items carry created.dateTime, not a flat `date`, so the
+                // old accessors resolved to 0 for every row and date sorting was a
+                // no-op.
                 case "date_desc":
-                    return new Date(b.date || b.dateTime || 0).getTime() - new Date(a.date || a.dateTime || 0).getTime();
+                    return new Date(itemPublishedAt(b)).getTime() - new Date(itemPublishedAt(a)).getTime();
                 case "date_asc":
-                    return new Date(a.date || a.dateTime || 0).getTime() - new Date(b.date || b.dateTime || 0).getTime();
+                    return new Date(itemPublishedAt(a)).getTime() - new Date(itemPublishedAt(b)).getTime();
                 case "impressions_desc":
                     return (b.impressions || b.impressionsTotal || b.views || 0) - (a.impressions || a.impressionsTotal || a.views || 0);
+                case "plays_desc":
+                    return (b.blueReelsPlayCount ?? 0) - (a.blueReelsPlayCount ?? 0);
+                case "reactions_desc":
+                    return (b.postVideoReactions ?? b.reactions ?? 0) - (a.postVideoReactions ?? a.reactions ?? 0);
                 case "reach_desc":
-                    return (b.reach || b.impressionsUnique || b.reachTotal || 0) - (a.reach || a.impressionsUnique || a.reachTotal || 0);
+                    return (b.reach || b.impressionsUnique || b.postImpressionsUnique || 0) - (a.reach || a.impressionsUnique || a.postImpressionsUnique || 0);
                 case "likes_desc":
                     return (b.likes || b.reactions || b.likesCount || 0) - (a.likes || a.reactions || a.likesCount || 0);
                 case "comments_desc":
@@ -1054,12 +1086,13 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                     <tr className="text-gray-500 font-semibold border-b border-gray-200/80 bg-slate-50/50">
                                         <th className="py-3 px-3 rounded-l-xl">Media</th>
                                         <th className="py-3 px-3">Message</th>
+                                        <th className="py-3 px-3">Published</th>
                                         <th className="py-3 px-3">Type</th>
                                         <th className="py-3 px-3 text-right">Impressions</th>
                                         <th className="py-3 px-3 text-right">Reach</th>
-                                        <th className="py-3 px-3 text-right">Engagement</th>
+                                        <th className="py-3 px-3 text-right">Eng. %</th>
                                         <th className="py-3 px-3 text-right">Clicks</th>
-                                        <th className="py-3 px-3 text-right">Likes</th>
+                                        <th className="py-3 px-3 text-right">Reactions</th>
                                         <th className="py-3 px-3 text-right">Comments</th>
                                         <th className="py-3 px-3 text-right rounded-r-xl">Shares</th>
                                     </tr>
@@ -1079,31 +1112,34 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                             <td className="py-3.5 px-3 max-w-xs truncate text-gray-800 font-medium">
                                                 {item.message || item.text || item.description || item.caption || "—"}
                                             </td>
+                                            <td className="py-3.5 px-3 text-gray-600 font-medium whitespace-nowrap">
+                                                {itemPublishedAt(item) || "—"}
+                                            </td>
                                             <td className="py-3.5 px-3">
                                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
                                                     {item.mediaType || item.type || "—"}
                                                 </span>
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(item.impressions || item.impressionsTotal || item.views)}
+                                                {formatNumber(item.impressions ?? item.impressionsTotal ?? item.views)}
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-medium text-gray-900">
-                                                {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
+                                                {formatNumber(item.impressionsUnique ?? item.reach)}
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-bold text-gray-900">
-                                                {formatNumber(item.engagement || item.engagementTotal)}
+                                                {formatPercent(item.engagement)}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.clicks || item.clicksTotal)}
+                                                {formatNumber(item.clicks)}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.likes || item.reactions || item.likesCount)}
+                                                {formatNumber(item.reactions ?? item.likes)}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.comments || item.commentsCount)}
+                                                {formatNumber(item.comments)}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.shares || item.sharesCount)}
+                                                {formatNumber(item.shares)}
                                             </td>
                                         </tr>
                                     ))}
@@ -1146,12 +1182,9 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                             >
                                 <option value="date_desc">Newest First</option>
                                 <option value="date_asc">Oldest First</option>
-                                <option value="impressions_desc">Impressions (High to Low)</option>
+                                <option value="plays_desc">Plays (High to Low)</option>
                                 <option value="reach_desc">Reach (High to Low)</option>
-                                <option value="likes_desc">Likes (High to Low)</option>
-                                <option value="comments_desc">Comments (High to Low)</option>
-                                <option value="shares_desc">Shares (High to Low)</option>
-                                <option value="engagement_desc">Engagement Rate (High to Low)</option>
+                                <option value="reactions_desc">Reactions (High to Low)</option>
                             </select>
                             <input
                                 type="text"
@@ -1162,14 +1195,14 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                             />
                             <button
                                 type="button"
-                                onClick={() => exportToCSV(filteredReels, "facebook_reels.csv", postExportColumns)}
+                                onClick={() => exportToCSV(filteredReels, "facebook_reels.csv", fbReelExportColumns)}
                                 className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
                             >
                                 ⬇ CSV
                             </button>
                             <button
                                 type="button"
-                                onClick={() => exportToPDF(filteredReels, "Facebook Reels Analysis", postExportColumns)}
+                                onClick={() => exportToPDF(filteredReels, "Facebook Reels Analysis", fbReelExportColumns)}
                                 className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex items-center gap-1 border border-gray-200"
                             >
                                 ⬇ PDF
@@ -1184,12 +1217,13 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                         <th className="py-3 px-3 rounded-l-xl">Media</th>
                                         <th className="py-3 px-3">Message</th>
                                         <th className="py-3 px-3">Type</th>
-                                        <th className="py-3 px-3 text-right">Impressions</th>
+                                        <th className="py-3 px-3">Published</th>
+                                        <th className="py-3 px-3 text-right">Plays</th>
                                         <th className="py-3 px-3 text-right">Reach</th>
-                                        <th className="py-3 px-3 text-right">Engagement</th>
-                                        <th className="py-3 px-3 text-right">Likes</th>
-                                        <th className="py-3 px-3 text-right">Comments</th>
-                                        <th className="py-3 px-3 text-right rounded-r-xl">Shares</th>
+                                        <th className="py-3 px-3 text-right">Social actions</th>
+                                        <th className="py-3 px-3 text-right">Reactions</th>
+                                        <th className="py-3 px-3 text-right">Avg. watch</th>
+                                        <th className="py-3 px-3 text-right rounded-r-xl">Length</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -1212,6 +1246,9 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                                     {item.mediaType || "Reel"}
                                                 </span>
                                             </td>
+                                            <td className="py-3.5 px-3 text-gray-600 font-medium whitespace-nowrap">
+                                                {itemPublishedAt(item) || "—"}
+                                            </td>
                                             <td className="py-3.5 px-3 text-right font-medium text-gray-900">
                                                 {formatNumber(mediaImpressions(item))}
                                             </td>
@@ -1219,16 +1256,18 @@ export default function FacebookView({ range, onRangeChange, customFrom, customT
                                                 {formatNumber(mediaReach(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right font-bold text-gray-900">
-                                                {formatNumber(mediaEngagement(item))}
+                                                {formatNumber(item.postVideoSocialActions)}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
                                                 {formatNumber(mediaLikes(item))}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.comments || item.commentsCount)}
+                                                {typeof item.postVideoAvgTimeWatchedSeconds === "number"
+                                                    ? `${item.postVideoAvgTimeWatchedSeconds.toFixed(1)}s`
+                                                    : "—"}
                                             </td>
                                             <td className="py-3.5 px-3 text-right text-gray-700 font-medium">
-                                                {formatNumber(item.shares || item.sharesCount)}
+                                                {typeof item.length === "number" ? `${item.length.toFixed(0)}s` : "—"}
                                             </td>
                                         </tr>
                                     ))}

@@ -76,6 +76,27 @@ function computeRangeDates(key: TimeRangeKey, customFrom?: string, customTo?: st
     return { from: isoFrom, to: isoTo };
 }
 
+// Metricool's `engagement` on posts/reels is a RATE, not a count: an Instagram
+// post with 45 interactions over 1,772 reach reports engagement = 2.5395
+// (= 2.54%). Rendered bare beside impression counts it read as "2.54 engagements".
+function formatPercent(value?: number, fallback = "—") {
+    if (value === undefined || value === null || Number.isNaN(value)) return fallback;
+    return `${value.toFixed(2)}%`;
+}
+
+// Posts/reels/stories all date themselves via publishedAt.dateTime; none carry a
+// flat `date` field, which left every exported Date cell blank.
+function itemPublishedAt(item: any): string {
+    const raw =
+        item?.publishedAt?.dateTime ??
+        item?.publishedAt ??
+        item?.created?.dateTime ??
+        item?.date ??
+        item?.dateTime ??
+        "";
+    return String(raw).slice(0, 10);
+}
+
 function formatNumber(value?: number, fallback = "—") {
     if (value === undefined || value === null || Number.isNaN(value)) {
         return fallback;
@@ -544,12 +565,14 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
     ];
 
     const postExportColumns = [
-        { header: "Date", getValue: (item: any) => item.date || item.dateTime || "" },
+        { header: "Date", getValue: (item: any) => itemPublishedAt(item) },
         { header: "Message", getValue: (item: any) => item.content || item.message || item.text || item.caption || item.description || item.title || "" },
         { header: "Type", getValue: (item: any) => item.mediaType || item.type || "" },
         { header: "Impressions", getValue: (item: any) => item.impressions || item.impressionsTotal || item.views || 0, align: "right" as const },
         { header: "Reach", getValue: (item: any) => item.reach || item.impressionsUnique || item.reachTotal || 0, align: "right" as const },
-        { header: "Engagement", getValue: (item: any) => item.engagement || item.engagementTotal || 0, align: "right" as const },
+        { header: "Interactions", getValue: (item: any) => (typeof item.interactions === "number" ? item.interactions : ""), align: "right" as const },
+        { header: "Engagement %", getValue: (item: any) => (typeof item.engagement === "number" ? item.engagement.toFixed(2) : ""), align: "right" as const },
+        { header: "Saved", getValue: (item: any) => (typeof item.saved === "number" ? item.saved : ""), align: "right" as const },
         { header: "Likes/Reactions", getValue: (item: any) => item.likes || item.reactions || item.likesCount || 0, align: "right" as const },
         { header: "Comments", getValue: (item: any) => item.comments || item.commentsCount || 0, align: "right" as const },
         { header: "Shares", getValue: (item: any) => item.shares || item.sharesCount || 0, align: "right" as const },
@@ -1234,13 +1257,16 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                         <tr className="text-left text-gray-900 border-b border-gray-100">
                                             <th className="py-4 pr-3">Media</th>
                                             <th className="py-4 pr-3">Message</th>
+                                            <th className="py-4 pr-3">Published</th>
                                             <th className="py-4 pr-3">Type</th>
                                             <th className="py-4 pr-3 text-right">Impressions</th>
                                             <th className="py-4 pr-3 text-right">Reach</th>
-                                            <th className="py-4 pr-3 text-right">Engagement</th>
+                                            <th className="py-4 pr-3 text-right">Interactions</th>
+                                            <th className="py-4 pr-3 text-right">Eng. %</th>
                                             <th className="py-4 pr-3 text-right">Likes</th>
                                             <th className="py-4 pr-3 text-right">Comments</th>
                                             <th className="py-4 pr-3 text-right">Shares</th>
+                                            <th className="py-4 pr-3 text-right">Saved</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1258,26 +1284,35 @@ export default function InstagramView({ range, onRangeChange, customFrom, custom
                                                 <td className="py-4 pr-3 text-gray-900 max-w-xs truncate font-medium">
                                                     {item.content || item.message || item.text || item.caption || item.description || item.title || item.name || <span className="text-gray-400 italic text-xs">(No caption)</span>}
                                                 </td>
-                                                <td className="py-4 pr-3 text-gray-900 font-semibold text-xs text-gray-500 uppercase">
+                                                <td className="py-4 pr-3 text-xs font-medium text-gray-600 whitespace-nowrap">
+                                                    {itemPublishedAt(item) || "—"}
+                                                </td>
+                                                <td className="py-4 pr-3 font-semibold text-xs text-gray-500 uppercase">
                                                     {item.mediaType || item.type || activeSection}
                                                 </td>
                                                 <td className="py-4 pr-3 text-right text-gray-900">
-                                                    {formatNumber(item.impressions || item.impressionsTotal || item.views)}
+                                                    {formatNumber(item.impressionsTotal ?? item.impressions ?? item.views)}
                                                 </td>
                                                 <td className="py-4 pr-3 text-right text-gray-900">
-                                                    {formatNumber(item.reach || item.impressionsUnique || item.reachTotal)}
+                                                    {formatNumber(item.reach ?? item.impressionsUnique)}
                                                 </td>
                                                 <td className="py-4 pr-3 text-right text-gray-900 font-semibold">
-                                                    {formatNumber(item.engagement || item.engagementTotal)}
+                                                    {formatNumber(item.interactions)}
                                                 </td>
                                                 <td className="py-4 pr-3 text-right text-gray-900">
-                                                    {formatNumber(item.likes || item.reactions || item.likesCount)}
+                                                    {formatPercent(item.engagement)}
                                                 </td>
                                                 <td className="py-4 pr-3 text-right text-gray-900">
-                                                    {formatNumber(item.comments || item.commentsCount)}
+                                                    {formatNumber(item.likes ?? item.reactions)}
                                                 </td>
                                                 <td className="py-4 pr-3 text-right text-gray-900">
-                                                    {formatNumber(item.shares || item.sharesCount)}
+                                                    {formatNumber(item.comments)}
+                                                </td>
+                                                <td className="py-4 pr-3 text-right text-gray-900">
+                                                    {formatNumber(item.shares)}
+                                                </td>
+                                                <td className="py-4 pr-3 text-right text-gray-900">
+                                                    {formatNumber(item.saved)}
                                                 </td>
                                             </tr>
                                         ))}
