@@ -62,6 +62,9 @@ export async function runScheduledSync(trigger: "scheduled" | "manual" | "startu
   const startedAt = Date.now();
   console.log(`[sync-scheduler] starting full Google-Sheet sync @ ${new Date(startedAt).toISOString()}`);
   try {
+    // Stamped onto every dump the archive records during this run, so a bad export can
+    // be traced back to whether it arrived via cron, a boot, or someone's manual trigger.
+    offlineSyncService.currentTrigger = trigger;
     const results = await offlineSyncService.syncAll();
     const okCount = results.filter((r) => r.result.success).length;
     const imported = results.reduce((a, r) => a + (r.result.importedCount || 0), 0);

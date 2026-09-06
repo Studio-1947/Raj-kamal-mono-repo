@@ -12,6 +12,7 @@ import inventoryRoutes from "./routes/inventory.js";
 import rankingsRoutes from "./routes/rankings.js";
 import metricoolRoutes from "./routes/metricool.js";
 import syncLogsRoutes from "./routes/syncLogs.js";
+import archiveRoutes from "./routes/archive.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { mountOnlineSales } from "./features/sales/server/online.index.js";
 import { mountOfflineSales } from "./features/sales/server/offline.index.js";
@@ -212,6 +213,7 @@ app.get("/", (_req, res) => {
 app.use("/api/auth/sessions", sessionRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/sync-logs", syncLogsRoutes);
+app.use("/api/archive", archiveRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/rankings", rankingsRoutes);

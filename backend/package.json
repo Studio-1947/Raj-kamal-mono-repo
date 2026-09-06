@@ -31,7 +31,14 @@
     "sync:bookfair": "tsx scripts/sync-bookfair.ts",
     "sync:lokbharti": "tsx scripts/sync-lokbharti.ts",
     "sync:all": "tsx scripts/sync-all.ts",
-    "seed:history": "tsx scripts/seed-history.ts"
+    "seed:history": "tsx scripts/seed-history.ts",
+    "archive:init": "tsx scripts/archive-init.ts",
+    "archive:list": "tsx scripts/archive-list.ts",
+    "archive:restore": "tsx scripts/archive-restore.ts",
+    "archive:approve": "tsx scripts/archive-restore.ts",
+    "archive:prune": "tsx scripts/archive-prune.ts",
+    "archive:smoketest": "tsx scripts/archive-smoketest.ts",
+    "archive:verify-guard": "tsx scripts/archive-verify-guard.ts"
   },
   "engines": {
     "node": "20.x"

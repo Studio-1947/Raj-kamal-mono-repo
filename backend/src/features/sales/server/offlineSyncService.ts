@@ -1,8 +1,27 @@
 import { prisma } from "../../../lib/prisma.js";
 import crypto from "crypto";
+import fs from "fs";
 import * as XLSX from "xlsx";
 import fetch from "node-fetch";
 import { clearTotalOfflineCache } from "./total-offline.routes.js";
+import {
+  recordDump,
+  updateDumpStats,
+  setDumpVerdict,
+  getLastAcceptedDump,
+  summarizeRecords,
+  sha256,
+} from "../../archive/archiveStore.js";
+import {
+  evaluateSheet,
+  evaluateRawExport,
+  unreadableExportVerdict,
+  guardMode,
+  SheetRejectedError,
+} from "../../archive/sheetGuard.js";
+import { takePreSyncSnapshot } from "../../archive/snapshot.js";
+import { regionForModel } from "../../archive/regions.js";
+import { isArchiveConfigured, warnIfUnconfigured } from "../../archive/archiveDb.js";
 
 const REPORT_URL = "https://rajkamal.cloudpub.in/Reports/rpttitlecustomerwisegriddataExport?FromDate=2026-01-01&ToDate=2026-12-31&iCompanyID=1&iBranchID=1,&cmbISBN=&CustomerName=&Documenttype=ALLS&TrnsDocID=&ManageEdition=false&CountryName=&StateName=&CityName=&SalesmanName=&SalesmanMgnrName=&chkshowclbal=N&BookCategoryID=&languageID=&PublisherID=&SelectDiscount=&TxtDiscount=0&AccountID=BookSeller&IncludeExcludeBranchSale=Exclude";
 
@@ -27,16 +46,42 @@ interface PreservedMeta {
   pubYear: number;
   publisher: string;
 }
+
+/** Result of parsing a sheet export, before anything is written to the database. */
+export interface ParsedRows {
+  /** Insert-ready records, in sheet order. */
+  records: any[];
+  /** Header row exactly as it came from the export. */
+  headers: string[];
+  /** Records produced (=== records.length). */
+  count: number;
+  /** Blank rows the parser skipped. */
+  skippedEmpty: number;
+  /** Rows whose blank metadata was filled from the pre-wipe preserve map. */
+  backfilledCount: number;
+}
+
 export class OfflineSyncService {
   /**
-   * Main entry point to process an array of rows from any source (Sheets, ERP, etc.)
-   * @param rows The data rows (including headers)
-   * @param targetModel The Prisma model delegate to use (default: prisma.googleSheetOfflineSale)
+   * What kicked off the sync currently in flight, recorded on each archived dump so a
+   * suspicious export can be traced to the run that fetched it. A plain field rather
+   * than a threaded parameter because syncAll is sequential and guarded against
+   * overlapping runs, so only one sync is ever in flight per process.
    */
-  async processData(
+  currentTrigger: string = "manual";
+
+  /**
+   * Turns raw sheet rows into insert-ready records. Extracted from processData so the
+   * pre-import archive guard can evaluate exactly what WOULD be written, using the same
+   * parser rather than a second approximation of it that could drift out of step.
+   *
+   * Pure: no database access, no side effects beyond the header debug log.
+   */
+  parseRows(
     rows: any[][],
+    // Only consulted for the Patna day/month swap below — but that swap changes the
+    // parsed dates, so the guard must parse with the same target to see the same result.
     targetModel: any = prisma.googleSheetOfflineSale,
-    txClient?: any,
     preserveMap?: Map<string, PreservedMeta>,
     // Extra columns merged into every inserted row (e.g. { channel, financialYear }
     // for the one-time history archive). When provided alongside omitRawJson, lets
@@ -45,16 +90,13 @@ export class OfflineSyncService {
     // The history table has no rawJson column; skip it so createMany doesn't reject
     // the unknown field.
     omitRawJson = false,
-  ): Promise<SyncResult> {
-    if (!rows || rows.length < 2) {
-      return { success: true, importedCount: 0, skippedCount: 0 };
-    }
+  ): ParsedRows {
+    const empty: ParsedRows = { records: [], headers: [], count: 0, skippedEmpty: 0, backfilledCount: 0 };
+    if (!rows || rows.length < 2) return empty;
 
     const headers = rows[0] as string[];
-    if (!headers) {
-      return { success: true, importedCount: 0, skippedCount: 0 };
-    }
-    
+    if (!headers) return empty;
+
     const dataRows = rows.slice(1);
     const headerMap: Record<string, number> = {};
     headers.forEach((h: any, i: number) => {
@@ -70,16 +112,19 @@ export class OfflineSyncService {
       if (typeIdx !== -1) headerMap['type'] = typeIdx;
     }
 
-    // DEBUG: Write headers to a file to see what's actually coming through
-    try {
-      const fs = await import('fs');
-      fs.appendFileSync('headers_debug.log', `HEADERS: ${JSON.stringify(headers)}\n`);
-    } catch (e) {}
+    // DEBUG: Write headers to a file to see what's actually coming through.
+    // Now gated: parseRows became synchronous (so the archive guard can call it) and is
+    // invoked twice per sync, which would double the growth of an already-unbounded log.
+    // Set SYNC_DEBUG_HEADERS=true to re-enable. The headers are also stored on every
+    // archived dump, which is the durable place to look.
+    if (process.env.SYNC_DEBUG_HEADERS === 'true') {
+      try {
+        fs.appendFileSync('headers_debug.log', `HEADERS: ${JSON.stringify(headers)}\n`);
+      } catch (e) {}
+    }
 
-    let importedCount = 0;
     let count = 0;
     let skippedEmpty = 0;
-    let duplicateCount = 0;
     let backfilledCount = 0;
 
     const toInsert: any[] = [];
@@ -254,6 +299,32 @@ export class OfflineSyncService {
       count++;
     }
 
+    return { records: toInsert, headers, count, skippedEmpty, backfilledCount };
+  }
+
+  /**
+   * Main entry point to process an array of rows from any source (Sheets, ERP, etc.)
+   * Parses via parseRows, then bulk-inserts into the target model.
+   */
+  async processData(
+    rows: any[][],
+    targetModel: any = prisma.googleSheetOfflineSale,
+    txClient?: any,
+    preserveMap?: Map<string, PreservedMeta>,
+    extraFields?: Record<string, any>,
+    omitRawJson = false,
+  ): Promise<SyncResult> {
+    const { records: toInsert, count, skippedEmpty, backfilledCount } = this.parseRows(
+      rows,
+      targetModel,
+      preserveMap,
+      extraFields,
+      omitRawJson,
+    );
+
+    let importedCount = 0;
+    let duplicateCount = 0;
+
     if (toInsert.length > 0) {
       try {
         // Chunk toInsert to avoid potential database limit issues with massive arrays
@@ -287,7 +358,7 @@ export class OfflineSyncService {
    * metadata columns come back blank from a stale sheet export. Best-effort: any failure
    * degrades gracefully to "no backfill" rather than aborting the sync.
    */
-  private async buildPreserveMap(model: any): Promise<Map<string, PreservedMeta>> {
+  async buildPreserveMap(model: any): Promise<Map<string, PreservedMeta>> {
     const map = new Map<string, PreservedMeta>();
     try {
       const existing: any[] = await model.findMany({
@@ -405,6 +476,149 @@ export class OfflineSyncService {
     return out;
   }
 
+  /**
+   * Whether archiving applies to this sync. Null means the whole feature sits out and
+   * the sync behaves exactly as it did before it existed — either because no archive DB
+   * is configured, or because the target isn't one of the six registry regions (the
+   * history backfill, say, which doesn't wipe a live dashboard table).
+   */
+  private archiveTargetFor(targetModel: any) {
+    if (!isArchiveConfigured()) {
+      warnIfUnconfigured();
+      return null;
+    }
+    return regionForModel(targetModel);
+  }
+
+  /**
+   * Archives the bytes exactly as fetched, BEFORE anything tries to parse them, and
+   * applies the checks that need only those bytes.
+   *
+   * Order matters: XLSX.read throws outright on some malformed responses ("Invalid HTML:
+   * could not find <table>"). Archiving first means even an export the parser refuses is
+   * preserved for inspection, and the operator gets "the sheet is no longer shared"
+   * rather than a parser stack trace.
+   *
+   * Throws SheetRejectedError if the bytes alone are damning. Any other failure is
+   * swallowed: losing a backup is bad, breaking the sync that feeds the dashboard is worse.
+   */
+  private async archiveRawExport(url: string, targetModel: any, buffer: ArrayBuffer): Promise<number | null> {
+    const region = this.archiveTargetFor(targetModel);
+    if (!region) return null;
+
+    let dumpId: number | null = null;
+    try {
+      const raw = Buffer.from(buffer);
+      // Stats are filled in by guardParsedExport once the workbook has been read.
+      const dump = await recordDump({
+        region: region.region,
+        sourceUrl: url,
+        trigger: this.currentTrigger,
+        raw,
+        stats: { sheetRowCount: 0, headers: [], parsedRowCount: 0, parsedTotalAmount: 0, parsedTotalQty: 0 },
+      });
+      dumpId = dump?.id ?? null;
+
+      const verdict = evaluateRawExport(raw);
+      if (!verdict.ok && verdict.mode === "block") {
+        if (dumpId) await setDumpVerdict(dumpId, "rejected", verdict.reason, verdict.checks);
+        console.error(`[archive] REFUSING to import ${region.region}: ${verdict.reason}. Live table left untouched.`);
+        throw new SheetRejectedError(region.region, verdict.reason || "failed validation", dumpId, verdict.checks);
+      }
+    } catch (e: any) {
+      if (e instanceof SheetRejectedError) throw e;
+      console.error(`[archive] archiveRawExport(${region.region}) failed, continuing sync:`, e?.message || e);
+    }
+    return dumpId;
+  }
+
+  /** Marks an already-archived dump as unreadable, then rejects it. */
+  private async rejectUnreadableExport(targetModel: any, dumpId: number | null, err: any): Promise<never> {
+    const region = regionForModel(targetModel);
+    const verdict = unreadableExportVerdict(err?.message || String(err));
+    if (dumpId) await setDumpVerdict(dumpId, "rejected", verdict.reason, verdict.checks);
+    if (region && guardMode() === "block") {
+      console.error(`[archive] REFUSING to import ${region.region}: ${verdict.reason}. Live table left untouched.`);
+      throw new SheetRejectedError(region.region, verdict.reason || "unreadable export", dumpId, verdict.checks);
+    }
+    throw err;
+  }
+
+  /**
+   * Completes the archive record with what the parser produced, applies the full guard,
+   * and snapshots the live table before it is wiped.
+   */
+  private async guardParsedExport(
+    targetModel: any,
+    dumpId: number | null,
+    buffer: ArrayBuffer,
+    rows: any[][],
+  ): Promise<void> {
+    const region = this.archiveTargetFor(targetModel);
+    if (!region) return;
+
+    try {
+      const raw = Buffer.from(buffer);
+
+      // Parsed a second time here (processData parses again inside the transaction with
+      // the preserve map). Costs a few hundred ms on the largest region, and buys the
+      // guard the real parser's output instead of a lookalike that could drift. rawJson
+      // is omitted because these records are measured, never inserted.
+      const preview = this.parseRows(rows, targetModel, undefined, undefined, true);
+      const totals = summarizeRecords(preview.records);
+
+      if (dumpId) {
+        await updateDumpStats(dumpId, {
+          headers: preview.headers,
+          parsedRowCount: preview.count,
+          parsedTotalAmount: totals.totalAmount,
+          parsedTotalQty: totals.totalQty,
+        });
+      }
+
+      const baseline = await getLastAcceptedDump(region.region);
+      const verdict = evaluateSheet({
+        region: region.region,
+        raw,
+        headers: preview.headers,
+        parsedRowCount: preview.count,
+        parsedTotalAmount: totals.totalAmount,
+        baseline,
+      });
+
+      if (!verdict.ok && verdict.mode === "block") {
+        if (dumpId) await setDumpVerdict(dumpId, "rejected", verdict.reason, verdict.checks);
+        console.error(
+          `[archive] REFUSING to import ${region.region}: ${verdict.reason}. ` +
+            `Live table left untouched (${baseline ? `baseline dump #${baseline.id}` : "no baseline"}).`,
+        );
+        throw new SheetRejectedError(region.region, verdict.reason || "failed validation", dumpId, verdict.checks);
+      }
+
+      if (!verdict.ok) {
+        console.warn(
+          `[archive] guard objected to ${region.region} (${verdict.reason}) but ARCHIVE_GUARD=warn — importing anyway.`,
+        );
+      }
+      if (dumpId) {
+        await setDumpVerdict(dumpId, verdict.ok ? "accepted" : "warned", verdict.reason, verdict.checks);
+      }
+
+      // Snapshot the table as it stands, unless this export is byte-identical to the one
+      // that produced the current contents — in which case the snapshot we already hold
+      // describes the same rows.
+      const unchanged = !!(baseline && sha256(raw) === baseline.contentSha256);
+      if (unchanged) {
+        console.log(`[archive] ${region.region}: export unchanged since dump #${baseline!.id}; snapshot skipped.`);
+      } else {
+        await takePreSyncSnapshot(region, dumpId);
+      }
+    } catch (e: any) {
+      if (e instanceof SheetRejectedError) throw e;
+      console.error(`[archive] guardParsedExport(${region.region}) failed, continuing sync:`, e?.message || e);
+    }
+  }
+
   private async syncFromGoogleSheet(url: string, targetModel: any, sheetNamePreference?: string) {
     const startTime = Date.now();
     try {
@@ -413,8 +627,19 @@ export class OfflineSyncService {
       
       const fetchTime = Date.now();
       const buffer = await response.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "buffer" });
-      
+
+      // Archive the bytes BEFORE parsing — XLSX.read throws on some malformed responses,
+      // and those are precisely the ones worth keeping a copy of.
+      const dumpId = await this.archiveRawExport(url, targetModel, buffer);
+
+      let workbook: XLSX.WorkBook;
+      try {
+        workbook = XLSX.read(buffer, { type: "buffer" });
+      } catch (e: any) {
+        await this.rejectUnreadableExport(targetModel, dumpId, e);
+        throw e; // unreachable; rejectUnreadableExport always throws
+      }
+
       let sheetName = workbook.SheetNames[0];
       if (sheetNamePreference) {
         const found = workbook.SheetNames.find(n => n.toLowerCase() === sheetNamePreference.toLowerCase());
@@ -425,8 +650,18 @@ export class OfflineSyncService {
       const sheet = workbook.Sheets[sheetName];
       if (!sheet) throw new Error(`Sheet "${sheetName}" not found in workbook.`);
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      
+
       const parseTime = Date.now();
+
+      // ── Corruption guard + pre-wipe snapshot ───────────────────────────────
+      // Everything below this point is destructive (deleteMany then insert), so this is
+      // the last moment at which the current data still exists. The guard decides whether
+      // the export is safe and — only if it is — snapshots the live table before the wipe.
+      //
+      // A rejected export throws before any delete runs, leaving the table exactly as it
+      // was. Archive failures are swallowed inside the archive layer, so a broken archive
+      // degrades to "no backup taken" rather than "sync broken".
+      await this.guardParsedExport(targetModel, dumpId, buffer, rows);
 
       // Find the key of targetModel on prisma (e.g. 'googleSheetOfflineSale')
       const modelKey = Object.keys(prisma).find(key => {
@@ -472,6 +707,7 @@ export class OfflineSyncService {
       console.log(`  - Parse XLSX / JSON: ${((parseTime - fetchTime)/1000).toFixed(2)}s`);
       console.log(`  - Database Transaction (Delete + Batch inserts): ${((endTime - parseTime)/1000).toFixed(2)}s`);
       console.log(`  - Total Sync Time: ${((endTime - startTime)/1000).toFixed(2)}s`);
+      if (dumpId) console.log(`  - Archived as dump #${dumpId}`);
 
       if (syncResult.success) {
         try {
