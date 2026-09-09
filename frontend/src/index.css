@@ -50,6 +50,31 @@ body {
     /* Improved line height for better readability */
     line-height: 1.6;
   }
+
+  /* Native date/time controls are the one part of the UI the browser paints
+     itself, and they follow `color-scheme` — which is `light dark` above, so on a
+     dark OS they render white-on-black inside our otherwise-light pages. Every
+     screen here is built light, so pin these controls (and the calendar popup they
+     open) to light rather than letting the OS theme leak through. */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"],
+  input[type="time"] {
+    color-scheme: light;
+  }
+
+  /* The calendar glyph defaults to near-black on our light grey fields; nudge it to
+     the same grey as the surrounding placeholder text and darken it on hover so it
+     reads as the control it is. */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 0.15s ease;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 0.8;
+  }
 }
 
 /* Custom Scrollbar Utility */

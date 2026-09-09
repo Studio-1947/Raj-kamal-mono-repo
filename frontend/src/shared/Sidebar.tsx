@@ -75,6 +75,7 @@ const TREE: NavNode[] = [
     icon: IconGlobe,
     items: [
       { label: "Website", to: "/online-offline-sales", icon: IconGlobe },
+      { label: "Website Orders", to: "/website-orders", icon: IconBag },
       { label: "WhatsApp", to: "#", icon: IconChat, disabled: true },
       { label: "Amazon", to: "#", icon: IconBag, disabled: true },
       { label: "Flipkart", to: "#", icon: IconBag, disabled: true },

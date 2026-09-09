@@ -12,6 +12,7 @@ import inventoryRoutes from "./routes/inventory.js";
 import rankingsRoutes from "./routes/rankings.js";
 import metricoolRoutes from "./routes/metricool.js";
 import syncLogsRoutes from "./routes/syncLogs.js";
+import websiteOrdersRoutes from "./routes/websiteOrders.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { mountOnlineSales } from "./features/sales/server/online.index.js";
 import { mountOfflineSales } from "./features/sales/server/offline.index.js";
@@ -26,6 +27,7 @@ import { mountTotalOfflineSales } from "./features/sales/server/total-offline.in
 import { notFound } from "./middleware/notFound.js";
 import { getLastSyncStatus } from "./features/sales/server/syncScheduler.js";
 import { getMetricoolHealth } from "./config/metricool.js";
+import { getWebsiteApiHealth } from "./config/websiteApi.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger.js";
 
@@ -158,6 +160,7 @@ app.get("/health", (_req, res) => {
     environment: process.env.NODE_ENV || "development",
     sync: { ...lastSync, stale },
     metricool: { ...metricool, status: metricoolStatus },
+    websiteApi: getWebsiteApiHealth(),
   });
 });
 
@@ -200,6 +203,7 @@ app.get("/", (_req, res) => {
           <li><code>/api/dashboard</code></li>
           <li><code>/api/inventory</code></li>
           <li><code>/api/rankings</code></li>
+          <li><code>/api/website-orders</code></li>
         </ul>
         <p class="meta">Use these endpoints in your frontend or via API clients.</p>
       </body>
@@ -216,6 +220,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/rankings", rankingsRoutes);
 app.use("/api/metricool", metricoolRoutes);
+app.use("/api/website-orders", websiteOrdersRoutes);
 // Sales APIs (features)
 mountOnlineSales(app, "/api/online-sales");
 mountOfflineSales(app, "/api/offline-sales");
