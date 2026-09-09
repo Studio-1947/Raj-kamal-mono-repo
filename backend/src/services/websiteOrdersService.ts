@@ -116,6 +116,12 @@ export type OrdersSummary = {
   /** True when the range held more orders than SUMMARY_MAX_ORDERS, so figures are partial. */
   truncated: boolean;
   scannedOrders: number;
+  /**
+   * The oldest order date these figures actually include. Upstream returns
+   * newest-first, so a truncated scan covers a recent slice of the requested range,
+   * not the whole of it — without this the caller would label a 45-day chart "1Y".
+   */
+  coveredFrom: string | null;
 };
 
 /** Upstream money fields are decimal strings ("629.10") or null. */
@@ -326,12 +332,49 @@ function round2(value: number): number {
   return Number(value.toFixed(2));
 }
 
+/** Mutable counters a caller reads back after draining `scanOrders`. */
+export type ScanProgress = { scanned: number; truncated: boolean };
+
+/**
+ * Walks every order matching `filters`, newest first, yielding them one at a time.
+ *
+ * There is no upstream stats or bulk endpoint, so both the summary and the file
+ * exports have to page through the range. This is the single place that knows how:
+ * it fetches sequentially (the upstream is rate-limited, and page one is what tells
+ * us how many follow) and yields rather than accumulating, so an export of 20k
+ * orders streams out at constant memory instead of being buffered whole.
+ *
+ * `maxOrders` is the safety valve — the range can be the entire 27k-order history.
+ * On hitting it we stop and set `progress.truncated`, leaving it to the caller to
+ * tell the user their figures are partial.
+ */
+export async function* scanOrders(
+  filters: OrderFilters,
+  maxOrders: number,
+  progress: ScanProgress,
+): AsyncGenerator<WebsiteOrder> {
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const { data, meta } = await fetchRawPage({ ...filters, page, pageSize: MAX_PAGE_SIZE });
+    totalPages = Number(meta?.totalPages) || 1;
+
+    for (const raw of data) {
+      yield normalizeOrder(raw);
+      progress.scanned += 1;
+    }
+
+    if (progress.scanned >= maxOrders && page < totalPages) {
+      progress.truncated = true;
+      return;
+    }
+    page += 1;
+  } while (page <= totalPages);
+}
+
 /**
  * Aggregates for the KPI row and charts.
- *
- * There is no upstream stats endpoint, so this pages through the filtered range at
- * pageSize=100 and folds as it goes. Pages are fetched sequentially on purpose: the
- * upstream is rate-limited, and the first page is what tells us how many follow.
  *
  * Cancelled orders are counted but excluded from revenue — money that was never
  * collected shouldn't inflate the topline.
@@ -349,18 +392,12 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
   let orderCount = 0;
   let revenue = 0;
   let itemsSold = 0;
-  let scannedOrders = 0;
-  let truncated = false;
+  let earliestPlacedAt: string | null = null;
 
-  let page = 1;
-  let totalPages = 1;
+  const progress: ScanProgress = { scanned: 0, truncated: false };
 
-  do {
-    const { data, meta } = await fetchRawPage({ ...filters, page, pageSize: MAX_PAGE_SIZE });
-    totalPages = Number(meta?.totalPages) || 1;
-
-    for (const raw of data) {
-      const order = normalizeOrder(raw);
+  for await (const order of scanOrders(filters, SUMMARY_MAX_ORDERS, progress)) {
+    {
       const isRevenue = order.status !== "CANCELLED";
       const orderRevenue = isRevenue ? order.amounts.grandTotal : 0;
 
@@ -372,6 +409,9 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
       bump(byPaymentMethod, order.paymentMethod ?? "UNSPECIFIED", orderRevenue);
 
       if (order.placedAt) {
+        if (!earliestPlacedAt || order.placedAt < earliestPlacedAt) {
+          earliestPlacedAt = order.placedAt;
+        }
         const day = order.placedAt.slice(0, 10);
         const bucket = dailyMap.get(day) ?? { orders: 0, revenue: 0 };
         bucket.orders += 1;
@@ -401,14 +441,7 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
         }
       }
     }
-
-    scannedOrders += data.length;
-    if (scannedOrders >= SUMMARY_MAX_ORDERS && page < totalPages) {
-      truncated = true;
-      break;
-    }
-    page += 1;
-  } while (page <= totalPages);
+  }
 
   return {
     orderCount,
@@ -432,7 +465,8 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
       .map(([state, v]) => ({ state, orders: v.orders, revenue: round2(v.revenue) }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10),
-    truncated,
-    scannedOrders,
+    truncated: progress.truncated,
+    scannedOrders: progress.scanned,
+    coveredFrom: earliestPlacedAt,
   };
 }

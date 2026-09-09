@@ -119,6 +119,8 @@ export interface OrdersSummary {
   /** Set when the range held more orders than the server will aggregate in one pass. */
   truncated: boolean;
   scannedOrders: number;
+  /** Oldest order date actually included — differs from `dateFrom` when truncated. */
+  coveredFrom: string | null;
 }
 
 export interface OrderFilters {

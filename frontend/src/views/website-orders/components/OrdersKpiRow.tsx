@@ -2,7 +2,7 @@ import React from "react";
 import { FiShoppingBag, FiTrendingUp, FiBook, FiCreditCard } from "react-icons/fi";
 import { KpiCard, formatINR } from "../../total-offline-sales/components";
 import type { OrdersSummary } from "../../../services/websiteOrdersService";
-import { formatNumber, statusStyle } from "./utils";
+import { formatDate, formatNumber, statusStyle } from "./utils";
 import { STATUS_LABELS } from "../../../services/websiteOrdersService";
 
 interface OrdersKpiRowProps {
@@ -86,9 +86,11 @@ export const OrdersKpiRow: React.FC<OrdersKpiRowProps> = ({ summary, isLoading }
 
       {summary.truncated && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          This range holds more orders than the dashboard aggregates in one pass. The
-          figures above cover the {formatNumber(summary.scannedOrders)} most recent orders in
-          range — narrow the dates for exact totals.
+          This range holds more orders than the dashboard aggregates in one pass. Every
+          figure on this page covers the {formatNumber(summary.scannedOrders)} most recent
+          orders only
+          {summary.coveredFrom ? ` — ${formatDate(summary.coveredFrom)} onward` : ""}, not
+          the full range you selected. Narrow the dates for exact totals.
         </p>
       )}
     </div>

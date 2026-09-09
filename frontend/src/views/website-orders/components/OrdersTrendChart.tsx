@@ -30,7 +30,11 @@ export const OrdersTrendChart: React.FC<OrdersTrendChartProps> = ({ summary, isL
     <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
       <div className="mb-6">
         <h3 className="text-lg font-normal text-gray-800">Daily orders &amp; revenue</h3>
-        <p className="text-xs text-gray-400">Website orders over the selected date range</p>
+        <p className="text-xs text-gray-400">
+          {summary?.truncated && summary.coveredFrom
+            ? `Showing ${formatDate(summary.coveredFrom)} onward — the selected range exceeds what is aggregated in one pass`
+            : "Website orders over the selected date range"}
+        </p>
       </div>
 
       <div style={{ height: 300 }} className="w-full">
