@@ -1,5 +1,5 @@
 import React from "react";
-import { FiSearch, FiRefreshCw, FiX } from "react-icons/fi";
+import { FiChevronDown, FiSearch, FiRefreshCw, FiX } from "react-icons/fi";
 import {
   ORDER_STATUSES,
   PAYMENT_STATUSES,
@@ -10,8 +10,8 @@ import { DATE_PRESETS, daysAgo, toDateInput } from "./utils";
 
 export interface OrdersFilterState {
   search: string;
-  status: string;
-  paymentStatus: string;
+  status: string[];
+  paymentStatus: string[];
   dateFrom: string;
   dateTo: string;
 }
@@ -27,9 +27,6 @@ interface OrdersFilterBarProps {
   isFetching: boolean;
 }
 
-const selectClass =
-  "rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
-
 const dateInputClass =
   "cursor-pointer rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 transition hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 
@@ -44,6 +41,106 @@ function openPicker(event: React.MouseEvent<HTMLInputElement>) {
   } catch {
     /* no-op — the native glyph still works */
   }
+}
+
+interface CheckboxDropdownProps {
+  allLabel: string;
+  ariaLabel: string;
+  options: readonly string[];
+  labels: Record<string, string>;
+  value: string[];
+  onChange: (value: string[]) => void;
+}
+
+function CheckboxDropdown({
+  allLabel,
+  ariaLabel,
+  options,
+  labels,
+  value,
+  onChange,
+}: CheckboxDropdownProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const allSelected = value.length === 0;
+  const buttonLabel =
+    value.length === 0
+      ? allLabel
+      : value.length === 1
+        ? labels[value[0]]
+        : `${value.length} selected`;
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
+
+  const toggle = (option: string) => {
+    onChange(
+      value.includes(option) ? value.filter((item) => item !== option) : [...value, option],
+    );
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        className="flex min-w-[170px] items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+      >
+        <span className="truncate">{buttonLabel}</span>
+        <FiChevronDown className={`h-4 w-4 shrink-0 transition ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <div
+          role="listbox"
+          aria-label={ariaLabel}
+          aria-multiselectable="true"
+          className="absolute right-0 z-30 mt-2 min-w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() => onChange([])}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            {allLabel}
+          </label>
+          <div className="my-1 border-t border-gray-100" />
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <input
+                type="checkbox"
+                checked={value.includes(option)}
+                onChange={() => toggle(option)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              {labels[option]}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
@@ -64,7 +161,7 @@ export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
   );
 
   const isFiltered =
-    Boolean(filters.search) || filters.status !== "ALL" || filters.paymentStatus !== "ALL";
+    Boolean(filters.search) || filters.status.length > 0 || filters.paymentStatus.length > 0;
 
   return (
     <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -91,33 +188,23 @@ export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
           )}
         </div>
 
-        <select
+        <CheckboxDropdown
           value={filters.status}
-          onChange={(event) => onChange({ status: event.target.value })}
-          className={selectClass}
-          aria-label="Order status"
-        >
-          <option value="ALL">{STATUS_LABELS.ALL}</option>
-          {ORDER_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {STATUS_LABELS[status]}
-            </option>
-          ))}
-        </select>
+          onChange={(status) => onChange({ status })}
+          options={ORDER_STATUSES}
+          labels={STATUS_LABELS}
+          allLabel={STATUS_LABELS.ALL}
+          ariaLabel="Order status"
+        />
 
-        <select
+        <CheckboxDropdown
           value={filters.paymentStatus}
-          onChange={(event) => onChange({ paymentStatus: event.target.value })}
-          className={selectClass}
-          aria-label="Payment status"
-        >
-          <option value="ALL">{PAYMENT_STATUS_LABELS.ALL}</option>
-          {PAYMENT_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {PAYMENT_STATUS_LABELS[status]}
-            </option>
-          ))}
-        </select>
+          onChange={(paymentStatus) => onChange({ paymentStatus })}
+          options={PAYMENT_STATUSES}
+          labels={PAYMENT_STATUS_LABELS}
+          allLabel={PAYMENT_STATUS_LABELS.ALL}
+          ariaLabel="Payment status"
+        />
 
         <button
           type="button"

@@ -31,8 +31,8 @@ import {
 /** Last 30 days is the range an operations team actually works in day to day. */
 const DEFAULT_FILTERS: OrdersFilterState = {
   search: "",
-  status: "ALL",
-  paymentStatus: "ALL",
+  status: [],
+  paymentStatus: [],
   dateFrom: daysAgo(30),
   dateTo: toDateInput(new Date()),
 };

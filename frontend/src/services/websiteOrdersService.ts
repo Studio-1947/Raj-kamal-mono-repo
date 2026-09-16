@@ -126,8 +126,8 @@ export interface OrdersSummary {
 export interface OrderFilters {
   page?: number;
   pageSize?: number;
-  status?: string;
-  paymentStatus?: string;
+  status?: string[];
+  paymentStatus?: string[];
   search?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -144,7 +144,11 @@ function toQuery(filters: OrderFilters): string {
   // "ALL" is the UI's way of saying "no filter" — don't send it as a value.
   for (const [key, value] of Object.entries(filters)) {
     if (value === undefined || value === null || value === "" || value === "ALL") continue;
-    params.set(key, String(value));
+    if (Array.isArray(value)) {
+      if (value.length > 0) params.set(key, value.join(","));
+    } else {
+      params.set(key, String(value));
+    }
   }
   const qs = params.toString();
   return qs ? `?${qs}` : "";

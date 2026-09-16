@@ -46,8 +46,8 @@ export const PAYMENT_STATUSES = ["PENDING", "CAPTURED", "FAILED", "REFUNDED"] as
 export type OrderFilters = {
   page?: number | undefined;
   pageSize?: number | undefined;
-  status?: string | undefined;
-  paymentStatus?: string | undefined;
+  status?: string | string[] | undefined;
+  paymentStatus?: string | string[] | undefined;
   channel?: string | undefined;
   search?: string | undefined;
   dateFrom?: string | undefined;
@@ -155,8 +155,10 @@ function buildQuery(filters: OrderFilters): URLSearchParams {
     String(Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(filters.pageSize ?? 20)))),
   );
 
-  const status = trimmed(filters.status);
-  const paymentStatus = trimmed(filters.paymentStatus);
+  const status = trimmed(Array.isArray(filters.status) ? filters.status[0] : filters.status);
+  const paymentStatus = trimmed(
+    Array.isArray(filters.paymentStatus) ? filters.paymentStatus[0] : filters.paymentStatus,
+  );
   const channel = trimmed(filters.channel);
   const search = trimmed(filters.search);
   const dateFrom = normalizeDateBound(filters.dateFrom, "from");
@@ -170,6 +172,20 @@ function buildQuery(filters: OrderFilters): URLSearchParams {
   if (dateTo) params.set("dateTo", dateTo);
 
   return params;
+}
+
+/** The upstream accepts one value per enum, so expand multi-selects into disjoint requests. */
+function expandFilterVariants(filters: OrderFilters): OrderFilters[] {
+  const statuses = Array.isArray(filters.status) && filters.status.length > 0
+    ? filters.status
+    : [Array.isArray(filters.status) ? undefined : filters.status];
+  const paymentStatuses = Array.isArray(filters.paymentStatus) && filters.paymentStatus.length > 0
+    ? filters.paymentStatus
+    : [Array.isArray(filters.paymentStatus) ? undefined : filters.paymentStatus];
+
+  return statuses.flatMap((status) =>
+    paymentStatuses.map((paymentStatus) => ({ ...filters, status, paymentStatus })),
+  );
 }
 
 /**
@@ -290,20 +306,60 @@ async function fetchRawPage(filters: OrderFilters): Promise<{ data: any[]; meta:
 
 /** One page of orders, normalised for the dashboard. */
 export async function fetchOrders(filters: OrderFilters): Promise<OrdersPage> {
-  const { data, meta } = await fetchRawPage(filters);
+  const variants = expandFilterVariants(filters);
+  if (variants.length === 1) {
+    const { data, meta } = await fetchRawPage(variants[0]!);
+    const page = Number(meta?.page) || 1;
+    const pageSize = Number(meta?.pageSize) || data.length;
+    const total = Number(meta?.total) || 0;
 
-  const page = Number(meta?.page) || 1;
-  const pageSize = Number(meta?.pageSize) || data.length;
-  const total = Number(meta?.total) || 0;
+    return {
+      orders: data.map(normalizeOrder),
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Number(meta?.totalPages) || Math.max(1, Math.ceil(total / (pageSize || 1))),
+        hasNextPage: Boolean(meta?.hasNextPage),
+      },
+    };
+  }
+
+  const page = Math.max(1, Math.trunc(filters.page ?? 1));
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(filters.pageSize ?? 20)));
+  const required = page * pageSize;
+  const batches = await Promise.all(
+    variants.map(async (variant) => {
+      const collected: WebsiteOrder[] = [];
+      let upstreamPage = 1;
+      let totalPages = 1;
+      let total = 0;
+      do {
+        const result = await fetchRawPage({ ...variant, page: upstreamPage, pageSize: MAX_PAGE_SIZE });
+        totalPages = Number(result.meta?.totalPages) || 1;
+        total = Number(result.meta?.total) || 0;
+        collected.push(...result.data.map(normalizeOrder));
+        upstreamPage += 1;
+      } while (upstreamPage <= totalPages && collected.length < required);
+      return { orders: collected, total };
+    }),
+  );
+
+  const total = batches.reduce((sum, batch) => sum + batch.total, 0);
+  const offset = (page - 1) * pageSize;
+  const orders = batches
+    .flatMap((batch) => batch.orders)
+    .sort((a, b) => (b.placedAt ?? "").localeCompare(a.placedAt ?? ""))
+    .slice(offset, offset + pageSize);
 
   return {
-    orders: data.map(normalizeOrder),
+    orders,
     meta: {
       page,
       pageSize,
       total,
-      totalPages: Number(meta?.totalPages) || Math.max(1, Math.ceil(total / (pageSize || 1))),
-      hasNextPage: Boolean(meta?.hasNextPage),
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      hasNextPage: page * pageSize < total,
     },
   };
 }
@@ -353,24 +409,34 @@ export async function* scanOrders(
   maxOrders: number,
   progress: ScanProgress,
 ): AsyncGenerator<WebsiteOrder> {
-  let page = 1;
-  let totalPages = 1;
+  const variants = expandFilterVariants(filters);
+  for (let variantIndex = 0; variantIndex < variants.length; variantIndex += 1) {
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const { data, meta } = await fetchRawPage({
+        ...variants[variantIndex],
+        page,
+        pageSize: MAX_PAGE_SIZE,
+      });
+      totalPages = Number(meta?.totalPages) || 1;
 
-  do {
-    const { data, meta } = await fetchRawPage({ ...filters, page, pageSize: MAX_PAGE_SIZE });
-    totalPages = Number(meta?.totalPages) || 1;
+      for (const raw of data) {
+        if (progress.scanned >= maxOrders) {
+          progress.truncated = true;
+          return;
+        }
+        yield normalizeOrder(raw);
+        progress.scanned += 1;
+      }
+      page += 1;
+    } while (page <= totalPages);
 
-    for (const raw of data) {
-      yield normalizeOrder(raw);
-      progress.scanned += 1;
-    }
-
-    if (progress.scanned >= maxOrders && page < totalPages) {
+    if (progress.scanned >= maxOrders && variantIndex < variants.length - 1) {
       progress.truncated = true;
       return;
     }
-    page += 1;
-  } while (page <= totalPages);
+  }
 }
 
 /**

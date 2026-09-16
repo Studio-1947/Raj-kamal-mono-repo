@@ -63,11 +63,14 @@ function asPositiveInt(value: unknown, fallback: number, max: number): number {
   return Math.min(max, Math.max(1, Math.trunc(n)));
 }
 
-/** Reject unknown enum values here rather than letting them reach the upstream. */
-function asEnum(value: unknown, allowed: readonly string[]): string | undefined {
-  const raw = asString(value)?.toUpperCase();
-  if (!raw || raw === "ALL") return undefined;
-  return allowed.includes(raw) ? raw : undefined;
+/** Accept a comma-separated set while silently dropping unknown enum values. */
+function asEnums(value: unknown, allowed: readonly string[]): string[] | undefined {
+  const raw = asString(value);
+  if (!raw || raw.toUpperCase() === "ALL") return undefined;
+  const values = [...new Set(raw.split(",").map((item) => item.trim().toUpperCase()))].filter(
+    (item) => allowed.includes(item),
+  );
+  return values.length > 0 ? values : undefined;
 }
 
 function readFilters(req: AuthRequest): OrderFilters {
@@ -75,8 +78,8 @@ function readFilters(req: AuthRequest): OrderFilters {
   return {
     page: asPositiveInt(q.page, 1, 100_000),
     pageSize: asPositiveInt(q.pageSize, 20, 100),
-    status: asEnum(q.status, ORDER_STATUSES),
-    paymentStatus: asEnum(q.paymentStatus, PAYMENT_STATUSES),
+    status: asEnums(q.status, ORDER_STATUSES),
+    paymentStatus: asEnums(q.paymentStatus, PAYMENT_STATUSES),
     channel: asString(q.channel)?.toUpperCase(),
     search: asString(q.search),
     dateFrom: asString(q.dateFrom),
@@ -143,12 +146,12 @@ async function respond(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [ALL, PENDING, PENDING_LABEL, PENDING_DISPATCH, COMPLETED, CANCELLED]
+ *         description: Comma-separated values, or ALL
  *       - in: query
  *         name: paymentStatus
  *         schema:
  *           type: string
- *           enum: [ALL, PENDING, CAPTURED, FAILED, REFUNDED]
+ *         description: Comma-separated values, or ALL
  *       - in: query
  *         name: search
  *         schema: { type: string }

@@ -462,8 +462,16 @@ export function describeFilters(filters: OrderFilters): string {
   if (filters.dateFrom || filters.dateTo) {
     parts.push(`${prettyDate(filters.dateFrom ?? null)} – ${prettyDate(filters.dateTo ?? null)}`);
   }
-  if (filters.status) parts.push(`Status: ${humanize(filters.status)}`);
-  if (filters.paymentStatus) parts.push(`Payment: ${humanize(filters.paymentStatus)}`);
+  if (filters.status) {
+    const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
+    parts.push(`Status: ${statuses.map(humanize).join(", ")}`);
+  }
+  if (filters.paymentStatus) {
+    const statuses = Array.isArray(filters.paymentStatus)
+      ? filters.paymentStatus
+      : [filters.paymentStatus];
+    parts.push(`Payment: ${statuses.map(humanize).join(", ")}`);
+  }
   if (filters.search) parts.push(`Search: "${filters.search}"`);
   return parts.length > 0 ? parts.join("  ·  ") : "All orders";
 }
