@@ -328,22 +328,22 @@ export async function fetchOrders(filters: OrderFilters): Promise<OrdersPage> {
   const page = Math.max(1, Math.trunc(filters.page ?? 1));
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(filters.pageSize ?? 20)));
   const required = page * pageSize;
-  const batches = await Promise.all(
-    variants.map(async (variant) => {
-      const collected: WebsiteOrder[] = [];
-      let upstreamPage = 1;
-      let totalPages = 1;
-      let total = 0;
-      do {
-        const result = await fetchRawPage({ ...variant, page: upstreamPage, pageSize: MAX_PAGE_SIZE });
-        totalPages = Number(result.meta?.totalPages) || 1;
-        total = Number(result.meta?.total) || 0;
-        collected.push(...result.data.map(normalizeOrder));
-        upstreamPage += 1;
-      } while (upstreamPage <= totalPages && collected.length < required);
-      return { orders: collected, total };
-    }),
-  );
+  const batches: { orders: WebsiteOrder[]; total: number }[] = [];
+  // Keep variant requests sequential: the bookstore API is rate-limited.
+  for (const variant of variants) {
+    const collected: WebsiteOrder[] = [];
+    let upstreamPage = 1;
+    let totalPages = 1;
+    let total = 0;
+    do {
+      const result = await fetchRawPage({ ...variant, page: upstreamPage, pageSize: MAX_PAGE_SIZE });
+      totalPages = Number(result.meta?.totalPages) || 1;
+      total = Number(result.meta?.total) || 0;
+      collected.push(...result.data.map(normalizeOrder));
+      upstreamPage += 1;
+    } while (upstreamPage <= totalPages && collected.length < required);
+    batches.push({ orders: collected, total });
+  }
 
   const total = batches.reduce((sum, batch) => sum + batch.total, 0);
   const offset = (page - 1) * pageSize;
