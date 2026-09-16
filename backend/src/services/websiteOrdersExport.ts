@@ -258,13 +258,14 @@ function tableRow(
 
   doc.font(bold ? "body-bold" : "body").fillColor(muted ? MUTED : INK).fontSize(9);
   cells.forEach((cell, index) => {
+    const width = widths[index] ?? 0;
     doc.text(cell, x, y, {
-      width: widths[index] - 6,
+      width: width - 6,
       align: index >= alignRightFrom ? "right" : "left",
       ellipsis: true,
       lineBreak: false,
     });
-    x += widths[index];
+    x += width;
   });
   doc.y = y + 14;
 }
