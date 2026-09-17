@@ -20,16 +20,16 @@ import {
   PAYMENT_STATUSES,
   type OrderFilters,
 } from "../services/websiteOrdersService.js";
+import {
+  streamOrdersCsv,
+  streamOrdersPdf,
+  describeFilters,
+  exportFilename,
+  type CsvGranularity,
+} from "../services/websiteOrdersExport.js";
 
 const router = Router();
 
-/**
- * Short-lived response cache. Orders change constantly, so this is only here to
- * absorb the burst of identical requests a dashboard makes when a user flips a
- * filter back and forth — 60s, not a real caching layer. It's per-process, so on
- * serverless it simply never hits; that's fine, it's an optimisation not a
- * correctness mechanism.
- */
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 100;
 const cache = new Map<string, { at: number; payload: unknown }>();
@@ -45,7 +45,6 @@ function cacheGet(key: string): unknown | undefined {
 }
 
 function cacheSet(key: string, payload: unknown): void {
-  // Map preserves insertion order, so the first key is the oldest.
   if (cache.size >= CACHE_MAX_ENTRIES) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) cache.delete(oldest);
@@ -63,7 +62,6 @@ function asPositiveInt(value: unknown, fallback: number, max: number): number {
   return Math.min(max, Math.max(1, Math.trunc(n)));
 }
 
-/** Accept a comma-separated set while silently dropping unknown enum values. */
 function asEnums(value: unknown, allowed: readonly string[]): string[] | undefined {
   const raw = asString(value);
   if (!raw || raw.toUpperCase() === "ALL") return undefined;
@@ -87,11 +85,6 @@ function readFilters(req: AuthRequest): OrderFilters {
   };
 }
 
-/**
- * One handler shape for every route: run the work, cache the success, and translate
- * a WebsiteApiError into the status it already decided on (503 unconfigured, 504
- * timeout, 502 upstream fault) instead of a blanket 500.
- */
 async function respond(
   res: Response,
   cacheKey: string,
@@ -121,50 +114,8 @@ async function respond(
 }
 
 /**
- * @swagger
- * tags:
- *   name: WebsiteOrders
- *   description: Orders placed on the rajkamalprakashan.com website
- */
-
-/**
- * @swagger
- * /api/website-orders:
- *   get:
- *     summary: Paginated list of website orders
- *     tags: [WebsiteOrders]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1 }
- *       - in: query
- *         name: pageSize
- *         schema: { type: integer, default: 20, maximum: 100 }
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *         description: Comma-separated values, or ALL
- *       - in: query
- *         name: paymentStatus
- *         schema:
- *           type: string
- *         description: Comma-separated values, or ALL
- *       - in: query
- *         name: search
- *         schema: { type: string }
- *         description: Matches order number, customer name, email or phone
- *       - in: query
- *         name: dateFrom
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: dateTo
- *         schema: { type: string, format: date }
- *     responses:
- *       200: { description: Normalised page of orders with pagination meta }
- *       503: { description: Website API credentials are not configured }
+ * GET /api/website-orders
+ * Paginated list of website orders
  */
 router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
   const filters = readFilters(req);
@@ -172,57 +123,73 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/website-orders/summary:
- *   get:
- *     summary: Aggregated KPIs for the filtered order range
- *     description: >
- *       The upstream API has no stats endpoint, so this pages through the filtered
- *       range server-side. Ranges past 3000 orders come back with `truncated: true`.
- *     tags: [WebsiteOrders]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200: { description: Totals, per-status/payment breakdowns, daily series, top products and states }
+ * GET /api/website-orders/summary
+ * Aggregated KPIs for filtered range
  */
-// Registered before `/:id` so "summary" isn't swallowed as an order id.
 router.get("/summary", authenticateToken, async (req: AuthRequest, res: Response) => {
-  // page/pageSize are meaningless for an aggregate and would only fragment the cache.
   const { page: _page, pageSize: _pageSize, ...filters } = readFilters(req);
   await respond(res, `summary:${JSON.stringify(filters)}`, () => fetchOrdersSummary(filters));
 });
 
 /**
- * @swagger
- * /api/website-orders/health:
- *   get:
- *     summary: Whether the website API connection is configured and live
- *     tags: [WebsiteOrders]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200: { description: Configuration mode, base URL and cached token expiry }
+ * GET /api/website-orders/health
+ * Connection status
  */
 router.get("/health", authenticateToken, (_req: AuthRequest, res: Response) => {
   res.status(200).json({ success: true, data: getWebsiteApiHealth() });
 });
 
 /**
- * @swagger
- * /api/website-orders/{id}:
- *   get:
- *     summary: A single website order
- *     tags: [WebsiteOrders]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: The normalised order }
- *       404: { description: Order not found }
+ * GET /api/website-orders/export/csv
+ * CSV export with customizable columns
+ */
+router.get("/export/csv", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { page: _p, pageSize: _ps, ...filters } = readFilters(req);
+    const granularity: CsvGranularity = req.query.granularity === "items" ? "items" : "orders";
+    const rawCols = req.query.columns;
+    const selectedColumns = typeof rawCols === "string" && rawCols.trim()
+      ? rawCols.split(",").map((c) => c.trim()).filter(Boolean)
+      : undefined;
+
+    const filename = exportFilename(filters, granularity === "items" ? "line-items" : "", "csv");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    await streamOrdersCsv(filters, granularity, res, selectedColumns);
+  } catch (error: any) {
+    console.error("[website-orders export/csv] failure:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: "Failed to export CSV." });
+    }
+  }
+});
+
+/**
+ * GET /api/website-orders/export/pdf
+ * PDF report export
+ */
+router.get("/export/pdf", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { page: _p, pageSize: _ps, ...filters } = readFilters(req);
+    const filterLabel = describeFilters(filters);
+    const filename = exportFilename(filters, "report", "pdf");
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    await streamOrdersPdf({ filters, filterLabel }, res);
+  } catch (error: any) {
+    console.error("[website-orders export/pdf] failure:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: "Failed to export PDF." });
+    }
+  }
+});
+
+/**
+ * GET /api/website-orders/:id
+ * Single order details
  */
 router.get("/:id", authenticateToken, async (req: AuthRequest, res: Response) => {
   const id = String(req.params.id);

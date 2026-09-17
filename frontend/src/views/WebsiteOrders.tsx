@@ -142,6 +142,7 @@ export default function WebsiteOrders() {
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           onSelectOrder={setSelectedOrder}
+          filters={queryFilters}
         />
       </div>
 

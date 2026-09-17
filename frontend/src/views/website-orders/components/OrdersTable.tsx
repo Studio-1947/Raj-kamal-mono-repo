@@ -1,8 +1,8 @@
 import React from "react";
-import { FiPackage, FiTruck, FiAlertCircle } from "react-icons/fi";
+import { FiPackage, FiTruck, FiAlertCircle, FiDownload } from "react-icons/fi";
 import { formatINR } from "../../total-offline-sales/components";
 import TablePagination from "../../../components/TablePagination";
-import type { OrdersPage, WebsiteOrder } from "../../../services/websiteOrdersService";
+import type { OrdersPage, WebsiteOrder, OrderFilters } from "../../../services/websiteOrdersService";
 import { STATUS_LABELS } from "../../../services/websiteOrdersService";
 import {
   formatDateTime,
@@ -11,6 +11,7 @@ import {
   paymentStatusStyle,
   statusStyle,
 } from "./utils";
+import { ExportOrdersModal } from "./ExportOrdersModal";
 
 interface OrdersTableProps {
   page: OrdersPage | undefined;
@@ -22,6 +23,7 @@ interface OrdersTableProps {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   onSelectOrder: (order: WebsiteOrder) => void;
+  filters?: OrderFilters;
 }
 
 const COLUMNS = ["Order", "Placed", "Customer", "Ships to", "Items", "Status", "Payment", "Total"];
@@ -64,7 +66,9 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
   onPageChange,
   onPageSizeChange,
   onSelectOrder,
+  filters = {},
 }) => {
+  const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
   const orders = page?.orders ?? [];
 
   return (
@@ -76,10 +80,22 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             {page ? `${formatNumber(page.meta.total)} orders match the current filters` : "Loading…"}
           </p>
         </div>
-        {/* Only shown on a background refetch — the first load has its own skeleton. */}
-        {isFetching && !isLoading && (
-          <span className="text-xs text-gray-400">Refreshing…</span>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Only shown on a background refetch — the first load has its own skeleton. */}
+          {isFetching && !isLoading && (
+            <span className="text-xs text-gray-400">Refreshing…</span>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            disabled={isLoading || !page || page.meta.total === 0}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition"
+            title="Export CSV spreadsheet with custom fields"
+          >
+            <FiDownload className="h-4 w-4 text-blue-600" />
+            <span>Export CSV</span>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -209,6 +225,14 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
           )}
         </>
       )}
+
+      <ExportOrdersModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        filters={filters}
+        currentPageOrders={orders}
+        totalMatchingOrders={page?.meta.total ?? 0}
+      />
     </div>
   );
 };

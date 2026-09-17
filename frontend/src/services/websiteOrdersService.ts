@@ -199,3 +199,32 @@ export const useWebsiteOrder = (id: string | null) =>
     enabled: Boolean(id),
     staleTime: 60 * 1000,
   });
+
+/**
+ * Builds the backend CSV download URL with active filters and selected columns.
+ */
+export function buildExportCsvUrl(
+  filters: OrderFilters,
+  columns?: string[],
+  granularity: "orders" | "items" = "orders",
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (key === "page" || key === "pageSize") continue;
+    if (value === undefined || value === null || value === "" || value === "ALL") continue;
+    if (Array.isArray(value)) {
+      if (value.length > 0) params.set(key, value.join(","));
+    } else {
+      params.set(key, String(value));
+    }
+  }
+  if (columns && columns.length > 0) {
+    params.set("columns", columns.join(","));
+  }
+  if (granularity !== "orders") {
+    params.set("granularity", granularity);
+  }
+  const baseUrl = (apiClient as any).client?.defaults?.baseURL || "/api/";
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return `${normalizedBase}website-orders/export/csv?${params.toString()}`;
+}

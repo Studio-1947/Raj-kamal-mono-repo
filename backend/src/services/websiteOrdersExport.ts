@@ -79,14 +79,56 @@ function csvDateTime(value: string | null): string {
   return date.toISOString().replace("T", " ").slice(0, 19);
 }
 
-const ORDER_COLUMNS = [
-  "Order Number", "Placed At", "Status", "Payment Status", "Payment Method",
-  "Customer Name", "Email", "Phone", "Customer Group",
-  "City", "State", "Postal Code", "Country",
-  "Titles", "Copies", "Items",
-  "Subtotal", "Discount", "Tax", "Shipping", "COD Fee", "Grand Total", "Currency",
-  "Carrier", "Tracking Number", "Shipment Status", "Shipped At", "Delivered At",
-  "Split Order", "Channel", "Order ID",
+export interface FieldDef {
+  key: string;
+  label: string;
+  category: "customer" | "order" | "shipping" | "amounts" | "items" | "shipment";
+  getValue: (order: WebsiteOrder) => unknown;
+}
+
+export const ALL_ORDER_FIELDS: FieldDef[] = [
+  // Customer
+  { key: "customerName", label: "Customer Name", category: "customer", getValue: (o) => o.customer.name },
+  { key: "customerPhone", label: "Phone", category: "customer", getValue: (o) => o.customer.phone ?? "" },
+  { key: "customerEmail", label: "Email", category: "customer", getValue: (o) => o.customer.email ?? "" },
+  { key: "customerGroup", label: "Customer Group", category: "customer", getValue: (o) => o.customer.group ?? "" },
+
+  // Order
+  { key: "orderNumber", label: "Order Number", category: "order", getValue: (o) => o.orderNumber },
+  { key: "placedAt", label: "Placed At", category: "order", getValue: (o) => csvDateTime(o.placedAt) },
+  { key: "status", label: "Status", category: "order", getValue: (o) => o.status },
+  { key: "paymentStatus", label: "Payment Status", category: "order", getValue: (o) => o.paymentStatus },
+  { key: "paymentMethod", label: "Payment Method", category: "order", getValue: (o) => o.paymentMethod ?? "" },
+  { key: "channel", label: "Channel", category: "order", getValue: (o) => o.channel },
+  { key: "isSplitOrder", label: "Split Order", category: "order", getValue: (o) => (o.isSplitOrder ? "Yes" : "No") },
+  { key: "orderId", label: "Order ID", category: "order", getValue: (o) => o.id },
+
+  // Shipping
+  { key: "city", label: "City", category: "shipping", getValue: (o) => o.shipTo.city ?? "" },
+  { key: "state", label: "State", category: "shipping", getValue: (o) => o.shipTo.state ?? "" },
+  { key: "postalCode", label: "Postal Code", category: "shipping", getValue: (o) => o.shipTo.postalCode ?? "" },
+  { key: "country", label: "Country", category: "shipping", getValue: (o) => o.shipTo.country ?? "" },
+
+  // Items
+  { key: "itemCount", label: "Unique Titles", category: "items", getValue: (o) => o.itemCount },
+  { key: "totalQuantity", label: "Total Copies", category: "items", getValue: (o) => o.totalQuantity },
+  { key: "itemsSummary", label: "Items Summary", category: "items", getValue: (o) => o.items.map((item) => `${item.name} x${item.quantity}`).join(" | ") },
+
+  // Amounts
+  { key: "subtotal", label: "Subtotal", category: "amounts", getValue: (o) => o.amounts.subtotal },
+  { key: "discount", label: "Discount", category: "amounts", getValue: (o) => o.amounts.discount },
+  { key: "tax", label: "Tax", category: "amounts", getValue: (o) => o.amounts.tax },
+  { key: "shippingFee", label: "Shipping Fee", category: "amounts", getValue: (o) => o.amounts.shipping },
+  { key: "codFee", label: "COD Fee", category: "amounts", getValue: (o) => o.amounts.codFee },
+  { key: "grandTotal", label: "Grand Total", category: "amounts", getValue: (o) => o.amounts.grandTotal },
+  { key: "currency", label: "Currency", category: "amounts", getValue: (o) => o.currency },
+
+  // Shipment / Logistics
+  { key: "carrier", label: "Carrier", category: "shipment", getValue: (o) => o.shipment?.carrier ?? "" },
+  { key: "trackingNumber", label: "Tracking Number", category: "shipment", getValue: (o) => o.shipment?.trackingNumber ?? "" },
+  { key: "shipmentStatus", label: "Shipment Status", category: "shipment", getValue: (o) => o.shipment?.status ?? "" },
+  { key: "shippedAt", label: "Shipped At", category: "shipment", getValue: (o) => csvDateTime(o.shipment?.shippedAt ?? null) },
+  { key: "deliveredAt", label: "Delivered At", category: "shipment", getValue: (o) => csvDateTime(o.shipment?.deliveredAt ?? null) },
 ];
 
 const ITEM_COLUMNS = [
@@ -96,41 +138,8 @@ const ITEM_COLUMNS = [
   "Order Grand Total", "Currency", "Order ID",
 ];
 
-function orderRow(order: WebsiteOrder): string {
-  return csvRow([
-    order.orderNumber,
-    csvDateTime(order.placedAt),
-    order.status,
-    order.paymentStatus,
-    order.paymentMethod ?? "",
-    order.customer.name,
-    order.customer.email ?? "",
-    order.customer.phone ?? "",
-    order.customer.group ?? "",
-    order.shipTo.city ?? "",
-    order.shipTo.state ?? "",
-    order.shipTo.postalCode ?? "",
-    order.shipTo.country ?? "",
-    order.itemCount,
-    order.totalQuantity,
-    // Readable at a glance without needing the line-item export alongside it.
-    order.items.map((item) => `${item.name} x${item.quantity}`).join(" | "),
-    order.amounts.subtotal,
-    order.amounts.discount,
-    order.amounts.tax,
-    order.amounts.shipping,
-    order.amounts.codFee,
-    order.amounts.grandTotal,
-    order.currency,
-    order.shipment?.carrier ?? "",
-    order.shipment?.trackingNumber ?? "",
-    order.shipment?.status ?? "",
-    csvDateTime(order.shipment?.shippedAt ?? null),
-    csvDateTime(order.shipment?.deliveredAt ?? null),
-    order.isSplitOrder ? "Yes" : "No",
-    order.channel,
-    order.id,
-  ]);
+function buildCustomRow(order: WebsiteOrder, fields: FieldDef[]): string {
+  return csvRow(fields.map((f) => f.getValue(order)));
 }
 
 function itemRows(order: WebsiteOrder): string {
@@ -162,25 +171,41 @@ function itemRows(order: WebsiteOrder): string {
 /**
  * Stream the filtered orders as CSV.
  *
- * `granularity: "items"` emits one row per book with the order fields repeated —
- * that's the shape you need to pivot by title, which the order-level export can't
- * answer. Headers are set by the caller before this runs.
+ * Supports `selectedColumns` to filter down output fields when requested by user.
  */
 export async function streamOrdersCsv(
   filters: OrderFilters,
   granularity: CsvGranularity,
   res: Response,
+  selectedColumns?: string[],
 ): Promise<void> {
   const progress: ScanProgress = { scanned: 0, truncated: false };
 
-  // UTF-8 BOM. Without it Excel decodes the file as the system codepage and every
-  // Devanagari name arrives as mojibake — the single most common way an export like
-  // this is reported "broken".
+  // Determine active fields based on requested column keys
+  let activeFields = ALL_ORDER_FIELDS;
+  if (selectedColumns && selectedColumns.length > 0) {
+    const keySet = new Set(selectedColumns);
+    const filtered = ALL_ORDER_FIELDS.filter((f) => keySet.has(f.key));
+    if (filtered.length > 0) {
+      activeFields = filtered;
+    }
+  }
+
+  // UTF-8 BOM. Without it Excel decodes the file as system codepage and Devanagari turns to mojibake.
   res.write("﻿");
-  res.write(csvRow(granularity === "items" ? ITEM_COLUMNS : ORDER_COLUMNS));
+
+  if (granularity === "items") {
+    res.write(csvRow(ITEM_COLUMNS));
+  } else {
+    res.write(csvRow(activeFields.map((f) => f.label)));
+  }
 
   for await (const order of scanOrders(filters, EXPORT_MAX_ORDERS, progress)) {
-    res.write(granularity === "items" ? itemRows(order) : orderRow(order));
+    if (granularity === "items") {
+      res.write(itemRows(order));
+    } else {
+      res.write(buildCustomRow(order, activeFields));
+    }
   }
 
   if (progress.truncated) {
