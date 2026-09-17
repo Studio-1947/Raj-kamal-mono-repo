@@ -11,6 +11,7 @@ import { apiClient } from "../lib/apiClient";
 
 export const ORDER_STATUSES = [
   "PENDING",
+  "PENDING_INVOICE",
   "PENDING_LABEL",
   "PENDING_DISPATCH",
   "COMPLETED",
@@ -26,6 +27,7 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const STATUS_LABELS: Record<string, string> = {
   ALL: "All statuses",
   PENDING: "Pending",
+  PENDING_INVOICE: "Pending invoice",
   PENDING_LABEL: "Awaiting label",
   PENDING_DISPATCH: "Awaiting dispatch",
   COMPLETED: "Completed",

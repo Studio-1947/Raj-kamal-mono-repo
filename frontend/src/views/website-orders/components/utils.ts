@@ -7,6 +7,7 @@
  */
 export const STATUS_STYLES: Record<string, { chip: string; dot: string; hex: string }> = {
   PENDING: { chip: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500", hex: "#F59E0B" },
+  PENDING_INVOICE: { chip: "bg-purple-50 text-purple-700 border-purple-200", dot: "bg-purple-500", hex: "#8B5CF6" },
   PENDING_LABEL: { chip: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500", hex: "#F97316" },
   PENDING_DISPATCH: { chip: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500", hex: "#3B82F6" },
   COMPLETED: { chip: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", hex: "#10B981" },
