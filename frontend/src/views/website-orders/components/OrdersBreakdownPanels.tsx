@@ -12,17 +12,22 @@ interface PanelProps {
 function Panel({
   title,
   subtitle,
+  controls,
   children,
 }: {
   title: string;
   subtitle: string;
+  controls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
-      <div className="mb-4">
-        <h3 className="text-lg font-normal text-gray-800">{title}</h3>
-        <p className="text-xs text-gray-400">{subtitle}</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-lg font-normal text-gray-800">{title}</h3>
+          <p className="text-xs text-gray-400">{subtitle}</p>
+        </div>
+        {controls && <div className="flex flex-wrap items-center gap-1.5">{controls}</div>}
       </div>
       {children}
     </div>
@@ -108,25 +113,98 @@ export const PaymentMixPanel: React.FC<PanelProps> = ({ summary, isLoading }) =>
 };
 
 export const TopProductsPanel: React.FC<PanelProps> = ({ summary, isLoading }) => {
-  const rows = summary?.topProducts ?? [];
-  const max = Math.max(1, ...rows.map((row) => row.quantity));
+  const [mode, setMode] = React.useState<"top" | "bottom">("top");
+  const [sortBy, setSortBy] = React.useState<"quantity" | "revenue">("quantity");
+  const [limit, setLimit] = React.useState<number>(10);
+
+  const sortedProducts = React.useMemo(() => {
+    const list = [...(summary?.topProducts ?? [])];
+    list.sort((a, b) => {
+      const valA = sortBy === "quantity" ? a.quantity : a.revenue;
+      const valB = sortBy === "quantity" ? b.quantity : b.revenue;
+      return mode === "top" ? valB - valA : valA - valB;
+    });
+    return list.slice(0, limit);
+  }, [summary?.topProducts, mode, sortBy, limit]);
+
+  const max = Math.max(
+    1,
+    ...sortedProducts.map((row) => (sortBy === "quantity" ? row.quantity : row.revenue))
+  );
+
+  const panelTitle = mode === "top" ? "Top titles" : "Bottom titles";
+  const panelSubtitle =
+    mode === "top"
+      ? sortBy === "quantity"
+        ? "Best-selling books in this range, by copies sold"
+        : "Highest grossing books in this range, by revenue"
+      : sortBy === "quantity"
+        ? "Lowest-selling books in this range, by copies sold"
+        : "Lowest grossing books in this range, by revenue";
+
+  const controls = (
+    <>
+      <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs">
+        <button
+          type="button"
+          onClick={() => setMode("top")}
+          className={`rounded-md px-2 py-0.5 font-medium transition ${
+            mode === "top" ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Top
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("bottom")}
+          className={`rounded-md px-2 py-0.5 font-medium transition ${
+            mode === "bottom" ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Bottom
+        </button>
+      </div>
+
+      <select
+        value={sortBy}
+        onChange={(e) => setSortBy(e.target.value as "quantity" | "revenue")}
+        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value="quantity">By Copies</option>
+        <option value="revenue">By Revenue</option>
+      </select>
+
+      <select
+        value={limit}
+        onChange={(e) => setLimit(Number(e.target.value))}
+        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value={5}>5</option>
+        <option value={10}>10</option>
+        <option value={20}>20</option>
+      </select>
+    </>
+  );
 
   return (
-    <Panel title="Top titles" subtitle="Best-selling books in this range, by copies sold">
-      {rows.length === 0 ? (
+    <Panel title={panelTitle} subtitle={panelSubtitle} controls={controls}>
+      {sortedProducts.length === 0 ? (
         <EmptyOrSkeleton isLoading={isLoading} />
       ) : (
         <div className="space-y-4">
-          {rows.map((product) => (
-            <BarRow
-              key={product.sku ?? product.name}
-              label={product.name}
-              sublabel={`${formatNumber(product.quantity)} · ${formatINR(product.revenue)}`}
-              value={product.quantity}
-              max={max}
-              color="#8B5CF6"
-            />
-          ))}
+          {sortedProducts.map((product) => {
+            const rowVal = sortBy === "quantity" ? product.quantity : product.revenue;
+            return (
+              <BarRow
+                key={product.sku ?? product.name}
+                label={product.name}
+                sublabel={`${formatNumber(product.quantity)} · ${formatINR(product.revenue)}`}
+                value={rowVal}
+                max={max}
+                color={mode === "top" ? "#8B5CF6" : "#EC4899"}
+              />
+            );
+          })}
         </div>
       )}
     </Panel>
@@ -134,25 +212,98 @@ export const TopProductsPanel: React.FC<PanelProps> = ({ summary, isLoading }) =
 };
 
 export const TopStatesPanel: React.FC<PanelProps> = ({ summary, isLoading }) => {
-  const rows = summary?.topStates ?? [];
-  const max = Math.max(1, ...rows.map((row) => row.revenue));
+  const [mode, setMode] = React.useState<"top" | "bottom">("top");
+  const [sortBy, setSortBy] = React.useState<"revenue" | "orders">("revenue");
+  const [limit, setLimit] = React.useState<number>(10);
+
+  const sortedStates = React.useMemo(() => {
+    const list = [...(summary?.topStates ?? [])];
+    list.sort((a, b) => {
+      const valA = sortBy === "revenue" ? a.revenue : a.orders;
+      const valB = sortBy === "revenue" ? b.revenue : b.orders;
+      return mode === "top" ? valB - valA : valA - valB;
+    });
+    return list.slice(0, limit);
+  }, [summary?.topStates, mode, sortBy, limit]);
+
+  const max = Math.max(
+    1,
+    ...sortedStates.map((row) => (sortBy === "revenue" ? row.revenue : row.orders))
+  );
+
+  const panelTitle = mode === "top" ? "Top states" : "Bottom states";
+  const panelSubtitle =
+    mode === "top"
+      ? sortBy === "revenue"
+        ? "Where the orders ship, by revenue"
+        : "Where the orders ship, by order count"
+      : sortBy === "revenue"
+        ? "Lowest shipping states in this range, by revenue"
+        : "Lowest shipping states in this range, by order count";
+
+  const controls = (
+    <>
+      <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs">
+        <button
+          type="button"
+          onClick={() => setMode("top")}
+          className={`rounded-md px-2 py-0.5 font-medium transition ${
+            mode === "top" ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Top
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("bottom")}
+          className={`rounded-md px-2 py-0.5 font-medium transition ${
+            mode === "bottom" ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Bottom
+        </button>
+      </div>
+
+      <select
+        value={sortBy}
+        onChange={(e) => setSortBy(e.target.value as "revenue" | "orders")}
+        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value="revenue">By Revenue</option>
+        <option value="orders">By Orders</option>
+      </select>
+
+      <select
+        value={limit}
+        onChange={(e) => setLimit(Number(e.target.value))}
+        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value={5}>5</option>
+        <option value={10}>10</option>
+        <option value={20}>20</option>
+      </select>
+    </>
+  );
 
   return (
-    <Panel title="Top states" subtitle="Where the orders ship, by revenue">
-      {rows.length === 0 ? (
+    <Panel title={panelTitle} subtitle={panelSubtitle} controls={controls}>
+      {sortedStates.length === 0 ? (
         <EmptyOrSkeleton isLoading={isLoading} />
       ) : (
         <div className="space-y-4">
-          {rows.map((state) => (
-            <BarRow
-              key={state.state}
-              label={state.state}
-              sublabel={`${formatNumber(state.orders)} orders · ${formatINR(state.revenue)}`}
-              value={state.revenue}
-              max={max}
-              color="#F97316"
-            />
-          ))}
+          {sortedStates.map((state) => {
+            const rowVal = sortBy === "revenue" ? state.revenue : state.orders;
+            return (
+              <BarRow
+                key={state.state}
+                label={state.state}
+                sublabel={`${formatNumber(state.orders)} orders · ${formatINR(state.revenue)}`}
+                value={rowVal}
+                max={max}
+                color={mode === "top" ? "#F97316" : "#E11D48"}
+              />
+            );
+          })}
         </div>
       )}
     </Panel>

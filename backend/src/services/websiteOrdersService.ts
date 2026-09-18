@@ -464,48 +464,46 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
   const progress: ScanProgress = { scanned: 0, truncated: false };
 
   for await (const order of scanOrders(filters, SUMMARY_MAX_ORDERS, progress)) {
-    {
-      const isRevenue = order.status !== "CANCELLED";
-      const orderRevenue = isRevenue ? order.amounts.grandTotal : 0;
+    const isRevenue = order.status !== "CANCELLED";
+    const orderRevenue = isRevenue ? order.amounts.grandTotal : 0;
 
-      orderCount += 1;
-      revenue += orderRevenue;
-      if (isRevenue) itemsSold += order.totalQuantity;
+    orderCount += 1;
+    revenue += orderRevenue;
+    if (isRevenue) itemsSold += order.totalQuantity;
 
-      bump(byStatus, order.status, orderRevenue);
-      bump(byPaymentMethod, order.paymentMethod ?? "UNSPECIFIED", orderRevenue);
+    bump(byStatus, order.status, orderRevenue);
+    bump(byPaymentMethod, order.paymentMethod ?? "UNSPECIFIED", orderRevenue);
 
-      if (order.placedAt) {
-        if (!earliestPlacedAt || order.placedAt < earliestPlacedAt) {
-          earliestPlacedAt = order.placedAt;
-        }
-        const day = order.placedAt.slice(0, 10);
-        const bucket = dailyMap.get(day) ?? { orders: 0, revenue: 0 };
-        bucket.orders += 1;
-        bucket.revenue += orderRevenue;
-        dailyMap.set(day, bucket);
+    if (order.placedAt) {
+      if (!earliestPlacedAt || order.placedAt < earliestPlacedAt) {
+        earliestPlacedAt = order.placedAt;
       }
+      const day = order.placedAt.slice(0, 10);
+      const bucket = dailyMap.get(day) ?? { orders: 0, revenue: 0 };
+      bucket.orders += 1;
+      bucket.revenue += orderRevenue;
+      dailyMap.set(day, bucket);
+    }
 
-      const state = order.shipTo.state ?? "Unknown";
-      const stateBucket = stateMap.get(state) ?? { orders: 0, revenue: 0 };
-      stateBucket.orders += 1;
-      stateBucket.revenue += orderRevenue;
-      stateMap.set(state, stateBucket);
+    const state = order.shipTo.state ?? "Unknown";
+    const stateBucket = stateMap.get(state) ?? { orders: 0, revenue: 0 };
+    stateBucket.orders += 1;
+    stateBucket.revenue += orderRevenue;
+    stateMap.set(state, stateBucket);
 
-      if (isRevenue) {
-        for (const item of order.items) {
-          // SKU is the stable identity; titles repeat across editions.
-          const key = item.sku ?? item.name;
-          const product = productMap.get(key) ?? {
-            name: item.name,
-            sku: item.sku,
-            quantity: 0,
-            revenue: 0,
-          };
-          product.quantity += item.quantity;
-          product.revenue += item.lineTotal;
-          productMap.set(key, product);
-        }
+    if (isRevenue) {
+      for (const item of order.items) {
+        // SKU is the stable identity; titles repeat across editions.
+        const key = item.sku ?? item.name;
+        const product = productMap.get(key) ?? {
+          name: item.name,
+          sku: item.sku,
+          quantity: 0,
+          revenue: 0,
+        };
+        product.quantity += item.quantity;
+        product.revenue += item.lineTotal;
+        productMap.set(key, product);
       }
     }
   }
@@ -527,11 +525,11 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
     topProducts: [...productMap.values()]
       .map((p) => ({ ...p, revenue: round2(p.revenue) }))
       .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 10),
+      .slice(0, 100),
     topStates: [...stateMap.entries()]
       .map(([state, v]) => ({ state, orders: v.orders, revenue: round2(v.revenue) }))
       .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10),
+      .slice(0, 100),
     truncated: progress.truncated,
     scannedOrders: progress.scanned,
     coveredFrom: earliestPlacedAt,
