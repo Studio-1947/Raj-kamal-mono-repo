@@ -9,6 +9,7 @@
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "../shared/AppLayout";
+import { useLockedFilters } from "../hooks/useLockedFilters";
 import {
   useWebsiteOrders,
   useWebsiteOrdersSummary,
@@ -42,22 +43,36 @@ const SEARCH_DEBOUNCE_MS = 400;
 export default function WebsiteOrders() {
   const queryClient = useQueryClient();
 
-  const [filters, setFilters] = React.useState<OrdersFilterState>(DEFAULT_FILTERS);
-  const [searchDraft, setSearchDraft] = React.useState("");
+  const {
+    filters,
+    isLocked,
+    updateFilters,
+    toggleLock,
+    resetFilters,
+  } = useLockedFilters<OrdersFilterState>("website-orders", DEFAULT_FILTERS);
+
+  const [searchDraft, setSearchDraft] = React.useState(filters.search || "");
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(20);
   const [selectedOrder, setSelectedOrder] = React.useState<WebsiteOrder | null>(null);
+
+  // Keep searchDraft in sync if filters.search is updated externally or loaded from lock
+  React.useEffect(() => {
+    if (filters.search !== searchDraft) {
+      setSearchDraft(filters.search || "");
+    }
+  }, [filters.search]);
 
   // Typing shouldn't fire a request per keystroke — the upstream is rate-limited and
   // the summary query pages through the whole range on every change.
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      setFilters((current) =>
-        current.search === searchDraft ? current : { ...current, search: searchDraft },
-      );
+      if (filters.search !== searchDraft) {
+        updateFilters({ search: searchDraft });
+      }
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [searchDraft]);
+  }, [searchDraft, filters.search, updateFilters]);
 
   // Any filter change invalidates the current page number: page 7 of the old result
   // set is meaningless against the new one.
@@ -79,14 +94,17 @@ export default function WebsiteOrders() {
   const ordersQuery = useWebsiteOrders({ ...queryFilters, page, pageSize });
   const summaryQuery = useWebsiteOrdersSummary(queryFilters);
 
-  const handleFilterChange = React.useCallback((patch: Partial<OrdersFilterState>) => {
-    setFilters((current) => ({ ...current, ...patch }));
-  }, []);
+  const handleFilterChange = React.useCallback(
+    (patch: Partial<OrdersFilterState>) => {
+      updateFilters(patch);
+    },
+    [updateFilters],
+  );
 
   const handleReset = React.useCallback(() => {
     setSearchDraft("");
-    setFilters({ ...DEFAULT_FILTERS, dateTo: toDateInput(new Date()) });
-  }, []);
+    resetFilters({ ...DEFAULT_FILTERS, dateTo: toDateInput(new Date()) });
+  }, [resetFilters]);
 
   const handleRefresh = React.useCallback(() => {
     // Drop the whole feature's cache, not just the visible page — the KPIs and the
@@ -112,6 +130,8 @@ export default function WebsiteOrders() {
           onReset={handleReset}
           onRefresh={handleRefresh}
           isFetching={ordersQuery.isFetching || summaryQuery.isFetching}
+          isLocked={isLocked}
+          onToggleLock={toggleLock}
         />
 
         {/* The summary is the expensive query; a failure there shouldn't hide the

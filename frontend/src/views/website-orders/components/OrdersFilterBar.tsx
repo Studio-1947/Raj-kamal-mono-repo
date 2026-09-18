@@ -1,5 +1,5 @@
 import React from "react";
-import { FiChevronDown, FiSearch, FiRefreshCw, FiX } from "react-icons/fi";
+import { FiChevronDown, FiSearch, FiRefreshCw, FiX, FiLock, FiUnlock } from "react-icons/fi";
 import {
   ORDER_STATUSES,
   PAYMENT_STATUSES,
@@ -25,6 +25,8 @@ interface OrdersFilterBarProps {
   onReset: () => void;
   onRefresh: () => void;
   isFetching: boolean;
+  isLocked?: boolean;
+  onToggleLock?: () => void;
 }
 
 const dateInputClass =
@@ -151,6 +153,8 @@ export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
   onReset,
   onRefresh,
   isFetching,
+  isLocked,
+  onToggleLock,
 }) => {
   const today = toDateInput(new Date());
 
@@ -216,6 +220,35 @@ export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
           <FiRefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           Refresh
         </button>
+
+        {onToggleLock && (
+          <button
+            type="button"
+            onClick={onToggleLock}
+            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
+              isLocked
+                ? "border-blue-300 bg-blue-50/80 text-blue-700 font-medium hover:bg-blue-100/80 shadow-xs"
+                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+            title={
+              isLocked
+                ? "Filter lock active (persists across page navigation until unlocked or page refresh)"
+                : "Lock current filters (persists across page navigation)"
+            }
+          >
+            {isLocked ? (
+              <>
+                <FiLock className="h-4 w-4 text-blue-600" />
+                <span>Locked</span>
+              </>
+            ) : (
+              <>
+                <FiUnlock className="h-4 w-4 text-gray-500" />
+                <span>Lock filter</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
