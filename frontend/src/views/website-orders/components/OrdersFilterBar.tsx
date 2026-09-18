@@ -102,7 +102,7 @@ function CheckboxDropdown({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="flex min-w-[170px] items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        className="flex min-w-[160px] items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       >
         <span className="truncate">{buttonLabel}</span>
         <FiChevronDown className={`h-4 w-4 shrink-0 transition ${isOpen ? "rotate-180" : ""}`} />
@@ -113,7 +113,7 @@ function CheckboxDropdown({
           role="listbox"
           aria-label={ariaLabel}
           aria-multiselectable="true"
-          className="absolute right-0 z-30 mt-2 min-w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute left-0 z-30 mt-2 min-w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
           <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
             <input
@@ -169,16 +169,138 @@ export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
 
   return (
     <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Search — matches order number, customer name, email or phone upstream */}
-        <div className="relative min-w-[240px] flex-1">
-          <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      {/* Top Row: All filter dropdowns, date pickers, presets and action buttons in a line */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Date presets */}
+          <div className="flex items-center gap-1">
+            {DATE_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => onChange({ dateFrom: daysAgo(preset.days), dateTo: today })}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  activePreset?.label === preset.label
+                    ? "bg-slate-900 text-white"
+                    : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date range pickers */}
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <label className="flex items-center gap-1.5">
+              From
+              <input
+                type="date"
+                value={filters.dateFrom}
+                max={filters.dateTo || today}
+                onClick={openPicker}
+                onChange={(event) => onChange({ dateFrom: event.target.value })}
+                className={dateInputClass}
+              />
+            </label>
+            <label className="flex items-center gap-1.5">
+              To
+              <input
+                type="date"
+                value={filters.dateTo}
+                min={filters.dateFrom}
+                max={today}
+                onClick={openPicker}
+                onChange={(event) => onChange({ dateTo: event.target.value })}
+                className={dateInputClass}
+              />
+            </label>
+          </div>
+
+          {/* Checklist dropdowns */}
+          <CheckboxDropdown
+            value={filters.status}
+            onChange={(status) => onChange({ status })}
+            options={ORDER_STATUSES}
+            labels={STATUS_LABELS}
+            allLabel={STATUS_LABELS.ALL}
+            ariaLabel="Order status"
+          />
+
+          <CheckboxDropdown
+            value={filters.paymentStatus}
+            onChange={(paymentStatus) => onChange({ paymentStatus })}
+            options={PAYMENT_STATUSES}
+            labels={PAYMENT_STATUS_LABELS}
+            allLabel={PAYMENT_STATUS_LABELS.ALL}
+            ariaLabel="Payment status"
+          />
+        </div>
+
+        {/* Action buttons on the top right */}
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isFetching}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+            title="Refresh from the website"
+          >
+            <FiRefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+
+          {onToggleLock && (
+            <button
+              type="button"
+              onClick={onToggleLock}
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
+                isLocked
+                  ? "border-blue-300 bg-blue-50/80 text-blue-700 font-medium hover:bg-blue-100/80 shadow-xs"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              title={
+                isLocked
+                  ? "Filter lock active (persists across page navigation until unlocked or page refresh)"
+                  : "Lock current filters (persists across page navigation)"
+              }
+            >
+              {isLocked ? (
+                <>
+                  <FiLock className="h-4 w-4 text-blue-600" />
+                  <span>Locked</span>
+                </>
+              ) : (
+                <>
+                  <FiUnlock className="h-4 w-4 text-gray-500" />
+                  <span>Lock filter</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {(isFiltered || activePreset?.label !== "30D") && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="text-xs font-medium text-gray-500 underline-offset-2 hover:text-gray-800 hover:underline pl-2"
+            >
+              Reset filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Row: Search Bar */}
+      <div className="mt-3 border-t border-gray-100 pt-3">
+        <div className="relative w-full">
+          <FiSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
             placeholder="Search order number, customer, email or phone…"
-            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
           {searchDraft && (
             <button
@@ -191,119 +313,6 @@ export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
             </button>
           )}
         </div>
-
-        <CheckboxDropdown
-          value={filters.status}
-          onChange={(status) => onChange({ status })}
-          options={ORDER_STATUSES}
-          labels={STATUS_LABELS}
-          allLabel={STATUS_LABELS.ALL}
-          ariaLabel="Order status"
-        />
-
-        <CheckboxDropdown
-          value={filters.paymentStatus}
-          onChange={(paymentStatus) => onChange({ paymentStatus })}
-          options={PAYMENT_STATUSES}
-          labels={PAYMENT_STATUS_LABELS}
-          allLabel={PAYMENT_STATUS_LABELS.ALL}
-          ariaLabel="Payment status"
-        />
-
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isFetching}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-          title="Refresh from the website"
-        >
-          <FiRefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
-
-        {onToggleLock && (
-          <button
-            type="button"
-            onClick={onToggleLock}
-            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
-              isLocked
-                ? "border-blue-300 bg-blue-50/80 text-blue-700 font-medium hover:bg-blue-100/80 shadow-xs"
-                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-            }`}
-            title={
-              isLocked
-                ? "Filter lock active (persists across page navigation until unlocked or page refresh)"
-                : "Lock current filters (persists across page navigation)"
-            }
-          >
-            {isLocked ? (
-              <>
-                <FiLock className="h-4 w-4 text-blue-600" />
-                <span>Locked</span>
-              </>
-            ) : (
-              <>
-                <FiUnlock className="h-4 w-4 text-gray-500" />
-                <span>Lock filter</span>
-              </>
-            )}
-          </button>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
-        <div className="flex items-center gap-1">
-          {DATE_PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              type="button"
-              onClick={() => onChange({ dateFrom: daysAgo(preset.days), dateTo: today })}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                activePreset?.label === preset.label
-                  ? "bg-slate-900 text-white"
-                  : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <label className="flex items-center gap-1.5">
-            From
-            <input
-              type="date"
-              value={filters.dateFrom}
-              max={filters.dateTo || today}
-              onClick={openPicker}
-              onChange={(event) => onChange({ dateFrom: event.target.value })}
-              className={dateInputClass}
-            />
-          </label>
-          <label className="flex items-center gap-1.5">
-            To
-            <input
-              type="date"
-              value={filters.dateTo}
-              min={filters.dateFrom}
-              max={today}
-              onClick={openPicker}
-              onChange={(event) => onChange({ dateTo: event.target.value })}
-              className={dateInputClass}
-            />
-          </label>
-        </div>
-
-        {(isFiltered || activePreset?.label !== "30D") && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="ml-auto text-xs font-medium text-gray-500 underline-offset-2 hover:text-gray-800 hover:underline"
-          >
-            Reset filters
-          </button>
-        )}
       </div>
     </div>
   );
