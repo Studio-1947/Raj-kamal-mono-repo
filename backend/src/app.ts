@@ -13,6 +13,7 @@ import rankingsRoutes from "./routes/rankings.js";
 import metricoolRoutes from "./routes/metricool.js";
 import syncLogsRoutes from "./routes/syncLogs.js";
 import websiteOrdersRoutes from "./routes/websiteOrders.js";
+import filterLocksRoutes from "./routes/filterLocks.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { mountOnlineSales } from "./features/sales/server/online.index.js";
 import { mountOfflineSales } from "./features/sales/server/offline.index.js";
@@ -221,6 +222,7 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/rankings", rankingsRoutes);
 app.use("/api/metricool", metricoolRoutes);
 app.use("/api/website-orders", websiteOrdersRoutes);
+app.use("/api/filter-locks", filterLocksRoutes);
 // Sales APIs (features)
 mountOnlineSales(app, "/api/online-sales");
 mountOfflineSales(app, "/api/offline-sales");

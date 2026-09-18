@@ -22,9 +22,10 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  orders   Order[]
-  reviews  Review[]
-  sessions Session[]
+  orders      Order[]
+  reviews     Review[]
+  sessions    Session[]
+  filterLocks UserFilterLock[]
 
   @@map("users")
 }
@@ -654,3 +655,19 @@ model SyncLog {
   @@index([startedAt])
   @@map("sync_logs")
 }
+
+model UserFilterLock {
+  id         String   @id @default(cuid())
+  userId     String
+  featureKey String
+  isLocked   Boolean  @default(true)
+  filters    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, featureKey])
+  @@map("user_filter_locks")
+}
+
