@@ -143,12 +143,12 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
                   <path
                     key={p.idx}
                     d={p.d}
-                    fill={isHovered ? "#3B82F6" : fillColor}
-                    stroke={isHovered || isSelected ? "#0F172A" : "rgba(203, 213, 225, 0.85)"}
-                    strokeWidth={isHovered || isSelected ? 2.5 : 1}
+                    fill={isHovered ? "#3563E9" : fillColor}
+                    stroke={isHovered ? "#1D4ED8" : isSelected ? "#0F172A" : "rgba(255, 255, 255, 0.45)"}
+                    strokeWidth={isHovered || isSelected ? 1.2 : 0.4}
                     strokeLinejoin="round"
                     strokeLinecap="round"
-                    className="transition-all duration-150 hover:brightness-105"
+                    className="transition-all duration-150"
                   />
                 ))}
               </g>

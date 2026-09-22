@@ -22,6 +22,7 @@ import {
   OrdersTrendChart,
   OrderDetailDrawer,
   PaymentMixPanel,
+  PaymentMixBanner,
   TopProductsPanel,
   TopStatesPanel,
   TopPincodesPanel,
@@ -148,8 +149,9 @@ export default function WebsiteOrders() {
 
         <OrdersTrendChart summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
-          <PaymentMixPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
+        <PaymentMixBanner summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <TopProductsPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
           <TopStatesPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
           <TopPincodesPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />

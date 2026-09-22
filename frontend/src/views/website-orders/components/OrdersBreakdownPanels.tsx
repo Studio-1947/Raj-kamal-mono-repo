@@ -83,6 +83,51 @@ function BarRow({
   );
 }
 
+export const PaymentMixBanner: React.FC<PanelProps> = ({ summary, isLoading }) => {
+  const rows = Object.entries(summary?.byPaymentMethod ?? {}).sort(
+    (a, b) => b[1].count - a[1].count,
+  );
+  const total = rows.reduce((sum, [, bucket]) => sum + bucket.count, 0);
+
+  if (isLoading) {
+    return (
+      <div className="h-12 w-full animate-pulse rounded-2xl bg-gray-100/80" />
+    );
+  }
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-3.5 sm:px-5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="font-bold text-gray-900 uppercase tracking-wider text-[11px]">Payment Mix</span>
+        <span className="text-gray-300">·</span>
+        <span className="text-gray-500 font-medium">How customers paid in this range</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {rows.map(([method, bucket]) => {
+          const pct = total > 0 ? ((bucket.count / total) * 100).toFixed(0) : "0";
+          return (
+            <div
+              key={method}
+              className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5 border border-slate-200/70 text-xs shadow-2xs"
+            >
+              <span className="font-bold text-gray-900">
+                {PAYMENT_METHOD_LABELS[method] ?? humanizeEnum(method)}
+              </span>
+              <span className="font-semibold text-blue-600">
+                {formatNumber(bucket.count)} orders ({pct}%)
+              </span>
+              <span className="text-gray-300">|</span>
+              <span className="font-bold text-gray-900">{formatINR(bucket.revenue)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export const PaymentMixPanel: React.FC<PanelProps> = ({ summary, isLoading }) => {
   const rows = Object.entries(summary?.byPaymentMethod ?? {}).sort(
     (a, b) => b[1].count - a[1].count,
