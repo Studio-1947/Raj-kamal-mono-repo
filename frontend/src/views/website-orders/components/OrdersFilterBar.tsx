@@ -169,8 +169,8 @@ export const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
 
   return (
     <div className="rounded-3xl border border-gray-100 bg-white p-3 sm:p-4 shadow-sm space-y-2.5">
-      {/* Top Row: All filter dropdowns, date pickers, presets and action buttons in a SINGLE responsive line */}
-      <div className="flex items-center justify-between gap-1.5 sm:gap-2.5 flex-nowrap w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 min-h-[40px]">
+      {/* Top Row: All filter dropdowns, date pickers, presets and action buttons */}
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-2 w-full py-0.5 min-h-[40px]">
         {/* Date presets */}
         <div className="flex items-center gap-1 shrink-0">
           {DATE_PRESETS.map((preset) => (

@@ -118,6 +118,13 @@ export interface OrdersSummary {
   daily: { date: string; orders: number; revenue: number }[];
   topProducts: { name: string; sku: string | null; quantity: number; revenue: number }[];
   topStates: { state: string; orders: number; revenue: number }[];
+  topPincodes: {
+    postalCode: string;
+    city: string | null;
+    state: string | null;
+    orders: number;
+    revenue: number;
+  }[];
   /** Set when the range held more orders than the server will aggregate in one pass. */
   truncated: boolean;
   scannedOrders: number;

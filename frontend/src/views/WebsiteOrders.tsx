@@ -24,6 +24,8 @@ import {
   PaymentMixPanel,
   TopProductsPanel,
   TopStatesPanel,
+  TopPincodesPanel,
+  IndiaHeatmapSection,
   daysAgo,
   toDateInput,
   type OrdersFilterState,
@@ -146,11 +148,14 @@ export default function WebsiteOrders() {
 
         <OrdersTrendChart summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
           <PaymentMixPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
           <TopProductsPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
           <TopStatesPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
+          <TopPincodesPanel summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
         </div>
+
+        <IndiaHeatmapSection summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
 
         <OrdersTable
           page={ordersQuery.data}

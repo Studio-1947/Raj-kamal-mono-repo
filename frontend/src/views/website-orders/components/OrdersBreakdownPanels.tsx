@@ -309,3 +309,94 @@ export const TopStatesPanel: React.FC<PanelProps> = ({ summary, isLoading }) => 
     </Panel>
   );
 };
+
+export const TopPincodesPanel: React.FC<PanelProps> = ({ summary, isLoading }) => {
+  const [mode, setMode] = React.useState<"top" | "bottom">("top");
+  const [sortBy, setSortBy] = React.useState<"revenue" | "orders">("revenue");
+  const [limit, setLimit] = React.useState<number>(10);
+
+  const sortedPincodes = React.useMemo(() => {
+    const list = [...(summary?.topPincodes ?? [])];
+    list.sort((a, b) => {
+      const valA = sortBy === "revenue" ? a.revenue : a.orders;
+      const valB = sortBy === "revenue" ? b.revenue : b.orders;
+      return mode === "top" ? valB - valA : valA - valB;
+    });
+    return list.slice(0, limit);
+  }, [summary?.topPincodes, mode, sortBy, limit]);
+
+  const max = Math.max(
+    1,
+    ...sortedPincodes.map((row) => (sortBy === "revenue" ? row.revenue : row.orders)),
+  );
+
+  const controls = (
+    <>
+      <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs">
+        {(["top", "bottom"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setMode(value)}
+            className={`rounded-md px-2 py-0.5 font-medium capitalize transition ${
+              mode === value ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {value}
+          </button>
+        ))}
+      </div>
+
+      <select
+        value={sortBy}
+        onChange={(e) => setSortBy(e.target.value as "revenue" | "orders")}
+        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value="revenue">By Revenue</option>
+        <option value="orders">By Orders</option>
+      </select>
+
+      <select
+        value={limit}
+        onChange={(e) => setLimit(Number(e.target.value))}
+        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value={5}>5</option>
+        <option value={10}>10</option>
+        <option value={20}>20</option>
+      </select>
+    </>
+  );
+
+  const direction = mode === "top" ? "Highest" : "Lowest";
+  const metric = sortBy === "revenue" ? "revenue" : "order count";
+
+  return (
+    <Panel
+      title={`${mode === "top" ? "Top" : "Bottom"} pincodes`}
+      subtitle={`${direction} shipping pincodes in this range, by ${metric}`}
+      controls={controls}
+    >
+      {sortedPincodes.length === 0 ? (
+        <EmptyOrSkeleton isLoading={isLoading} />
+      ) : (
+        <div className="space-y-4">
+          {sortedPincodes.map((pincode) => {
+            const rowVal = sortBy === "revenue" ? pincode.revenue : pincode.orders;
+            const location = [pincode.city, pincode.state].filter(Boolean).join(", ");
+            return (
+              <BarRow
+                key={pincode.postalCode}
+                label={location ? `${pincode.postalCode} · ${location}` : pincode.postalCode}
+                sublabel={`${formatNumber(pincode.orders)} orders · ${formatINR(pincode.revenue)}`}
+                value={rowVal}
+                max={max}
+                color={mode === "top" ? "#0D9488" : "#7C3AED"}
+              />
+            );
+          })}
+        </div>
+      )}
+    </Panel>
+  );
+};

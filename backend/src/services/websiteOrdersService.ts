@@ -114,6 +114,13 @@ export type OrdersSummary = {
   daily: { date: string; orders: number; revenue: number }[];
   topProducts: { name: string; sku: string | null; quantity: number; revenue: number }[];
   topStates: { state: string; orders: number; revenue: number }[];
+  topPincodes: {
+    postalCode: string;
+    city: string | null;
+    state: string | null;
+    orders: number;
+    revenue: number;
+  }[];
   /** True when the range held more orders than SUMMARY_MAX_ORDERS, so figures are partial. */
   truncated: boolean;
   scannedOrders: number;
@@ -455,6 +462,10 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
     { name: string; sku: string | null; quantity: number; revenue: number }
   >();
   const stateMap = new Map<string, { orders: number; revenue: number }>();
+  const pincodeMap = new Map<
+    string,
+    { postalCode: string; city: string | null; state: string | null; orders: number; revenue: number }
+  >();
 
   let orderCount = 0;
   let revenue = 0;
@@ -490,6 +501,21 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
     stateBucket.orders += 1;
     stateBucket.revenue += orderRevenue;
     stateMap.set(state, stateBucket);
+
+    const rawPin = order.shipTo.postalCode?.trim() ?? "";
+    const cleanPin = rawPin.replace(/\D/g, "");
+    if (cleanPin.length === 6) {
+      const pinBucket = pincodeMap.get(cleanPin) ?? {
+        postalCode: cleanPin,
+        city: order.shipTo.city ?? null,
+        state: order.shipTo.state ?? null,
+        orders: 0,
+        revenue: 0,
+      };
+      pinBucket.orders += 1;
+      pinBucket.revenue += orderRevenue;
+      pincodeMap.set(cleanPin, pinBucket);
+    }
 
     if (isRevenue) {
       for (const item of order.items) {
@@ -530,6 +556,9 @@ export async function fetchOrdersSummary(filters: OrderFilters): Promise<OrdersS
       .map(([state, v]) => ({ state, orders: v.orders, revenue: round2(v.revenue) }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 100),
+    topPincodes: [...pincodeMap.values()]
+      .map((p) => ({ ...p, revenue: round2(p.revenue) }))
+      .sort((a, b) => b.revenue - a.revenue),
     truncated: progress.truncated,
     scannedOrders: progress.scanned,
     coveredFrom: earliestPlacedAt,

@@ -6,3 +6,4 @@ export * from "./OrdersBreakdownPanels";
 export * from "./OrdersTable";
 export * from "./OrderDetailDrawer";
 export * from "./ExportOrdersModal";
+export * from "./IndiaHeatmapSection";
