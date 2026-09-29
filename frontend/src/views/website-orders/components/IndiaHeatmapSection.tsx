@@ -467,7 +467,12 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                     return (
                       <div
                         key={`${item.postalCode}-${idx}`}
-                        className="group relative p-3 rounded-2xl border border-gray-100 bg-gray-50/40 hover:bg-white hover:border-gray-200 hover:shadow-xs transition-all duration-200 space-y-2"
+                        onClick={() => {
+                          const code = normalizeStateCode(item.state);
+                          if (code !== "UNKNOWN") setSelectedStateCode(code);
+                        }}
+                        className="group relative p-3 rounded-2xl border border-gray-100 bg-gray-50/40 hover:bg-white hover:border-gray-200 hover:shadow-xs hover:border-indigo-200 transition-all duration-200 space-y-2 cursor-pointer"
+                        title={`Click to zoom into ${item.state || item.city}`}
                       >
                         <div className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-2.5">
