@@ -27,6 +27,7 @@ import {
   TopStatesPanel,
   TopPincodesPanel,
   IndiaHeatmapSection,
+  CampaignComparisonSection,
   daysAgo,
   toDateInput,
   type OrdersFilterState,
@@ -146,6 +147,13 @@ export default function WebsiteOrders() {
         ) : (
           <OrdersKpiRow summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
         )}
+
+        <CampaignComparisonSection
+          dateFrom={queryFilters.dateFrom}
+          dateTo={queryFilters.dateTo}
+          summary={summaryQuery.data}
+          isLoading={summaryQuery.isLoading}
+        />
 
         <OrdersTrendChart summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
 
