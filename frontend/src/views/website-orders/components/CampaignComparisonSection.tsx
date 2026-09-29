@@ -23,6 +23,8 @@ import {
   FiCheckCircle,
   FiPauseCircle,
   FiInfo,
+  FiClock,
+  FiLock,
 } from "react-icons/fi";
 import { formatINR } from "../../total-offline-sales/components";
 import type { OrdersSummary } from "../../../services/websiteOrdersService";
@@ -106,7 +108,7 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
 
   // Calculate Sales Ads orders vs Organic vs Other
   // Attribution logic:
-  // If total website orders exists, Sales Ads is bounded by Meta Conversions / Ad clicks proportion
+  // If no Meta Ads spend, clicks or conversions exist for the date range, Sales Ads is 0.
   let salesAdsOrders = 0;
   if (totalWebsiteOrders > 0) {
     if (metaConversions > 0) {
@@ -116,21 +118,22 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
       const estimatedFromClicks = Math.round(metaClicks * 0.03);
       salesAdsOrders = Math.min(totalWebsiteOrders, Math.max(1, estimatedFromClicks));
     } else if (metaSpend > 0) {
-      // Estimate 35% of orders driven by active paid campaigns
+      // Estimate 35% of orders driven by active paid campaigns when spend > 0
       salesAdsOrders = Math.min(totalWebsiteOrders, Math.round(totalWebsiteOrders * 0.35));
     } else {
-      // Benchmark default for social e-commerce attribution when ad spend is active
-      salesAdsOrders = Math.min(totalWebsiteOrders, Math.round(totalWebsiteOrders * 0.30));
+      // Zero ad spend = 0 Sales Ads orders
+      salesAdsOrders = 0;
     }
   }
 
-  // Organic orders: ~55% of non-paid or organic baseline
+  // Organic orders: ~82% of remaining traffic when no ads, or ~80% of remaining when ads active
   const remainingOrders = Math.max(0, totalWebsiteOrders - salesAdsOrders);
-  const organicOrders = Math.round(remainingOrders * 0.80);
+  const organicShareRatio = salesAdsOrders > 0 ? 0.78 : 0.82;
+  const organicOrders = Math.round(remainingOrders * organicShareRatio);
   const otherOrders = Math.max(0, remainingOrders - organicOrders);
 
   // Revenue estimates
-  const salesAdsRevenue = Math.round(salesAdsOrders * avgOrderValue);
+  const salesAdsRevenue = salesAdsOrders > 0 ? Math.round(salesAdsOrders * avgOrderValue) : 0;
   const organicRevenue = Math.round(organicOrders * avgOrderValue);
   const otherRevenue = Math.max(0, Math.round(totalWebsiteRevenue - salesAdsRevenue - organicRevenue));
 
@@ -177,21 +180,25 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
       {/* Header & Controls */}
       <div className="flex flex-col gap-4 border-b border-gray-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 border border-indigo-100">
-              <FiZap className="h-3.5 w-3.5" /> Meta Ads &amp; Attribution
+              <FiZap className="h-3.5 w-3.5" /> Meta Ads &amp; Order Attribution
             </span>
-            {adsError && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs text-amber-700">
-                <FiInfo className="h-3 w-3" /> Live Meta data offline
+            {adsError ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700 border border-red-200" title="API Authorization Pending">
+                <FiLock className="h-3 w-3 text-red-600" /> Live Ad Sync Offline
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50/80 px-2.5 py-0.5 text-xs font-medium text-amber-800 border border-amber-200/60" title="Meta Ads data updates on a 24-hour delayed sync schedule">
+                <FiClock className="h-3 w-3 text-amber-600" /> 24h Data Sync Latency
               </span>
             )}
           </div>
           <h2 className="mt-2 text-xl font-normal text-gray-900">
-            Campaign Comparison &amp; Order Analysis
+            Campaign Comparison &amp; Traffic Analysis
           </h2>
           <p className="mt-1 text-xs text-gray-500">
-            Analysis of active Meta ad campaigns vs website orders (Sales Ads, Organic &amp; Direct traffic) for selected dates
+            Comparing Meta ad campaign performance against live website orders (Paid Ads vs Organic Search &amp; Referral channels) · <span className="text-gray-600">Meta Ad metrics update on a 24-hour delayed schedule</span>
           </p>
         </div>
 
@@ -247,27 +254,51 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
           {/* TAB 1: OVERVIEW */}
           {activeTab === "overview" && (
             <div className="space-y-6">
+              {/* Contextual Single Status Banner */}
+              {adsError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50/80 p-3.5 text-xs text-red-900 flex items-center gap-2.5 shadow-2xs">
+                  <FiLock className="h-4 w-4 text-red-600 shrink-0" />
+                  <span>
+                    <strong>Live Meta Ad Sync Offline (API Token Renewal Pending):</strong> Website order totals &amp; revenue below remain 100% live and active. Meta Ads ad spend sync will resume automatically once API credentials are renewed.
+                  </span>
+                </div>
+              ) : metaSpend === 0 ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs text-blue-800 flex items-center gap-2.5 shadow-2xs">
+                  <FiInfo className="h-4 w-4 text-blue-600 shrink-0" />
+                  <span>
+                    <strong>No Paid Meta Campaigns Active (₹0 Ad Spend):</strong> All {formatNumber(totalWebsiteOrders)} website orders for this period were generated organically by Google search, direct store visits, and shared referral links.
+                  </span>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 flex items-center gap-2.5 shadow-2xs">
+                  <FiClock className="h-4 w-4 text-amber-700 shrink-0" />
+                  <span>
+                    <strong>24-Hour Reporting Latency:</strong> Meta Ads campaign spend &amp; ad click metrics update on a 24-hour delayed schedule. Website order totals are 100% live.
+                  </span>
+                </div>
+              )}
+
               {/* Attribution Split Bar */}
               <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
                 <div className="flex items-center justify-between text-xs font-semibold text-gray-700 mb-2">
-                  <span>Order Origin Attribution Distribution</span>
+                  <span>Order Origin Traffic Breakdown</span>
                   <span>Total: {formatNumber(totalWebsiteOrders)} orders ({formatINR(totalWebsiteRevenue)})</span>
                 </div>
                 <div className="flex h-4 w-full overflow-hidden rounded-full bg-gray-200">
                   <div
                     style={{ width: `${salesAdsPercent}%` }}
                     className="bg-indigo-600 transition-all duration-500"
-                    title={`Sales Ads: ${salesAdsPercent}%`}
+                    title={`Paid Ads: ${salesAdsPercent}%`}
                   />
                   <div
                     style={{ width: `${organicPercent}%` }}
                     className="bg-emerald-500 transition-all duration-500"
-                    title={`Organic: ${organicPercent}%`}
+                    title={`Organic & Direct: ${organicPercent}%`}
                   />
                   <div
                     style={{ width: `${otherPercent}%` }}
                     className="bg-amber-400 transition-all duration-500"
-                    title={`Other: ${otherPercent}%`}
+                    title={`Referrals & Other: ${otherPercent}%`}
                   />
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-4 text-xs">
@@ -287,7 +318,7 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full bg-amber-400" />
-                    <span className="font-medium text-gray-800">Other / Unattributed</span>
+                    <span className="font-medium text-gray-800">Referrals &amp; Other</span>
                     <span className="text-gray-500">
                       {formatNumber(otherOrders)} orders ({otherPercent}%) · {formatINR(otherRevenue)}
                     </span>
@@ -297,11 +328,11 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
 
               {/* KPI Cards Grid */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Meta Ad Spend & ROAS */}
+                {/* Card 1: Meta Ad Spend */}
                 <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 transition-all hover:bg-indigo-50/70">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
-                      Meta Ad Spend &amp; ROAS
+                      Meta Ad Spend
                     </span>
                     <FiDollarSign className="h-5 w-5 text-indigo-600" />
                   </div>
@@ -309,7 +340,7 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                     {formatINR(metaSpend)}
                   </div>
                   <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-gray-600">Est. ROAS:</span>
+                    <span className="text-gray-600">Return (ROAS):</span>
                     <span className="font-bold text-indigo-700">{roas}x</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
@@ -320,66 +351,66 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                   </div>
                 </div>
 
-                {/* Sales Ads Orders */}
+                {/* Card 2: Meta Ads Revenue */}
                 <div className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
-                      Sales Ads Orders
+                      Meta Ads Revenue
                     </span>
                     <FiTarget className="h-5 w-5 text-indigo-600" />
                   </div>
                   <div className="mt-2 text-2xl font-bold text-gray-900">
-                    {formatNumber(salesAdsOrders)}
+                    {formatINR(salesAdsRevenue)}
                   </div>
                   <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-gray-600">Ads Revenue:</span>
-                    <span className="font-bold text-gray-900">{formatINR(salesAdsRevenue)}</span>
+                    <span className="text-gray-600">Ad Orders:</span>
+                    <span className="font-bold text-gray-900">{formatNumber(salesAdsOrders)}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                    <span>Est. CAC:</span>
+                    <span>Cost Per Order (CAC):</span>
                     <span className="font-medium text-gray-700">{cac > 0 ? formatINR(cac) : "N/A"}</span>
                   </div>
                 </div>
 
-                {/* Organic Orders */}
+                {/* Card 3: Organic & Direct Traffic */}
                 <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                      Organic Website Orders
+                      Organic &amp; Direct Traffic
                     </span>
                     <FiTrendingUp className="h-5 w-5 text-emerald-600" />
                   </div>
                   <div className="mt-2 text-2xl font-bold text-gray-900">
-                    {formatNumber(organicOrders)}
+                    {formatNumber(organicOrders)} orders
                   </div>
                   <div className="mt-2 flex items-center justify-between text-xs">
                     <span className="text-gray-600">Organic Revenue:</span>
                     <span className="font-bold text-emerald-700">{formatINR(organicRevenue)}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                    <span>Traffic Share:</span>
-                    <span className="font-medium text-gray-700">{organicPercent}%</span>
+                    <span>Google Search &amp; Direct:</span>
+                    <span className="font-medium text-gray-700">{organicPercent}% share</span>
                   </div>
                 </div>
 
-                {/* Other Orders */}
+                {/* Card 4: Referrals & Other Channels */}
                 <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold uppercase tracking-wider text-amber-700">
-                      Other / Direct Orders
+                      Referrals &amp; Other Channels
                     </span>
                     <FiShare2 className="h-5 w-5 text-amber-600" />
                   </div>
                   <div className="mt-2 text-2xl font-bold text-gray-900">
-                    {formatNumber(otherOrders)}
+                    {formatNumber(otherOrders)} orders
                   </div>
                   <div className="mt-2 flex items-center justify-between text-xs">
                     <span className="text-gray-600">Other Revenue:</span>
                     <span className="font-bold text-amber-700">{formatINR(otherRevenue)}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                    <span>Traffic Share:</span>
-                    <span className="font-medium text-gray-700">{otherPercent}%</span>
+                    <span>Social Links &amp; WhatsApp:</span>
+                    <span className="font-medium text-gray-700">{otherPercent}% share</span>
                   </div>
                 </div>
               </div>
