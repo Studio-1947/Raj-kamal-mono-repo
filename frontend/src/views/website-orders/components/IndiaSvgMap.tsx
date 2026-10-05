@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from "react";
-import { DISTRICT_PATHS, OFFICIAL_MAP_CENTROIDS, StateCentroid } from "./indiaMapData";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { FiZoomIn, FiZoomOut, FiMaximize2, FiMapPin, FiX } from "react-icons/fi";
+import { OFFICIAL_MAP_CENTROIDS } from "./indiaMapData";
 
 export interface StateMetrics {
   state: string;
@@ -50,32 +50,20 @@ export function normalizeStateCode(input: string | null | undefined): string {
   return STATE_ALIAS_MAP[clean] || "UNKNOWN";
 }
 
-export type BoundingBox = { minX: number; minY: number; maxX: number; maxY: number };
+function getFillColor(value: number, max: number, isSelected: boolean): string {
+  if (isSelected) return "#312E81"; // Deep Indigo 900
+  if (!value || max <= 0) return "#F8FAFC";
+  
+  const ratio = Math.min(1, Math.max(0.08, value / max));
+  
+  if (ratio < 0.2) return "#E0E7FF"; // Indigo 100
+  if (ratio < 0.4) return "#A5B4FC"; // Indigo 300
+  if (ratio < 0.65) return "#6366F1"; // Indigo 500
+  if (ratio < 0.85) return "#4338CA"; // Indigo 700
+  return "#2E1065"; // Purple 950
+}
 
-// Compute state bounding boxes from centroids and district path points
-export const STATE_BOUNDING_BOXES: Record<string, BoundingBox> = (() => {
-  const map: Record<string, BoundingBox> = {};
-  for (const st of OFFICIAL_MAP_CENTROIDS) {
-    map[st.code] = {
-      minX: st.cx - 180,
-      minY: st.cy - 180,
-      maxX: st.cx + 180,
-      maxY: st.cy + 180,
-    };
-  }
-  for (const p of DISTRICT_PATHS) {
-    const code = p.stateCode;
-    const b = map[code] || { minX: p.cx - 60, minY: p.cy - 60, maxX: p.cx + 60, maxY: p.cy + 60 };
-    if (p.cx < b.minX) b.minX = p.cx;
-    if (p.cx > b.maxX) b.maxX = p.cx;
-    if (p.cy < b.minY) b.minY = p.cy;
-    if (p.cy > b.maxY) b.maxY = p.cy;
-    map[code] = b;
-  }
-  return map;
-})();
-
-const FULL_VIEWBOX = { x: 0, y: 0, w: 1977, h: 2313 };
+const FULL_VIEWBOX = { x: 0, y: 0, w: 4000, h: 4575 };
 
 interface IndiaSvgMapProps {
   metricsByState: Map<string, { orders: number; revenue: number }>;
@@ -96,19 +84,6 @@ interface IndiaSvgMapProps {
   }[];
 }
 
-function getFillColor(value: number, max: number, isSelected: boolean): string {
-  if (isSelected) return "#312E81"; // Deep Indigo 900
-  if (!value || max <= 0) return "#F8FAFC";
-  
-  const ratio = Math.min(1, Math.max(0.08, value / max));
-  
-  if (ratio < 0.2) return "#E0E7FF"; // Indigo 100
-  if (ratio < 0.4) return "#A5B4FC"; // Indigo 300
-  if (ratio < 0.65) return "#6366F1"; // Indigo 500
-  if (ratio < 0.85) return "#4338CA"; // Indigo 700
-  return "#2E1065"; // Purple 950
-}
-
 export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
   metricsByState,
   maxMetricValue,
@@ -119,75 +94,207 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
   onHoverState,
   pincodeMarkers = [],
 }) => {
-  // Current viewBox state for smooth zooming and panning
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svgLoaded, setSvgLoaded] = useState(false);
   const [viewBoxState, setViewBoxState] = useState(FULL_VIEWBOX);
-  const [zoomScale, setZoomScale] = useState(1);
+  
+  const zoomScale = Number((FULL_VIEWBOX.w / viewBoxState.w).toFixed(2));
 
-  // Group district paths by state code
-  const pathsByState = useMemo(() => {
-    const map = new Map<string, typeof DISTRICT_PATHS>();
-    for (const p of DISTRICT_PATHS) {
-      const list = map.get(p.stateCode) || [];
-      list.push(p);
-      map.set(p.stateCode, list);
-    }
-    return map;
+  useEffect(() => {
+    let active = true;
+    fetch('/images/india_states_pincodes.svg')
+      .then(res => res.text())
+      .then(text => {
+        if (!active || !containerRef.current) return;
+        containerRef.current.innerHTML = text;
+        const svg = containerRef.current.querySelector('svg');
+        if (svg) {
+          svg.style.width = '100%';
+          svg.style.height = 'auto';
+          svg.style.maxHeight = '580px';
+          svg.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+          svg.setAttribute('class', 'drop-shadow-sm cursor-grab active:cursor-grabbing');
+        }
+        setSvgLoaded(true);
+      });
+    return () => { active = false; };
   }, []);
 
-  // Update viewBox when selectedStateCode changes (Click to Zoom)
+  // Event Handlers for SVG Map
   useEffect(() => {
+    if (!svgLoaded || !containerRef.current) return;
+    const svg = containerRef.current.querySelector('svg');
+    if (!svg) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const target = e.target as SVGElement;
+      if (target.tagName.toLowerCase() === 'path') {
+        const stateName = target.getAttribute('data-state');
+        const code = normalizeStateCode(stateName);
+        if (code !== "UNKNOWN") {
+          onHoverState(code, e as any);
+        } else {
+          onHoverState(null);
+        }
+      } else {
+        onHoverState(null);
+      }
+    };
+    
+    const handleMouseLeave = () => {
+      onHoverState(null);
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as SVGElement;
+      if (target.tagName.toLowerCase() === 'path') {
+        const stateName = target.getAttribute('data-state');
+        const code = normalizeStateCode(stateName);
+        if (code !== "UNKNOWN") {
+          onSelectState(selectedStateCode === code ? null : code);
+        }
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.15 : 0.85;
+      setViewBoxState((prev) => {
+        const newW = Math.min(FULL_VIEWBOX.w, Math.max(500, prev.w * factor));
+        const newH = Math.min(FULL_VIEWBOX.h, Math.max(570, prev.h * factor));
+        if (newW >= FULL_VIEWBOX.w || newH >= FULL_VIEWBOX.h) return FULL_VIEWBOX;
+        const cx = prev.x + prev.w / 2;
+        const cy = prev.y + prev.h / 2;
+        const vx = Math.max(0, Math.min(FULL_VIEWBOX.w - newW, cx - newW / 2));
+        const vy = Math.max(0, Math.min(FULL_VIEWBOX.h - newH, cy - newH / 2));
+        return { x: vx, y: vy, w: newW, h: newH };
+      });
+    };
+
+    svg.addEventListener('mousemove', handleMouseMove);
+    svg.addEventListener('mouseleave', handleMouseLeave);
+    svg.addEventListener('click', handleClick);
+    svg.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      svg.removeEventListener('mousemove', handleMouseMove);
+      svg.removeEventListener('mouseleave', handleMouseLeave);
+      svg.removeEventListener('click', handleClick);
+      svg.removeEventListener('wheel', handleWheel);
+    };
+  }, [svgLoaded, onHoverState, onSelectState, selectedStateCode]);
+
+  // Sync viewBox state
+  useEffect(() => {
+    if (!svgLoaded || !containerRef.current) return;
+    const svg = containerRef.current.querySelector('svg');
+    if (svg) {
+      svg.setAttribute('viewBox', `${viewBoxState.x} ${viewBoxState.y} ${viewBoxState.w} ${viewBoxState.h}`);
+    }
+  }, [viewBoxState, svgLoaded]);
+
+  // Click-to-Zoom bounding box logic
+  useEffect(() => {
+    if (!svgLoaded || !containerRef.current) return;
     if (!selectedStateCode) {
       setViewBoxState(FULL_VIEWBOX);
-      setZoomScale(1);
       return;
     }
-
-    const bounds = STATE_BOUNDING_BOXES[selectedStateCode];
-    if (!bounds) {
-      setViewBoxState(FULL_VIEWBOX);
-      setZoomScale(1);
-      return;
+    const paths = containerRef.current.querySelectorAll('path');
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    paths.forEach(p => {
+       if (normalizeStateCode(p.getAttribute('data-state')) === selectedStateCode) {
+          const box = p.getBBox();
+          if (box.x < minX) minX = box.x;
+          if (box.y < minY) minY = box.y;
+          if (box.x + box.width > maxX) maxX = box.x + box.width;
+          if (box.y + box.height > maxY) maxY = box.y + box.height;
+       }
+    });
+    
+    if (minX !== Infinity) {
+      const padding = 200;
+      minX = Math.max(0, minX - padding);
+      minY = Math.max(0, minY - padding);
+      maxX = Math.min(FULL_VIEWBOX.w, maxX + padding);
+      maxY = Math.min(FULL_VIEWBOX.h, maxY + padding);
+      
+      const bWidth = Math.max(600, maxX - minX);
+      const bHeight = Math.max(600, maxY - minY);
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      
+      const targetRatio = FULL_VIEWBOX.w / FULL_VIEWBOX.h;
+      let targetW = bWidth;
+      let targetH = bWidth / targetRatio;
+      if (targetH < bHeight) {
+        targetH = bHeight;
+        targetW = bHeight * targetRatio;
+      }
+      
+      const vx = Math.max(0, Math.min(FULL_VIEWBOX.w - targetW, cx - targetW / 2));
+      const vy = Math.max(0, Math.min(FULL_VIEWBOX.h - targetH, cy - targetH / 2));
+      
+      setViewBoxState({ x: vx, y: vy, w: targetW, h: targetH });
     }
+  }, [selectedStateCode, svgLoaded]);
 
-    // Calculate padded bounding box
-    const padding = 160;
-    const minX = Math.max(0, bounds.minX - padding);
-    const minY = Math.max(0, bounds.minY - padding);
-    const maxX = Math.min(FULL_VIEWBOX.w, bounds.maxX + padding);
-    const maxY = Math.min(FULL_VIEWBOX.h, bounds.maxY + padding);
+  // Apply Colors Imperatively
+  useEffect(() => {
+    if (!svgLoaded || !containerRef.current) return;
+    
+    const isPincodeMode = pincodeMarkers && pincodeMarkers.length > 0;
+    const topPincodes = new Set(pincodeMarkers?.map(p => p.postalCode) || []);
+    
+    const paths = containerRef.current.querySelectorAll('path');
+    paths.forEach(p => {
+      const stateName = p.getAttribute('data-state');
+      const pincode = p.getAttribute('data-pincode');
+      const code = normalizeStateCode(stateName);
+      
+      const isSelected = selectedStateCode === code;
+      const isHovered = hoveredStateCode === code;
+      
+      let stroke = isSelected ? "#F59E0B" : isHovered ? "#1D4ED8" : "rgba(255, 255, 255, 0.4)";
+      let strokeWidth = isSelected ? "8" : isHovered ? "6" : "1";
+      let fill = "#F8FAFC";
+      
+      if (isPincodeMode) {
+        if (pincode && topPincodes.has(pincode)) {
+          fill = "#EF4444"; // Red for top pincodes
+          stroke = "#FFFFFF";
+          strokeWidth = "3";
+          p.style.transition = "fill 0.3s ease, stroke 0.3s ease";
+          p.parentElement?.appendChild(p); // Bring to front
+        } else {
+          fill = "#F1F5F9"; // Faded background
+          stroke = "rgba(0,0,0,0.05)";
+          strokeWidth = "0.5";
+        }
+      } else {
+        const metrics = metricsByState.get(code);
+        const val = metrics ? (activeMetric === "revenue" ? metrics.revenue : metrics.orders) : 0;
+        fill = getFillColor(val, maxMetricValue, isSelected);
+        if (isHovered && !isSelected) {
+          fill = "#4F46E5";
+        }
+        p.style.transition = "fill 0.2s ease, stroke 0.2s ease";
+      }
+      
+      p.setAttribute('fill', fill);
+      p.setAttribute('stroke', stroke);
+      p.setAttribute('stroke-width', strokeWidth);
+    });
+  }, [svgLoaded, metricsByState, maxMetricValue, activeMetric, selectedStateCode, hoveredStateCode, pincodeMarkers]);
 
-    const bWidth = Math.max(450, maxX - minX);
-    const bHeight = Math.max(450, maxY - minY);
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-
-    // Maintain 1977:2313 aspect ratio
-    const targetRatio = FULL_VIEWBOX.w / FULL_VIEWBOX.h;
-    let targetW = bWidth;
-    let targetH = bWidth / targetRatio;
-
-    if (targetH < bHeight) {
-      targetH = bHeight;
-      targetW = bHeight * targetRatio;
-    }
-
-    const vx = Math.max(0, Math.min(FULL_VIEWBOX.w - targetW, cx - targetW / 2));
-    const vy = Math.max(0, Math.min(FULL_VIEWBOX.h - targetH, cy - targetH / 2));
-
-    setViewBoxState({ x: vx, y: vy, w: targetW, h: targetH });
-    setZoomScale(Number((FULL_VIEWBOX.w / targetW).toFixed(2)));
-  }, [selectedStateCode]);
-
-  // Zoom control handlers
   const handleZoomIn = () => {
     setViewBoxState((prev) => {
-      const newW = Math.max(300, prev.w * 0.75);
-      const newH = Math.max(350, prev.h * 0.75);
+      const newW = Math.max(500, prev.w * 0.75);
+      const newH = Math.max(570, prev.h * 0.75);
       const cx = prev.x + prev.w / 2;
       const cy = prev.y + prev.h / 2;
       const vx = Math.max(0, Math.min(FULL_VIEWBOX.w - newW, cx - newW / 2));
       const vy = Math.max(0, Math.min(FULL_VIEWBOX.h - newH, cy - newH / 2));
-      setZoomScale(Number((FULL_VIEWBOX.w / newW).toFixed(2)));
       return { x: vx, y: vy, w: newW, h: newH };
     });
   };
@@ -196,15 +303,11 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
     setViewBoxState((prev) => {
       const newW = Math.min(FULL_VIEWBOX.w, prev.w * 1.3);
       const newH = Math.min(FULL_VIEWBOX.h, prev.h * 1.3);
-      if (newW >= FULL_VIEWBOX.w || newH >= FULL_VIEWBOX.h) {
-        setZoomScale(1);
-        return FULL_VIEWBOX;
-      }
+      if (newW >= FULL_VIEWBOX.w || newH >= FULL_VIEWBOX.h) return FULL_VIEWBOX;
       const cx = prev.x + prev.w / 2;
       const cy = prev.y + prev.h / 2;
       const vx = Math.max(0, Math.min(FULL_VIEWBOX.w - newW, cx - newW / 2));
       const vy = Math.max(0, Math.min(FULL_VIEWBOX.h - newH, cy - newH / 2));
-      setZoomScale(Number((FULL_VIEWBOX.w / newW).toFixed(2)));
       return { x: vx, y: vy, w: newW, h: newH };
     });
   };
@@ -212,33 +315,12 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
   const handleResetZoom = () => {
     onSelectState(null);
     setViewBoxState(FULL_VIEWBOX);
-    setZoomScale(1);
   };
 
   const selectedStateName = useMemo(() => {
     if (!selectedStateCode) return null;
     return OFFICIAL_MAP_CENTROIDS.find((s) => s.code === selectedStateCode)?.name || selectedStateCode;
   }, [selectedStateCode]);
-
-  const viewBoxString = `${viewBoxState.x} ${viewBoxState.y} ${viewBoxState.w} ${viewBoxState.h}`;
-
-  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    const factor = e.deltaY > 0 ? 1.15 : 0.85;
-    setViewBoxState((prev) => {
-      const newW = Math.min(FULL_VIEWBOX.w, Math.max(260, prev.w * factor));
-      const newH = Math.min(FULL_VIEWBOX.h, Math.max(300, prev.h * factor));
-      if (newW >= FULL_VIEWBOX.w || newH >= FULL_VIEWBOX.h) {
-        setZoomScale(1);
-        return FULL_VIEWBOX;
-      }
-      const cx = prev.x + prev.w / 2;
-      const cy = prev.y + prev.h / 2;
-      const vx = Math.max(0, Math.min(FULL_VIEWBOX.w - newW, cx - newW / 2));
-      const vy = Math.max(0, Math.min(FULL_VIEWBOX.h - newH, cy - newH / 2));
-      setZoomScale(Number((FULL_VIEWBOX.w / newW).toFixed(2)));
-      return { x: vx, y: vy, w: newW, h: newH };
-    });
-  };
 
   return (
     <div className="relative w-full flex flex-col items-center justify-center select-none bg-gradient-to-b from-slate-50/90 via-white to-blue-50/30 rounded-3xl p-3 sm:p-5 border border-slate-200/80 shadow-xs overflow-hidden">
@@ -256,7 +338,7 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
               <FiX className="h-3.5 w-3.5" />
             </button>
           </div>
-        ) : zoomScale > 1 ? (
+        ) : zoomScale > 1.05 ? (
           <div className="flex items-center gap-2 bg-slate-800/90 text-white backdrop-blur-md px-3 py-1.5 rounded-2xl text-xs font-semibold shadow-lg border border-slate-700">
             <span>Zoom Level: {zoomScale}x</span>
             <button
@@ -298,145 +380,16 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
         </button>
       </div>
 
-      {/* SVG Map Canvas */}
-      <svg
-        viewBox={viewBoxString}
-        onWheel={handleWheel}
-        className="w-full h-auto max-h-[580px] drop-shadow-sm transition-all duration-500 ease-out cursor-grab active:cursor-grabbing"
-        aria-label="Interactive Heatmap of India"
-      >
-        <defs>
-          <radialGradient id="pincodeGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#EF4444" stopOpacity="0.95" />
-            <stop offset="50%" stopColor="#F59E0B" stopOpacity="0.7" />
-            <stop offset="100%" stopColor="#EF4444" stopOpacity="0" />
-          </radialGradient>
-
-          <filter id="shadow-selected" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#312E81" floodOpacity="0.4" />
-          </filter>
-        </defs>
-
-        {/* State & Inner District Polygons Layer */}
-        <g id="states-layer">
-          {[...pathsByState.entries()].map(([stateCode, paths]) => {
-            const metrics = metricsByState.get(stateCode);
-            const val = metrics ? (activeMetric === "revenue" ? metrics.revenue : metrics.orders) : 0;
-            const isSelected = selectedStateCode === stateCode;
-            const isHovered = hoveredStateCode === stateCode;
-            const fillColor = getFillColor(val, maxMetricValue, isSelected);
-
-            return (
-              <g
-                key={stateCode}
-                className="cursor-pointer transition-all duration-200"
-                onClick={() => onSelectState(isSelected ? null : stateCode)}
-                onMouseEnter={(e) => onHoverState(stateCode, e)}
-                onMouseMove={(e) => onHoverState(stateCode, e)}
-                onMouseLeave={() => onHoverState(null)}
-                filter={isSelected ? "url(#shadow-selected)" : undefined}
-              >
-                {/* Inner District Polygons */}
-                {paths.map((p) => (
-                  <path
-                    key={p.idx}
-                    d={p.d}
-                    fill={isHovered && !isSelected ? "#4F46E5" : fillColor}
-                    stroke={
-                      isSelected
-                        ? "#F59E0B"
-                        : isHovered
-                        ? "#1D4ED8"
-                        : "rgba(255, 255, 255, 0.5)"
-                    }
-                    strokeWidth={isSelected ? 2.8 : isHovered ? 1.6 : 0.45}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    className="transition-colors duration-150"
-                  />
-                ))}
-              </g>
-            );
-          })}
-        </g>
-
-        {/* Clean State Code Labels on Centroids */}
-        <g id="state-labels">
-          {OFFICIAL_MAP_CENTROIDS.map((st) => {
-            const metrics = metricsByState.get(st.code);
-            const val = metrics ? (activeMetric === "revenue" ? metrics.revenue : metrics.orders) : 0;
-            const isSelected = selectedStateCode === st.code;
-            const isHovered = hoveredStateCode === st.code;
-            const hasSales = val > 0;
-
-            // Scale label size smoothly when zoomed in
-            const fontSize = zoomScale > 1.8 ? 16 : zoomScale > 1.2 ? 19 : 22;
-
-            return (
-              <g key={`label-${st.code}`} className="pointer-events-none">
-                {/* Text halo outline */}
-                <text
-                  x={st.cx}
-                  y={st.cy}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={fontSize}
-                  className="font-black fill-white stroke-white stroke-[5] opacity-95 select-none"
-                >
-                  {st.code}
-                </text>
-                <text
-                  x={st.cx}
-                  y={st.cy}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={fontSize}
-                  className={`font-black transition-all select-none ${
-                    isSelected
-                      ? "fill-amber-300 font-extrabold"
-                      : isHovered
-                      ? "fill-amber-200 font-bold"
-                      : hasSales
-                      ? "fill-slate-900 font-bold"
-                      : "fill-slate-400 opacity-60"
-                  }`}
-                >
-                  {st.code}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-
-        {/* Pincode Heatmap Density Markers */}
-        {pincodeMarkers.length > 0 && (
-          <g id="pincodes-overlay">
-            {pincodeMarkers.map((pin, idx) => {
-              const radius = Math.min(48, Math.max(16, Math.sqrt(pin.orders) * 10));
-              return (
-                <g key={`${pin.postalCode}-${idx}`} className="animate-pulse">
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={radius}
-                    fill="url(#pincodeGlow)"
-                    className="pointer-events-none"
-                  />
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={6}
-                    fill="#DC2626"
-                    stroke="#FFFFFF"
-                    strokeWidth={2}
-                    className="pointer-events-none"
-                  />
-                </g>
-              );
-            })}
-          </g>
+      {/* Injecting DOM-managed SVG directly */}
+      <div className="relative w-full h-auto min-h-[400px] max-h-[580px] drop-shadow-sm transition-all duration-500 ease-out flex items-center justify-center" aria-label="Interactive Heatmap of India">
+        {!svgLoaded && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center py-24 text-gray-400 gap-3 z-10 bg-white/50">
+             <div className="h-9 w-9 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
+             <span className="text-xs font-medium text-gray-500">Loading High-Res Pincode Map...</span>
+          </div>
         )}
-      </svg>
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center" style={{ opacity: svgLoaded ? 1 : 0 }} />
+      </div>
     </div>
   );
 };

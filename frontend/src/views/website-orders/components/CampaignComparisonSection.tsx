@@ -203,46 +203,46 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center rounded-2xl bg-gray-100/80 p-1 border border-gray-200/60">
+        <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-gray-100/80 p-1 border border-gray-200/60">
           <button
             onClick={() => setActiveTab("overview")}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
+            className={`flex items-center justify-center whitespace-nowrap gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeTab === "overview"
                 ? "bg-white text-indigo-700 shadow-sm font-semibold"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            <FiPieChart className="h-3.5 w-3.5" /> Overview
+            <FiPieChart className="h-3.5 w-3.5 shrink-0" /> Overview
           </button>
           <button
             onClick={() => setActiveTab("campaigns")}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
+            className={`flex items-center justify-center whitespace-nowrap gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeTab === "campaigns"
                 ? "bg-white text-indigo-700 shadow-sm font-semibold"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            <FiTarget className="h-3.5 w-3.5" /> Campaigns ({campaigns.length})
+            <FiTarget className="h-3.5 w-3.5 shrink-0" /> Campaigns ({campaigns.length})
           </button>
           <button
             onClick={() => setActiveTab("chart")}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
+            className={`flex items-center justify-center whitespace-nowrap gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeTab === "chart"
                 ? "bg-white text-indigo-700 shadow-sm font-semibold"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            <FiBarChart2 className="h-3.5 w-3.5" /> Timeline Chart
+            <FiBarChart2 className="h-3.5 w-3.5 shrink-0" /> Timeline Chart
           </button>
           <button
             onClick={() => setActiveTab("analysis")}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
+            className={`flex items-center justify-center whitespace-nowrap gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeTab === "analysis"
                 ? "bg-white text-indigo-700 shadow-sm font-semibold"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            <FiAward className="h-3.5 w-3.5" /> Insights
+            <FiAward className="h-3.5 w-3.5 shrink-0" /> Insights
           </button>
         </div>
       </div>
