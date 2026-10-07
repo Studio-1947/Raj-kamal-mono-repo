@@ -16,3 +16,4 @@ export { default as LokbhartiOfflineSales } from "./LokbhartiOfflineSales";
 export { default as TotalOfflineSales } from "./TotalOfflineSales";
 export { default as GeoInsights } from "./GeoInsights";
 export { default as WebsiteOrders } from "./WebsiteOrders";
+export { default as AbandonedCarts } from "./AbandonedCarts";

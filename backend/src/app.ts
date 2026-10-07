@@ -13,6 +13,7 @@ import rankingsRoutes from "./routes/rankings.js";
 import metricoolRoutes from "./routes/metricool.js";
 import syncLogsRoutes from "./routes/syncLogs.js";
 import websiteOrdersRoutes from "./routes/websiteOrders.js";
+import websiteCartsRoutes from "./routes/websiteCarts.js";
 import filterLocksRoutes from "./routes/filterLocks.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { mountOnlineSales } from "./features/sales/server/online.index.js";
@@ -222,6 +223,7 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/rankings", rankingsRoutes);
 app.use("/api/metricool", metricoolRoutes);
 app.use("/api/website-orders", websiteOrdersRoutes);
+app.use("/api/website-carts", websiteCartsRoutes);
 app.use("/api/filter-locks", filterLocksRoutes);
 // Sales APIs (features)
 mountOnlineSales(app, "/api/online-sales");

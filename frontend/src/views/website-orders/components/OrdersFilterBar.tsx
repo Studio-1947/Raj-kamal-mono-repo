@@ -29,7 +29,7 @@ interface OrdersFilterBarProps {
   onToggleLock?: () => void;
 }
 
-const dateInputClass =
+export const dateInputClass =
   "cursor-pointer rounded-lg border border-gray-200 bg-white px-1.5 sm:px-2 py-1 text-xs text-gray-700 transition hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 max-w-[110px] sm:max-w-[125px] shrink-0";
 
 /**
@@ -37,7 +37,7 @@ const dateInputClass =
  * calendar glyph. `showPicker` is unsupported on older Safari and throws if the
  * field isn't user-activated, so a failure just falls back to native behaviour.
  */
-function openPicker(event: React.MouseEvent<HTMLInputElement>) {
+export function openPicker(event: React.MouseEvent<HTMLInputElement>) {
   try {
     event.currentTarget.showPicker();
   } catch {
@@ -54,7 +54,7 @@ interface CheckboxDropdownProps {
   onChange: (value: string[]) => void;
 }
 
-function CheckboxDropdown({
+export function CheckboxDropdown({
   allLabel,
   ariaLabel,
   options,
