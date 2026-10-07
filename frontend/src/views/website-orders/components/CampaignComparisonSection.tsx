@@ -368,11 +368,11 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                   </div>
                 </div>
 
-                {/* Card 2: Meta Ads Revenue */}
+                {/* Card 2: Meta Ads Conversions */}
                 <div className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
-                      Meta Ads Revenue
+                      Meta Ads Conversions
                       {metaSpend === 0 && salesAdsOrders > 0 && (
                         <button 
                           onClick={() => setShowDelayedInfo(true)}
@@ -386,11 +386,11 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                     <FiTarget className="h-5 w-5 text-indigo-600" />
                   </div>
                   <div className="mt-2 text-2xl font-bold text-gray-900">
-                    {formatINR(salesAdsRevenue)}
+                    {formatNumber(salesAdsOrders)} orders
                   </div>
                   <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-gray-600">Ad Orders:</span>
-                    <span className="font-bold text-gray-900">{formatNumber(salesAdsOrders)}</span>
+                    <span className="text-gray-600">Meta Ads Revenue:</span>
+                    <span className="font-bold text-indigo-700">{formatINR(salesAdsRevenue)}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
                     <span>Cost Per Order (CAC):</span>
