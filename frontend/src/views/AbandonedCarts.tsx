@@ -143,14 +143,14 @@ export default function AbandonedCarts() {
             Summary metrics are unavailable right now — the cart list below is still live.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 xl:gap-6">
             <KpiCard
               title="Abandoned carts"
               value={summary ? formatNumber(summary.cartCount) : "—"}
               icon={<FiShoppingCart className="h-12 w-12" />}
               badge={
                 summary ? (
-                  <p className="mt-2 text-xs text-gray-400">{formatNumber(summary.totalItems)} books in carts</p>
+                  <p className="text-[11px] text-gray-500 font-medium leading-snug">{formatNumber(summary.totalItems)} books in carts</p>
                 ) : undefined
               }
             />
@@ -160,7 +160,7 @@ export default function AbandonedCarts() {
               icon={<FiTrendingUp className="h-12 w-12" />}
               badge={
                 summary ? (
-                  <p className="mt-2 text-xs text-gray-400">
+                  <p className="text-[11px] text-gray-500 font-medium leading-snug">
                     Avg {formatINR(summary.averageCartValue)} · median {formatINR(summary.medianCartValue)}
                   </p>
                 ) : undefined
@@ -172,7 +172,7 @@ export default function AbandonedCarts() {
               icon={<FiTarget className="h-12 w-12" />}
               badge={
                 summary ? (
-                  <p className="mt-2 text-xs text-gray-400">
+                  <p className="text-[11px] text-emerald-600 font-semibold leading-snug">
                     {formatNumber(summary.recoverable.count)} contactable, in-stock, active carts
                   </p>
                 ) : undefined
@@ -189,7 +189,7 @@ export default function AbandonedCarts() {
               icon={<FiClock className="h-12 w-12" />}
               badge={
                 summary ? (
-                  <p className="mt-2 text-xs text-gray-400">{formatNumber(stale)} carts untouched for a week or more</p>
+                  <p className="text-[11px] text-gray-500 font-medium leading-snug">{formatNumber(stale)} carts untouched for a week or more</p>
                 ) : undefined
               }
             />
@@ -199,7 +199,7 @@ export default function AbandonedCarts() {
               icon={<FiAlertTriangle className="h-12 w-12" />}
               badge={
                 summary ? (
-                  <p className="mt-2 text-xs text-gray-400">
+                  <p className="text-[11px] text-amber-600 font-semibold leading-snug">
                     {formatNumber(summary.stockIssues.count)} carts hold an out-of-stock book
                   </p>
                 ) : undefined
