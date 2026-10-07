@@ -37,10 +37,10 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-4">
-        <h3 className="text-base font-bold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-400">{subtitle}</p>}
+    <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-xs h-full flex flex-col">
+      <div className="mb-5">
+        <h3 className="text-[13px] font-bold text-gray-800 tracking-wide">{title}</h3>
+        {subtitle && <p className="text-[11px] text-gray-500 mt-1">{subtitle}</p>}
       </div>
       <div style={{ height }} className="w-full">
         {loading ? (
@@ -124,6 +124,7 @@ function BandsChart({
   summary: CartsSummary | undefined;
   isLoading: boolean;
 }) {
+  const max = data.length > 0 ? Math.max(...data.map((d) => d.count)) : 1;
   return (
     <ChartCard
       title={title}
@@ -133,26 +134,18 @@ function BandsChart({
       empty={!summary || summary.cartCount === 0}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />
-          <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-          <YAxis
-            type="category"
-            dataKey="label"
-            width={78}
-            tick={{ fontSize: 11, fill: "#4B5563" }}
-            axisLine={false}
-            tickLine={false}
-            interval={0}
-          />
+        <BarChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#6B7280" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={34} />
           <Tooltip
             {...tooltipProps}
             cursor={{ fill: "#F9FAFB" }}
             formatter={(v: number, _n, item) => [`${formatNumber(v)} carts · ${formatINR(item.payload.value)}`, "Carts"]}
           />
-          <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-            {data.map((_, i) => (
-              <Cell key={i} fill={BAND_COLORS[i % BAND_COLORS.length]} />
+          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+            {data.map((d, i) => (
+              <Cell key={i} fill={d.count === max ? "#4F46E5" : "#C7D2FE"} />
             ))}
           </Bar>
         </BarChart>
@@ -204,7 +197,7 @@ export const CartWeekdayChart: React.FC<ChartProps> = ({ summary, isLoading }) =
           />
           <Bar dataKey="carts" radius={[6, 6, 0, 0]}>
             {data.map((d) => (
-              <Cell key={d.day} fill={d.carts === max ? "#F59E0B" : "#FCD34D"} />
+              <Cell key={d.day} fill={d.carts === max ? "#4F46E5" : "#C7D2FE"} />
             ))}
           </Bar>
         </BarChart>
@@ -237,7 +230,7 @@ export const CartHourChart: React.FC<ChartProps> = ({ summary, isLoading }) => {
           />
           <Bar dataKey="carts" radius={[4, 4, 0, 0]}>
             {data.map((d) => (
-              <Cell key={d.hour} fill={d.carts === max ? "#10B981" : "#A7F3D0"} />
+              <Cell key={d.hour} fill={d.carts === max ? "#4F46E5" : "#C7D2FE"} />
             ))}
           </Bar>
         </BarChart>
