@@ -12,7 +12,7 @@ import {
   FiChevronUp,
 } from "react-icons/fi";
 import { OrdersSummary } from "../../../services/websiteOrdersService";
-import { OFFICIAL_MAP_CENTROIDS, StateCentroid } from "./indiaMapData";
+import { INDIA_STATE_SHAPES } from "./indiaStateShapes";
 import {
   IndiaSvgMap,
   normalizeStateCode,
@@ -104,44 +104,34 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
         topCode = code;
       }
     }
-    const path = OFFICIAL_MAP_CENTROIDS.find((s) => s.code === topCode);
+    const path = INDIA_STATE_SHAPES.find((s) => s.code === topCode);
     return { name: path?.name || topCode, code: topCode, revenue: maxRev };
   }, [metricsByState]);
 
-  // Pincode markers calculation
+  // Pincode dots: every top pincode in Pincode view, or just the selected state's in State view
   const pincodeMarkers = useMemo(() => {
     if (!summary?.topPincodes) return [];
-    
-    return summary.topPincodes
-      .filter((pin) => {
-        if (!searchQuery) return true;
-        const q = searchQuery.toLowerCase().trim();
-        return (
-          pin.postalCode.includes(q) ||
-          (pin.city && pin.city.toLowerCase().includes(q)) ||
-          (pin.state && pin.state.toLowerCase().includes(q))
-        );
-      })
-      .map((pin) => {
-        const normCode = normalizeStateCode(pin.state);
-        const stateCode = normCode !== "UNKNOWN" ? normCode : (stateCodeFromPincode(pin.postalCode) || "UNKNOWN");
-        const statePath = OFFICIAL_MAP_CENTROIDS.find((s: StateCentroid) => s.code === stateCode);
-        const seed = parseInt(pin.postalCode.slice(-3), 10) || 123;
-        const offsetX = ((seed % 30) - 15) * 2.5;
-        const offsetY = (((seed * 7) % 30) - 15) * 2.5;
-
-        return {
-          ...pin,
-          x: (statePath?.cx || 988) + offsetX,
-          y: (statePath?.cy || 1156) + offsetY,
-        };
-      });
-  }, [summary?.topPincodes, searchQuery]);
+    if (viewMode !== "pincode" && !selectedStateCode) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return summary.topPincodes.filter((pin) => {
+      if (selectedStateCode) {
+        const code = normalizeStateCode(pin.state);
+        const resolved = code !== "UNKNOWN" ? code : stateCodeFromPincode(pin.postalCode);
+        if (resolved !== selectedStateCode) return false;
+      }
+      if (!q) return true;
+      return (
+        pin.postalCode.includes(q) ||
+        (pin.city && pin.city.toLowerCase().includes(q)) ||
+        (pin.state && pin.state.toLowerCase().includes(q))
+      );
+    });
+  }, [summary?.topPincodes, searchQuery, viewMode, selectedStateCode]);
 
   // Hover state details
   const hoveredStateObj = useMemo(() => {
     if (!hoveredStateCode) return null;
-    const path = OFFICIAL_MAP_CENTROIDS.find((s: StateCentroid) => s.code === hoveredStateCode);
+    const path = INDIA_STATE_SHAPES.find((s) => s.code === hoveredStateCode);
     const metrics = metricsByState.get(hoveredStateCode);
     return {
       name: path?.name || hoveredStateCode,
@@ -355,7 +345,7 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                   onSelectState={setSelectedStateCode}
                   hoveredStateCode={hoveredStateCode}
                   onHoverState={handleHoverState}
-                  pincodeMarkers={viewMode === "pincode" ? pincodeMarkers : []}
+                  pincodeMarkers={pincodeMarkers}
                 />
 
                 {/* Map Legend */}
