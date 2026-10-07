@@ -137,9 +137,11 @@ interface IndiaSvgMapProps {
   maxMetricValue: number;
   activeMetric: "revenue" | "orders";
   selectedStateCode: string | null;
+  selectedPincode?: string | null;
   onSelectState: (stateCode: string | null) => void;
   hoveredStateCode: string | null;
   onHoverState: (stateCode: string | null, event?: React.MouseEvent) => void;
+  onHoverPincode?: (marker: PincodeMarker | null, event?: React.MouseEvent) => void;
   pincodeMarkers?: PincodeMarker[];
 }
 
@@ -148,9 +150,11 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
   maxMetricValue,
   activeMetric,
   selectedStateCode,
+  selectedPincode,
   onSelectState,
   hoveredStateCode,
   onHoverState,
+  onHoverPincode,
   pincodeMarkers = [],
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -212,15 +216,20 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
 
   useEffect(() => () => stopAnim(), []);
 
-  // Zoom to the selected state (or back out when cleared)
+  // Zoom to the selected state or pincode
   useEffect(() => {
-    if (!selectedStateCode) {
+    if (selectedPincode && centroids && centroids[selectedPincode]) {
+      const [cx, cy] = centroids[selectedPincode];
+      const w = FULL_VIEWBOX.w / 14; // Zoom level 14
+      const h = w / ASPECT;
+      animateTo(clampView({ x: cx - w / 2, y: cy - h / 2, w, h }));
+    } else if (selectedStateCode) {
+      const shape = INDIA_STATE_SHAPES.find((s) => s.code === selectedStateCode);
+      if (shape) animateTo(fitBBox(shape.bbox));
+    } else {
       animateTo(FULL_VIEWBOX);
-      return;
     }
-    const shape = INDIA_STATE_SHAPES.find((s) => s.code === selectedStateCode);
-    if (shape) animateTo(fitBBox(shape.bbox));
-  }, [selectedStateCode, animateTo]);
+  }, [selectedStateCode, selectedPincode, centroids, animateTo]);
 
   const zoomBy = useCallback((factor: number, focus?: { fx: number; fy: number }) => {
     const v = viewRef.current;
@@ -295,8 +304,11 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
   };
 
   const handleResetZoom = () => {
-    if (selectedStateCode) onSelectState(null);
-    else animateTo(FULL_VIEWBOX);
+    if (selectedStateCode || selectedPincode) {
+      onSelectState(null); // This will also clear selectedPincode in parent
+    } else {
+      animateTo(FULL_VIEWBOX);
+    }
   };
 
   const selectedStateName = useMemo(
@@ -471,14 +483,18 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
                   fillOpacity={0.35 + ratio * 0.6}
                   stroke="#B91C1C"
                   strokeWidth={1.2 * strokeUnit}
-                  className="cursor-pointer"
-                >
-                  <title>
-                    {`${pin} ${office} - ₹${mk.revenue.toLocaleString("en-IN")} · ${mk.orders} ${
-                      mk.orders === 1 ? "order" : "orders"
-                    }`}
-                  </title>
-                </path>
+                  className="cursor-pointer transition-all hover:fill-[#DC2626]"
+                  onMouseMove={(e) => {
+                    if (!dragRef.current?.moved) {
+                      setHoveredPin(pin);
+                      onHoverPincode?.(mk, e);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredPin(null);
+                    onHoverPincode?.(null);
+                  }}
+                />
               );
             })}
           </g>
@@ -492,17 +508,20 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
             return (
               <g
                 key={m.postalCode}
-                onMouseEnter={() => setHoveredPin(m.postalCode)}
-                onMouseLeave={() => setHoveredPin(null)}
+                onMouseMove={(e) => {
+                  if (!dragRef.current?.moved) {
+                    setHoveredPin(m.postalCode);
+                    onHoverPincode?.(m, e);
+                  }
+                }}
+                onMouseLeave={() => {
+                  setHoveredPin(null);
+                  onHoverPincode?.(null);
+                }}
                 className="cursor-pointer"
               >
-                <circle cx={m.x} cy={m.y} r={r * 1.9} fill="#EF4444" opacity={isHot ? 0.3 : 0.16} />
-                <circle cx={m.x} cy={m.y} r={r} fill="#EF4444" stroke="#FFFFFF" strokeWidth={1.5 * unit} opacity={0.92} />
-                <title>
-                  {`${m.postalCode} ${m.city || ""} - ₹${m.revenue.toLocaleString("en-IN")} · ${m.orders} ${
-                    m.orders === 1 ? "order" : "orders"
-                  }`}
-                </title>
+                <circle cx={m.x} cy={m.y} r={r * 1.9} fill="#EF4444" opacity={isHot ? 0.3 : 0.16} className="transition-opacity" />
+                <circle cx={m.x} cy={m.y} r={r} fill="#EF4444" stroke="#FFFFFF" strokeWidth={1.5 * unit} opacity={0.92} className="transition-all hover:scale-110" />
               </g>
             );
           })}

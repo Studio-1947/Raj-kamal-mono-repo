@@ -60,7 +60,9 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
   const [activeMetric, setActiveMetric] = useState<"revenue" | "orders">("revenue");
   const [viewMode, setViewMode] = useState<"state" | "pincode">("state");
   const [selectedStateCode, setSelectedStateCode] = useState<string | null>(null);
+  const [selectedPincode, setSelectedPincode] = useState<string | null>(null);
   const [hoveredStateCode, setHoveredStateCode] = useState<string | null>(null);
+  const [hoveredPincode, setHoveredPincode] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -144,9 +146,18 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
 
   const handleHoverState = (code: string | null, event?: React.MouseEvent) => {
     setHoveredStateCode(code);
-    if (code && event) {
+    if (code && event && !hoveredPincode) {
       setTooltipPos({ x: event.clientX, y: event.clientY });
-    } else {
+    } else if (!code && !hoveredPincode) {
+      setTooltipPos(null);
+    }
+  };
+
+  const handleHoverPincode = (marker: any | null, event?: React.MouseEvent) => {
+    setHoveredPincode(marker);
+    if (marker && event) {
+      setTooltipPos({ x: event.clientX, y: event.clientY });
+    } else if (!hoveredStateCode) {
       setTooltipPos(null);
     }
   };
@@ -342,9 +353,14 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                   maxMetricValue={maxMetricValue}
                   activeMetric={activeMetric}
                   selectedStateCode={selectedStateCode}
-                  onSelectState={setSelectedStateCode}
+                  selectedPincode={selectedPincode}
+                  onSelectState={(code) => {
+                    setSelectedStateCode(code);
+                    if (!code) setSelectedPincode(null);
+                  }}
                   hoveredStateCode={hoveredStateCode}
                   onHoverState={handleHoverState}
+                  onHoverPincode={handleHoverPincode}
                   pincodeMarkers={pincodeMarkers}
                 />
 
@@ -361,7 +377,7 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
             )}
 
             {/* Floating Tooltip */}
-            {hoveredStateObj && (
+            {(hoveredStateObj || hoveredPincode) && (
               <div
                 style={
                   tooltipPos
@@ -376,30 +392,59 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                   tooltipPos ? "z-50" : "absolute top-4 right-4 z-30"
                 } bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-3.5 shadow-2xl border border-slate-700/80 min-w-[190px] transition-all duration-75`}
               >
-                <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5 mb-2">
-                  <span className="font-bold text-xs text-blue-400">{hoveredStateObj.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono font-bold">
-                    {hoveredStateObj.code}
-                  </span>
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-slate-300">
-                    <span>Revenue:</span>
-                    <span className="font-bold text-white">
-                      ₹{hoveredStateObj.revenue.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Orders:</span>
-                    <span className="font-bold text-white">
-                      {hoveredStateObj.orders.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-400 text-[10px] pt-1.5 border-t border-slate-800">
-                    <span>Share of Total:</span>
-                    <span className="text-blue-400 font-bold">{hoveredStateObj.pctRevenue}%</span>
-                  </div>
-                </div>
+                {hoveredPincode ? (
+                  <>
+                    <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5 mb-2">
+                      <span className="font-bold text-xs text-red-400">
+                        {hoveredPincode.city || hoveredPincode.state || "Pincode"}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono font-bold">
+                        {hoveredPincode.postalCode}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between text-slate-300">
+                        <span>Revenue:</span>
+                        <span className="font-bold text-white">
+                          ₹{hoveredPincode.revenue.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-slate-300">
+                        <span>Orders:</span>
+                        <span className="font-bold text-white">
+                          {hoveredPincode.orders.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : hoveredStateObj && (
+                  <>
+                    <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5 mb-2">
+                      <span className="font-bold text-xs text-blue-400">{hoveredStateObj.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono font-bold">
+                        {hoveredStateObj.code}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between text-slate-300">
+                        <span>Revenue:</span>
+                        <span className="font-bold text-white">
+                          ₹{hoveredStateObj.revenue.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-slate-300">
+                        <span>Orders:</span>
+                        <span className="font-bold text-white">
+                          {hoveredStateObj.orders.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-slate-400 text-[10px] pt-1.5 border-t border-slate-800">
+                        <span>Share of Total:</span>
+                        <span className="text-blue-400 font-bold">{hoveredStateObj.pctRevenue}%</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -414,7 +459,10 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setSelectedStateCode(null)}
+                  onClick={() => {
+                    setSelectedStateCode(null);
+                    setSelectedPincode(null);
+                  }}
                   className="text-blue-600 hover:text-blue-950 font-bold underline underline-offset-2"
                 >
                   Clear filter
@@ -460,6 +508,7 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                         onClick={() => {
                           const code = normalizeStateCode(item.state);
                           if (code !== "UNKNOWN") setSelectedStateCode(code);
+                          setSelectedPincode(item.postalCode);
                         }}
                         className="group relative p-3 rounded-2xl border border-gray-100 bg-gray-50/40 hover:bg-white hover:border-gray-200 hover:shadow-xs hover:border-indigo-200 transition-all duration-200 space-y-2 cursor-pointer"
                         title={`Click to zoom into ${item.state || item.city}`}
