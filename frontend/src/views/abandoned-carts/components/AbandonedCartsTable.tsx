@@ -1,5 +1,6 @@
 import React from "react";
-import { FiChevronDown, FiChevronRight, FiAlertCircle, FiPhone, FiMail, FiMessageCircle, FiImage } from "react-icons/fi";
+import { createPortal } from "react-dom";
+import { FiChevronDown, FiChevronRight, FiAlertCircle, FiPhone, FiMail, FiMessageCircle, FiImage, FiFileText, FiX, FiCheck } from "react-icons/fi";
 import { formatINR } from "../../total-offline-sales/components";
 import TablePagination from "../../../components/TablePagination";
 import type { CartsPage, WebsiteCart } from "../../../services/websiteCartsService";
@@ -64,6 +65,12 @@ function CartItemImage({ src, alt }: { src: string | null; alt: string }) {
 
 function CartRow({ cart }: { cart: WebsiteCart }) {
   const [open, setOpen] = React.useState(false);
+  const [showNoteModal, setShowNoteModal] = React.useState(false);
+  const [status, setStatus] = React.useState("pending");
+  const [note, setNote] = React.useState("");
+  const [savedStatus, setSavedStatus] = React.useState<string | null>(null);
+  const [savedNote, setSavedNote] = React.useState("");
+
   const age = timeAgo(cart.updatedAt);
   const c = cart.customer;
   const wa = whatsappLink(c.phone);
@@ -138,6 +145,29 @@ function CartRow({ cart }: { cart: WebsiteCart }) {
               </a>
             )}
             {!wa && !c.phone && !c.email && <span className="text-xs text-gray-300">—</span>}
+            <div className="w-px h-4 bg-gray-200 mx-1"></div>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowNoteModal(true); }}
+              title="Add Notes / Log Contact" 
+              className="rounded-lg p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+            >
+              <FiFileText className="h-4 w-4" />
+            </button>
+            {savedStatus === 'reached' && (
+              <span title={savedNote} className="ml-1 inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200 cursor-help">
+                <FiCheck className="w-3 h-3" /> Reached
+              </span>
+            )}
+            {savedStatus === 'no_answer' && (
+              <span title={savedNote} className="ml-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200 cursor-help">
+                No Answer
+              </span>
+            )}
+            {savedStatus === 'invalid' && (
+              <span title={savedNote} className="ml-1 inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 border border-rose-200 cursor-help">
+                Invalid
+              </span>
+            )}
           </div>
         </td>
         <td className="px-4 py-3 text-right">
@@ -176,6 +206,69 @@ function CartRow({ cart }: { cart: WebsiteCart }) {
             </div>
           </td>
         </tr>
+      )}
+
+      {showNoteModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm" onClick={stop}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative animate-in fade-in zoom-in-95 duration-200 border border-gray-100" onClick={stop}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-base">
+                <FiFileText className="text-indigo-600 h-5 w-5" />
+                Log Contact: {c.name ?? c.phone ?? "Customer"}
+              </h3>
+              <button 
+                onClick={() => setShowNoteModal(false)}
+                className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Contact Status</label>
+                <select 
+                  className="w-full text-sm rounded-xl border border-gray-200 p-2.5 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white text-gray-900 font-medium"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="pending">Pending / Not Contacted</option>
+                  <option value="reached">Reached Customer</option>
+                  <option value="no_answer">No Answer / Left Voicemail</option>
+                  <option value="invalid">Invalid Number</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Notes</label>
+                <textarea 
+                  rows={4} 
+                  className="w-full text-sm rounded-xl border border-gray-200 p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-gray-900 font-medium placeholder:text-gray-400 placeholder:font-normal"
+                  placeholder="E.g., Customer said they will checkout tonight..."
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-2">
+              <button 
+                onClick={() => setShowNoteModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setSavedStatus(status);
+                  setSavedNote(note);
+                  setShowNoteModal(false);
+                }}
+                className="px-5 py-2 bg-indigo-600 border border-transparent rounded-xl text-sm font-medium text-white hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <FiCheck className="w-4 h-4" /> Save Note
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </>
   );
