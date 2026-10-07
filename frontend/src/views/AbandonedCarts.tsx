@@ -135,6 +135,7 @@ export default function AbandonedCarts() {
           isFetching={isRefreshing || cartsQuery.isFetching || summaryQuery.isFetching}
           isExporting={isExporting}
           matchCount={cartsQuery.data?.meta.total}
+          groupStats={summary?.byGroup}
         />
 
         {summaryQuery.error ? (
@@ -247,6 +248,7 @@ export default function AbandonedCarts() {
           pageSize={pageSize}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
+          groupStats={summary?.byGroup}
         />
       </div>
     </AppLayout>

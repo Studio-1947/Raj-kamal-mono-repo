@@ -152,7 +152,12 @@ function trimmed(value: unknown): string | null {
  */
 function extractCustomer(user: any): WebsiteCart["customer"] {
   const profile = user?.profile ?? {};
-  const name = [trimmed(profile.firstName), trimmed(profile.lastName)].filter(Boolean).join(" ");
+  // Some profiles store a lone dash as a placeholder surname ("Preeti —").
+  const part = (v: unknown) => {
+    const t = trimmed(v);
+    return t && !/^[-–—.]+$/.test(t) ? t : null;
+  };
+  const name = [part(profile.firstName), part(profile.lastName)].filter(Boolean).join(" ");
   const email = trimmed(user?.email);
   const phone = trimmed(user?.phone);
   const code = trimmed(user?.phoneCountryCode);
@@ -161,7 +166,7 @@ function extractCustomer(user: any): WebsiteCart["customer"] {
     id: trimmed(user?.id),
     name: name && name.toLowerCase() !== "guest user" ? name : null,
     email: email && !email.endsWith("@otp.rajkamal.local") ? email : null,
-    phone: phone ? (code ? `${code} ${phone}` : phone) : null,
+    phone: phone ? (code ? `${code.startsWith("+") ? code : `+${code}`} ${phone}` : phone) : null,
     group: trimmed(user?.customerGroup),
     lastLoginAt: trimmed(user?.lastLoginAt),
   };

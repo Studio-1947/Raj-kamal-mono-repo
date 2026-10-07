@@ -16,6 +16,7 @@ import {
   type CartFilterState,
   type CartSort,
 } from "../../../services/websiteCartsService";
+import { GroupInfoButton } from "./GroupInfo";
 import { DATE_PRESETS, daysAgo, toDateInput } from "../../website-orders/components/utils";
 import { CheckboxDropdown, dateInputClass, openPicker } from "../../website-orders/components/OrdersFilterBar";
 
@@ -33,6 +34,7 @@ interface Props {
   isLocked: boolean;
   onToggleLock: () => void;
   matchCount: number | undefined;
+  groupStats?: Record<string, { count: number; value: number }> | undefined;
 }
 
 /** One-click audiences. Each is just a filter preset, so it can be tweaked afterwards. */
@@ -127,6 +129,7 @@ export const CartFilterPanel: React.FC<Props> = ({
   isLocked,
   onToggleLock,
   matchCount,
+  groupStats,
 }) => {
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   const active = countActiveFilters(filters);
@@ -226,6 +229,7 @@ export const CartFilterPanel: React.FC<Props> = ({
           allLabel={GROUP_LABELS.ALL!}
           ariaLabel="Customer group"
         />
+        <GroupInfoButton byGroup={groupStats} className="-ml-1 shrink-0" />
 
         <select
           value={filters.sort}

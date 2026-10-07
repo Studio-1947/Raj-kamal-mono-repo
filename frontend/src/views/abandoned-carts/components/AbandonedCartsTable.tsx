@@ -5,6 +5,7 @@ import TablePagination from "../../../components/TablePagination";
 import type { CartsPage, WebsiteCart } from "../../../services/websiteCartsService";
 import { formatDateTime, formatNumber } from "../../website-orders/components/utils";
 import { whatsappLink } from "./contact";
+import { GroupInfoButton } from "./GroupInfo";
 
 interface Props {
   page: CartsPage | undefined;
@@ -15,6 +16,7 @@ interface Props {
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  groupStats?: Record<string, { count: number; value: number }> | undefined;
 }
 
 const COLUMNS = ["", "Customer", "Last activity", "Items", "Group", "Reach out", "Cart value"];
@@ -71,7 +73,10 @@ function CartRow({ cart }: { cart: WebsiteCart }) {
         <td className="px-3 py-3 text-sm text-gray-700">
           {formatNumber(cart.totalQuantity)} {cart.totalQuantity === 1 ? "book" : "books"}
           {cart.itemCount !== cart.totalQuantity && (
-            <span className="text-[11px] text-gray-400"> · {cart.itemCount} titles</span>
+            <span className="text-[11px] text-gray-400">
+              {" "}
+              · {cart.itemCount} {cart.itemCount === 1 ? "title" : "titles"}
+            </span>
           )}
           {cart.hasStockIssue && (
             <div className="mt-0.5 text-[11px] font-semibold text-rose-600">Out-of-stock book</div>
@@ -165,6 +170,7 @@ export const AbandonedCartsTable: React.FC<Props> = ({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  groupStats,
 }) => {
   const carts = page?.carts ?? [];
 
@@ -194,6 +200,7 @@ export const AbandonedCartsTable: React.FC<Props> = ({
                     className={`px-3 py-3 font-medium ${i === COLUMNS.length - 1 ? "pr-4 text-right" : ""}`}
                   >
                     {col}
+                    {col === "Group" && <GroupInfoButton byGroup={groupStats} className="ml-1.5 align-middle" />}
                   </th>
                 ))}
               </tr>
