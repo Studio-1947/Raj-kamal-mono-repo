@@ -52,6 +52,16 @@ function stateCodeFromPincode(postalCode: string): string | null {
   }
 }
 
+function triggerHaptic(ms = 50) {
+  try {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(ms);
+    }
+  } catch (e) {
+    // Ignore if not supported
+  }
+}
+
 export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
   summary,
   isLoading,
@@ -213,7 +223,10 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
           {/* Collapse Toggle Button (Mobile/Desktop Header Trigger) */}
           <button
             type="button"
-            onClick={() => setIsCollapsed((prev) => !prev)}
+            onClick={() => {
+              triggerHaptic(40);
+              setIsCollapsed((prev) => !prev);
+            }}
             className="flex lg:hidden items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition active:scale-95"
           >
             {isCollapsed ? (
@@ -237,8 +250,8 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
             <div className="flex items-center rounded-xl border border-gray-200/80 bg-gray-50/80 p-1">
               <button
                 type="button"
-                onClick={() => setActiveMetric("revenue")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                onClick={() => { triggerHaptic(30); setActiveMetric("revenue"); }}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
                   activeMetric === "revenue"
                     ? "bg-white text-blue-700 shadow-2xs border border-gray-200/80"
                     : "text-gray-600 hover:text-gray-900"
@@ -249,8 +262,8 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveMetric("orders")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                onClick={() => { triggerHaptic(30); setActiveMetric("orders"); }}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
                   activeMetric === "orders"
                     ? "bg-white text-blue-700 shadow-2xs border border-gray-200/80"
                     : "text-gray-600 hover:text-gray-900"
@@ -265,8 +278,8 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
             <div className="flex items-center rounded-xl border border-gray-200/80 bg-gray-50/80 p-1">
               <button
                 type="button"
-                onClick={() => setViewMode("state")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                onClick={() => { triggerHaptic(40); setViewMode("state"); }}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
                   viewMode === "state"
                     ? "bg-white text-gray-900 shadow-2xs border border-gray-200/80"
                     : "text-gray-600 hover:text-gray-900"
@@ -277,8 +290,8 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode("pincode")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                onClick={() => { triggerHaptic(40); setViewMode("pincode"); }}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
                   viewMode === "pincode"
                     ? "bg-white text-gray-900 shadow-2xs border border-gray-200/80"
                     : "text-gray-600 hover:text-gray-900"
@@ -369,8 +382,8 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                   <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px]">Density:</span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-gray-400 font-medium">Low</span>
-                    <div className="h-2.5 w-20 rounded-full bg-gradient-to-r from-indigo-100 via-indigo-400 to-indigo-800" />
-                    <span className="text-indigo-950 font-black">High</span>
+                    <div className="h-2.5 w-20 rounded-full bg-gradient-to-r from-blue-100 via-indigo-500 to-rose-600" />
+                    <span className="text-rose-600 font-black">High</span>
                   </div>
                 </div>
               </>
@@ -390,7 +403,7 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                 }
                 className={`pointer-events-none ${
                   tooltipPos ? "z-50" : "absolute top-4 right-4 z-30"
-                } bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-3.5 shadow-2xl border border-slate-700/80 min-w-[190px] transition-all duration-75`}
+                } bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-3.5 shadow-2xl border border-slate-700/80 min-w-[190px]`}
               >
                 {hoveredPincode ? (
                   <>
@@ -493,6 +506,8 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                   filteredPincodes.map((item, idx) => {
                     const pctWidth = Math.min(100, Math.max(8, (item.revenue / topPincodeMaxRevenue) * 100));
                     const isTop3 = idx < 3;
+                    const isActive = selectedPincode === item.postalCode;
+                    
                     const badgeClass =
                       idx === 0
                         ? "bg-amber-100 text-amber-800 border-amber-300 font-black"
@@ -502,15 +517,20 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                         ? "bg-orange-100 text-orange-800 border-orange-300 font-bold"
                         : "bg-slate-100 text-slate-600 border-slate-200 font-medium";
 
+                    const containerClass = isActive
+                      ? "group relative p-3 rounded-2xl border-2 border-indigo-500 bg-indigo-50/60 shadow-md transition-all duration-200 space-y-2 cursor-pointer ring-4 ring-indigo-500/10"
+                      : "group relative p-3 rounded-2xl border border-gray-100 bg-gray-50/40 hover:bg-white hover:border-gray-200 hover:shadow-sm hover:border-indigo-200 transition-all duration-200 space-y-2 cursor-pointer";
+
                     return (
                       <div
                         key={`${item.postalCode}-${idx}`}
                         onClick={() => {
+                          triggerHaptic(50);
                           const code = normalizeStateCode(item.state);
                           if (code !== "UNKNOWN") setSelectedStateCode(code);
                           setSelectedPincode(item.postalCode);
                         }}
-                        className="group relative p-3 rounded-2xl border border-gray-100 bg-gray-50/40 hover:bg-white hover:border-gray-200 hover:shadow-xs hover:border-indigo-200 transition-all duration-200 space-y-2 cursor-pointer"
+                        className={containerClass}
                         title={`Click to zoom into ${item.state || item.city}`}
                       >
                         <div className="flex items-center justify-between text-xs">
@@ -520,10 +540,10 @@ export const IndiaHeatmapSection: React.FC<IndiaHeatmapSectionProps> = ({
                             </span>
                             <div>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono font-bold text-gray-900 text-xs">
+                                <span className={`font-mono font-bold text-xs ${isActive ? 'text-indigo-700' : 'text-gray-900'}`}>
                                   {item.postalCode}
                                 </span>
-                                <span className="font-semibold text-gray-700 truncate max-w-[130px] text-xs">
+                                <span className={`font-semibold truncate max-w-[130px] text-xs ${isActive ? 'text-indigo-900' : 'text-gray-700'}`}>
                                   {item.city || item.state || "India"}
                                 </span>
                               </div>

@@ -57,13 +57,23 @@ export function normalizeStateCode(input: string | null | undefined): string {
 }
 
 function getFillColor(value: number, max: number): string {
-  if (!value || max <= 0) return "#E2E8F0";
+  if (!value || max <= 0) return "#F8FAFC"; // slate-50
   const ratio = value / max;
-  if (ratio < 0.2) return "#E0E7FF"; // Indigo 100
-  if (ratio < 0.4) return "#A5B4FC"; // Indigo 300
-  if (ratio < 0.65) return "#6366F1"; // Indigo 500
-  if (ratio < 0.85) return "#4338CA"; // Indigo 700
-  return "#2E1065"; // Purple 950
+  if (ratio < 0.2) return "#DBEAFE"; // blue-100
+  if (ratio < 0.4) return "#93C5FD"; // blue-300
+  if (ratio < 0.65) return "#3B82F6"; // blue-500
+  if (ratio < 0.85) return "#4338CA"; // indigo-700
+  return "#E11D48"; // rose-600
+}
+
+function triggerHaptic(ms = 50) {
+  try {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(ms);
+    }
+  } catch (e) {
+    // Ignore if not supported
+  }
 }
 
 type ViewBox = { x: number; y: number; w: number; h: number };
@@ -300,10 +310,12 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
 
   const handleStateClick = (code: string) => {
     if (dragRef.current?.moved) return;
+    triggerHaptic(50);
     onSelectState(selectedStateCode === code ? null : code);
   };
 
   const handleResetZoom = () => {
+    triggerHaptic(40);
     if (selectedStateCode || selectedPincode) {
       onSelectState(null); // This will also clear selectedPincode in parent
     } else {
@@ -318,6 +330,11 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
         : null,
     [selectedStateCode]
   );
+
+  const selectedPincodeInfo = useMemo(() => {
+    if (!selectedPincode || !pincodeMarkers) return null;
+    return pincodeMarkers.find((m) => m.postalCode === selectedPincode);
+  }, [selectedPincode, pincodeMarkers]);
 
   // Paint selected/hovered states last so their outlines aren't covered by neighbours
   const orderedShapes = useMemo(() => {
@@ -353,29 +370,32 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
   );
 
   return (
-    <div className="relative w-full flex flex-col items-center justify-center select-none bg-gradient-to-b from-slate-50/90 via-white to-blue-50/30 rounded-3xl p-3 sm:p-5 border border-slate-200/80 shadow-xs overflow-hidden">
+    <div className="relative w-full flex flex-col items-center justify-center select-none bg-slate-50/40 rounded-3xl p-3 sm:p-5 border-2 border-indigo-100 shadow-sm overflow-hidden">
       {/* Zoom badge */}
       <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
         {selectedStateCode ? (
           <div className="flex items-center gap-2 bg-indigo-900/90 text-white backdrop-blur-md px-3 py-1.5 rounded-2xl text-xs font-semibold shadow-lg border border-indigo-700">
             <FiMapPin className="h-3.5 w-3.5 text-amber-300" />
             <span>
-              Zoomed into {selectedStateName} ({selectedStateCode})
+              {selectedPincodeInfo 
+                ? `Zoomed into ${selectedPincodeInfo.city || 'Pincode'} ${selectedPincodeInfo.postalCode}, ${selectedStateCode}` 
+                : `Zoomed into ${selectedStateName} (${selectedStateCode})`
+              }
             </span>
             <button
               onClick={handleResetZoom}
-              className="ml-1 rounded-full p-0.5 hover:bg-indigo-700 text-indigo-200 hover:text-white transition"
+              className="ml-1 rounded-full p-0.5 hover:bg-indigo-700 text-indigo-200 hover:text-white transition active:scale-90"
               title="Reset Zoom to India Map"
             >
               <FiX className="h-3.5 w-3.5" />
             </button>
           </div>
         ) : zoomScale > 1.05 ? (
-          <div className="flex items-center gap-2 bg-slate-800/90 text-white backdrop-blur-md px-3 py-1.5 rounded-2xl text-xs font-semibold shadow-lg border border-slate-700">
+          <div className="flex items-center gap-2 bg-white/90 text-slate-800 backdrop-blur-md px-3 py-1.5 rounded-2xl text-xs font-semibold shadow-sm border border-slate-200">
             <span>Zoom Level: {zoomScale}x</span>
             <button
               onClick={handleResetZoom}
-              className="ml-1 rounded-full p-0.5 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+              className="ml-1 rounded-full p-0.5 hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition active:scale-90"
               title="Reset Zoom"
             >
               <FiX className="h-3.5 w-3.5" />
@@ -385,19 +405,19 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
       </div>
 
       {/* Zoom controls */}
-      <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5 bg-white/95 backdrop-blur-md border border-gray-200/90 rounded-2xl p-1.5 shadow-md">
+      <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-1.5 shadow-sm">
         <button
           type="button"
-          onClick={() => zoomBy(0.7)}
-          className="p-2 rounded-xl text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition active:scale-95"
+          onClick={() => { triggerHaptic(30); zoomBy(0.7); }}
+          className="p-2 rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition active:scale-95"
           title="Zoom In"
         >
           <FiZoomIn className="h-4 w-4" />
         </button>
         <button
           type="button"
-          onClick={() => zoomBy(1.4)}
-          className="p-2 rounded-xl text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition active:scale-95"
+          onClick={() => { triggerHaptic(30); zoomBy(1.4); }}
+          className="p-2 rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition active:scale-95"
           title="Zoom Out"
         >
           <FiZoomOut className="h-4 w-4" />
@@ -405,7 +425,7 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
         <button
           type="button"
           onClick={handleResetZoom}
-          className="p-2 rounded-xl text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition active:scale-95"
+          className="p-2 rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition active:scale-95"
           title="Reset Zoom (Full India Map)"
         >
           <FiMaximize2 className="h-4 w-4" />
@@ -427,7 +447,7 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
           onHoverState(null);
         }}
       >
-        <g strokeLinejoin="round" style={{ filter: "drop-shadow(0 2px 4px rgba(15,23,42,0.18))" }}>
+        <g strokeLinejoin="round" style={{ filter: "drop-shadow(0 2px 4px rgba(15,23,42,0.12))" }}>
           {orderedShapes.map((shape) => {
             const isSelected = selectedStateCode === shape.code;
             const isHovered = hoveredStateCode === shape.code;
@@ -435,18 +455,18 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
             const val = m ? (activeMetric === "revenue" ? m.revenue : m.orders) : 0;
             let fill = getFillColor(val, maxMetricValue);
             // Keep the selected state light when pincode dots sit on top of it
-            if (isSelected && (hasMarkers || stateAreas)) fill = "#E0E7FF";
-            else if (isSelected) fill = "#312E81";
-            else if (isHovered) fill = "#4F46E5";
+            if (isSelected && (hasMarkers || stateAreas)) fill = "#EFF6FF"; // blue-50
+            else if (isSelected) fill = "#1E40AF"; // blue-800
+            else if (isHovered) fill = "#60A5FA"; // blue-400
             return (
               <path
                 key={shape.code}
                 d={shape.d}
                 fill={fill}
-                fillOpacity={selectedStateCode && !isSelected ? 0.55 : 1}
-                stroke={isSelected ? "#F59E0B" : isHovered ? "#1D4ED8" : "#475569"}
-                strokeWidth={(isSelected ? 2.5 : isHovered ? 2 : 1.1) * strokeUnit}
-                className="transition-[fill,fill-opacity] duration-200"
+                fillOpacity={selectedStateCode && !isSelected ? 0.4 : 1}
+                stroke={isSelected ? "#F59E0B" : isHovered ? "#3B82F6" : "#94A3B8"} // amber-500, blue-500, slate-400
+                strokeWidth={(isSelected ? 2.5 : isHovered ? 2 : 1.4) * strokeUnit}
+                className="transition-[fill,fill-opacity] duration-300"
                 onMouseMove={(e) => !dragRef.current?.moved && onHoverState(shape.code, e)}
                 onMouseLeave={() => onHoverState(null)}
                 onClick={() => handleStateClick(shape.code)}
@@ -466,9 +486,9 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
                     key={i}
                     d={d}
                     fill="none"
-                    stroke="#312E81"
-                    strokeOpacity={0.35}
-                    strokeWidth={0.6 * strokeUnit}
+                    stroke="#64748B"
+                    strokeOpacity={0.6}
+                    strokeWidth={0.8 * strokeUnit}
                     pointerEvents="none"
                   />
                 );
@@ -479,11 +499,11 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
                 <path
                   key={i}
                   d={d}
-                  fill="#EF4444"
-                  fillOpacity={0.35 + ratio * 0.6}
-                  stroke="#B91C1C"
+                  fill="#E11D48"
+                  fillOpacity={0.3 + ratio * 0.5}
+                  stroke="#BE123C"
                   strokeWidth={1.2 * strokeUnit}
-                  className="cursor-pointer transition-all hover:fill-[#DC2626]"
+                  className="cursor-pointer transition-all hover:fill-[#FDA4AF]"
                   onMouseMove={(e) => {
                     if (!dragRef.current?.moved) {
                       setHoveredPin(pin);
@@ -502,6 +522,61 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
 
         {/* Pincode markers */}
         <g>
+          {/* Target ping animation and permanent floating label when zoomed to a specific pincode */}
+          {selectedPincode && centroids && centroids[selectedPincode] && selectedPincodeInfo && (
+            <g className="animate-in fade-in zoom-in duration-300">
+              <circle
+                cx={centroids[selectedPincode][0]}
+                cy={centroids[selectedPincode][1]}
+                r={12 * unit}
+                fill="none"
+                stroke="#E11D48"
+                strokeWidth={3 * unit}
+                className="animate-ping"
+                style={{ animationDuration: '1.5s' }}
+              />
+              
+              {/* Permanent Map Popup Label */}
+              <g transform={`translate(${centroids[selectedPincode][0]}, ${centroids[selectedPincode][1] - 25 * unit})`}>
+                <rect 
+                  x={-95 * unit} 
+                  y={-36 * unit} 
+                  width={190 * unit} 
+                  height={44 * unit} 
+                  rx={10 * unit} 
+                  fill="#0F172A"
+                  className="drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]"
+                />
+                <polygon 
+                  points={`0,0 ${-8 * unit},${-8 * unit} ${8 * unit},${-8 * unit}`} 
+                  fill="#0F172A" 
+                  transform={`translate(0, ${8 * unit})`}
+                />
+                <text 
+                  x="0" 
+                  y={-18 * unit} 
+                  textAnchor="middle" 
+                  fill="#FFFFFF" 
+                  fontSize={11 * unit} 
+                  fontWeight="bold"
+                  pointerEvents="none"
+                >
+                  {selectedPincodeInfo.city || 'Pincode'} <tspan fill="#FDA4AF">{selectedPincodeInfo.postalCode}</tspan>
+                </text>
+                <text 
+                  x="0" 
+                  y={-2 * unit} 
+                  textAnchor="middle" 
+                  fill="#94A3B8"
+                  fontSize={9.5 * unit} 
+                  fontWeight="600"
+                  pointerEvents="none"
+                >
+                  ₹{selectedPincodeInfo.revenue.toLocaleString('en-IN')} • {selectedPincodeInfo.orders} {selectedPincodeInfo.orders === 1 ? 'order' : 'orders'}
+                </text>
+              </g>
+            </g>
+          )}
           {(showDots ? placedMarkers : []).map((m) => {
             const r = (4 + m.ratio * 7) * unit;
             const isHot = hoveredPin === m.postalCode;
@@ -518,10 +593,10 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
                   setHoveredPin(null);
                   onHoverPincode?.(null);
                 }}
-                className="cursor-pointer"
+                className="cursor-pointer group"
               >
-                <circle cx={m.x} cy={m.y} r={r * 1.9} fill="#EF4444" opacity={isHot ? 0.3 : 0.16} className="transition-opacity" />
-                <circle cx={m.x} cy={m.y} r={r} fill="#EF4444" stroke="#FFFFFF" strokeWidth={1.5 * unit} opacity={0.92} className="transition-all hover:scale-110" />
+                <circle cx={m.x} cy={m.y} r={r * 1.9} fill="#E11D48" opacity={isHot ? 0.4 : 0.1} className="transition-opacity" />
+                <circle cx={m.x} cy={m.y} r={r} fill="#E11D48" stroke="#FFFFFF" strokeWidth={1.5 * unit} opacity={0.95} className="transition-all hover:scale-110 drop-shadow-[0_2px_4px_rgba(225,29,72,0.4)]" />
               </g>
             );
           })}
