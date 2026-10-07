@@ -25,6 +25,7 @@ import {
   FiInfo,
   FiClock,
   FiLock,
+  FiX,
 } from "react-icons/fi";
 import { formatINR } from "../../total-offline-sales/components";
 import type { OrdersSummary } from "../../../services/websiteOrdersService";
@@ -56,6 +57,7 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
   const [campaigns, setCampaigns] = useState<MetaAdsCampaign[]>([]);
   const [loadingAds, setLoadingAds] = useState<boolean>(true);
   const [adsError, setAdsError] = useState<string | null>(null);
+  const [showDelayedInfo, setShowDelayedInfo] = useState<boolean>(false);
 
   // Fetch Meta Ads campaigns & timeline when date range changes
   useEffect(() => {
@@ -262,11 +264,18 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                     <strong>Live Meta Ad Sync Offline (API Token Renewal Pending):</strong> Website order totals &amp; revenue below remain 100% live and active. Meta Ads ad spend sync will resume automatically once API credentials are renewed.
                   </span>
                 </div>
-              ) : metaSpend === 0 ? (
+              ) : metaSpend === 0 && salesAdsOrders === 0 ? (
                 <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs text-blue-800 flex items-center gap-2.5 shadow-2xs">
                   <FiInfo className="h-4 w-4 text-blue-600 shrink-0" />
                   <span>
                     <strong>No Paid Meta Campaigns Active (₹0 Ad Spend):</strong> All {formatNumber(totalWebsiteOrders)} website orders for this period were generated organically by Google search, direct store visits, and shared referral links.
+                  </span>
+                </div>
+              ) : metaSpend === 0 && salesAdsOrders > 0 ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs text-blue-800 flex items-center gap-2.5 shadow-2xs">
+                  <FiInfo className="h-4 w-4 text-blue-600 shrink-0" />
+                  <span>
+                    <strong>Delayed Ad Conversions (₹0 Ad Spend):</strong> Meta Ads reported {formatNumber(salesAdsOrders)} conversions for this period from prior ad engagement, despite ₹0 active ad spend.
                   </span>
                 </div>
               ) : (
@@ -341,7 +350,15 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                   </div>
                   <div className="mt-2 flex items-center justify-between text-xs">
                     <span className="text-gray-600">Return (ROAS):</span>
-                    <span className="font-bold text-indigo-700">{roas}x</span>
+                    <span className="font-bold text-indigo-700">
+                      {metaSpend === 0 && salesAdsOrders > 0 ? (
+                        <span title="Conversions from prior ad spend">Delayed</span>
+                      ) : roas !== "N/A" ? (
+                        `${roas}x`
+                      ) : (
+                        "N/A"
+                      )}
+                    </span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
                     <span>Ad Clicks / Impressions:</span>
@@ -354,8 +371,17 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                 {/* Card 2: Meta Ads Revenue */}
                 <div className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
                       Meta Ads Revenue
+                      {metaSpend === 0 && salesAdsOrders > 0 && (
+                        <button 
+                          onClick={() => setShowDelayedInfo(true)}
+                          title="Click to understand delayed conversions" 
+                          className="cursor-pointer hover:bg-indigo-50 p-1 rounded-full transition-colors flex items-center justify-center -ml-1"
+                        >
+                          <FiInfo className="h-3.5 w-3.5 text-indigo-500" />
+                        </button>
+                      )}
                     </span>
                     <FiTarget className="h-5 w-5 text-indigo-600" />
                   </div>
@@ -368,7 +394,9 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
                     <span>Cost Per Order (CAC):</span>
-                    <span className="font-medium text-gray-700">{cac > 0 ? formatINR(cac) : "N/A"}</span>
+                    <span className="font-medium text-gray-700">
+                      {metaSpend === 0 && salesAdsOrders > 0 ? "₹0 (Delayed)" : cac > 0 ? formatINR(cac) : "N/A"}
+                    </span>
                   </div>
                 </div>
 
@@ -608,11 +636,15 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
                 <div className="rounded-xl bg-white p-3 text-xs border border-indigo-100 space-y-1">
                   <div className="flex justify-between text-gray-600">
                     <span>Ad Return (ROAS):</span>
-                    <span className="font-bold text-indigo-700">{roas}x</span>
+                    <span className="font-bold text-indigo-700">
+                      {metaSpend === 0 && salesAdsOrders > 0 ? "Delayed" : roas !== "N/A" ? `${roas}x` : "N/A"}
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>Cost Per Order (CAC):</span>
-                    <span className="font-bold text-gray-900">{cac > 0 ? formatINR(cac) : "N/A"}</span>
+                    <span className="font-bold text-gray-900">
+                      {metaSpend === 0 && salesAdsOrders > 0 ? "₹0 (Delayed)" : cac > 0 ? formatINR(cac) : "N/A"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -660,6 +692,45 @@ export const CampaignComparisonSection: React.FC<CampaignComparisonSectionProps>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delayed Attribution Modal */}
+      {showDelayedInfo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative animate-in fade-in zoom-in-95 duration-200 border border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-base">
+                <FiInfo className="text-indigo-600 h-5 w-5" />
+                Delayed Ad Conversions
+              </h3>
+              <button 
+                onClick={() => setShowDelayedInfo(false)}
+                className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 text-sm text-gray-600 space-y-4">
+              <p>
+                You are currently seeing <strong>Meta Ads Revenue</strong> and conversions despite having <strong>₹0 ad spend</strong> for the selected date range.
+              </p>
+              <p>
+                This occurs due to <strong>delayed attribution</strong>. A customer clicked or engaged with your ad in the past (e.g., yesterday or last week), but completed their purchase <em>today</em>. 
+              </p>
+              <p>
+                Meta Ads rightfully attributes this sale to the ad that drove it. Because you didn't spend any ad budget on the specific dates you selected, your Return on Ad Spend (ROAS) and Cost Per Order (CAC) will display as <em>Delayed</em> or <em>₹0</em>.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+              <button 
+                onClick={() => setShowDelayedInfo(false)}
+                className="px-5 py-2 bg-indigo-600 border border-transparent rounded-xl text-sm font-medium text-white hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
