@@ -13,6 +13,7 @@ import { WebsiteApiError } from "../config/websiteApi.js";
 import {
   AGE_KEYS,
   fetchCarts,
+  fetchCartsConversion,
   fetchCartsSummary,
   type AgeBucketKey,
   type CartFilters,
@@ -100,6 +101,15 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 router.get("/summary", authenticateToken, async (req: AuthRequest, res: Response) => {
   const { page: _page, pageSize: _pageSize, ...filters } = readFilters(req);
   await respond(res, () => fetchCartsSummary(filters));
+});
+
+/**
+ * GET /api/website-carts/conversion — how many cart owners went on to order.
+ * Slow on a cold cache (it pages through recent orders), so it is its own endpoint.
+ */
+router.get("/conversion", authenticateToken, async (req: AuthRequest, res: Response) => {
+  const { page: _page, pageSize: _pageSize, ...filters } = readFilters(req);
+  await respond(res, () => fetchCartsConversion(filters));
 });
 
 export default router;

@@ -23,6 +23,7 @@ import {
   fetchAllMatchingCarts,
   refreshWebsiteCarts,
   useWebsiteCarts,
+  useWebsiteCartsConversion,
   useWebsiteCartsSummary,
   type CartFilterState,
 } from "../services/websiteCartsService";
@@ -30,6 +31,7 @@ import { KpiCard, formatINR } from "./total-offline-sales/components";
 import {
   AbandonedCartsTable,
   CartAgePanel,
+  CartConversionSection,
   CartFilterPanel,
   CartHourChart,
   CartRecoveryPanel,
@@ -76,6 +78,7 @@ export default function AbandonedCarts() {
 
   const cartsQuery = useWebsiteCarts({ ...filters, page, pageSize });
   const summaryQuery = useWebsiteCartsSummary(filters);
+  const conversionQuery = useWebsiteCartsConversion(filters);
   const summary = summaryQuery.data;
 
   const handleRefresh = React.useCallback(async () => {
@@ -203,6 +206,12 @@ export default function AbandonedCarts() {
             />
           </div>
         )}
+
+        <CartConversionSection
+          conversion={conversionQuery.data}
+          isLoading={conversionQuery.isLoading}
+          error={conversionQuery.error}
+        />
 
         <CartTrendChart summary={summary} isLoading={summaryQuery.isLoading} />
 

@@ -534,3 +534,248 @@ export async function fetchCartsSummary(f: CartFilters): Promise<CartsSummary> {
       .slice(0, 8),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Conversion: did the people who left carts go on to buy?
+// ---------------------------------------------------------------------------
+//
+// Upstream gives us no link from an order back to its cart (`order.cartId` is null on
+// every order, and every open cart has `order: null`), so conversion is INFERRED by
+// matching on the customer: a cart counts as "recovered" when its owner placed a real
+// order after the cart was last touched. Carts are not cleared by an order, which is
+// why customers who simply checked out still appear in the abandoned list. Those are
+// split out (`checkedOut`): an order within an hour of the last cart edit is a normal
+// checkout, not a recovery, and counting it would wildly overstate conversion.
+const CHECKOUT_GRACE_HOURS = 1;
+
+const ORDERS_PATH = "/api/v1/admin/orders";
+const ORDERS_TTL_MS = 10 * 60_000;
+const ORDERS_MAX = 20_000;
+
+type SlimOrder = {
+  placedAt: number;
+  total: number;
+  skus: Set<string>;
+};
+
+type OrderData = {
+  at: number;
+  since: number;
+  orders: Map<string, SlimOrder[]>;
+  truncated: boolean;
+  count: number;
+};
+
+let orderData: OrderData | null = null;
+let orderInFlight: Promise<OrderData> | null = null;
+
+async function pullOrdersSince(since: number): Promise<OrderData> {
+  const byUser = new Map<string, SlimOrder[]>();
+  let page = 1;
+  let totalPages = 1;
+  let count = 0;
+  let truncated = false;
+  const dateFrom = new Date(since).toISOString();
+  scan: do {
+    // Sequential on purpose: the website API is rate-limited.
+    const body = await websiteApiGet<{ data: any[]; meta: any }>(
+      ORDERS_PATH,
+      new URLSearchParams({ page: String(page), pageSize: "100", dateFrom }),
+    );
+    if (!Array.isArray(body?.data)) {
+      throw new WebsiteApiError("Website API returned an unexpected orders payload.", 502);
+    }
+    totalPages = Number(body.meta?.totalPages) || 1;
+    for (const o of body.data) {
+      if (count >= ORDERS_MAX) {
+        truncated = true;
+        break scan;
+      }
+      count += 1;
+      // Money that was never collected is not a recovery.
+      if (o?.status === "CANCELLED" || o?.paymentStatus === "FAILED") continue;
+      const userId = trimmed(o?.userId);
+      const placedAt = o?.placedAt ? new Date(o.placedAt).getTime() : NaN;
+      if (!userId || !Number.isFinite(placedAt)) continue;
+      const list = byUser.get(userId) ?? [];
+      list.push({
+        placedAt,
+        total: money(o?.grandTotal),
+        skus: new Set(
+          (Array.isArray(o?.items) ? o.items : []).map((i: any) => trimmed(i?.sku)).filter(Boolean) as string[],
+        ),
+      });
+      byUser.set(userId, list);
+    }
+    page += 1;
+  } while (page <= totalPages);
+  for (const list of byUser.values()) list.sort((a, b) => a.placedAt - b.placedAt);
+  return { at: Date.now(), since, orders: byUser, truncated, count };
+}
+
+async function loadOrders(since: number, refresh = false): Promise<OrderData> {
+  // Reuse a pull that already covers the window we need.
+  if (!refresh && orderData && Date.now() - orderData.at < ORDERS_TTL_MS && orderData.since <= since) {
+    return orderData;
+  }
+  orderInFlight ??= pullOrdersSince(since)
+    .then((d) => (orderData = d))
+    .finally(() => {
+      orderInFlight = null;
+    });
+  return orderInFlight;
+}
+
+type Rate = { carts: number; recovered: number };
+
+export type CartsConversion = {
+  window: { from: string; to: string };
+  ordersScanned: number;
+  truncated: boolean;
+  cartCount: number;
+  /** Customers with an open cart who placed any real order in the window. */
+  buyers: { customers: number; cartCustomers: number };
+  /** Ordered within an hour of the last cart edit: a completed checkout, not abandonment. */
+  checkedOut: { carts: number; value: number };
+  /** Carts that are genuinely abandoned: no order since, once checkouts are set aside. */
+  abandoned: { carts: number; value: number };
+  /** Ordered more than an hour after leaving: a real win-back. */
+  recovered: {
+    carts: number;
+    customers: number;
+    orders: number;
+    revenue: number;
+    /** recovered / (recovered + abandoned): of the carts truly left, how many came back. */
+    rate: number;
+    /** Carts whose owner bought at least one of the books left in the cart. */
+    sameBookCarts: number;
+  };
+  lag: { label: string; count: number }[];
+  byAge: Record<AgeBucketKey, Rate>;
+  byValueBand: ({ label: string } & Rate)[];
+  repeatVsFirst: { repeat: Rate; firstTime: Rate };
+  recentRecoveries: {
+    customer: string;
+    phone: string | null;
+    cartValue: number;
+    orderValue: number;
+    hoursAfter: number;
+    boughtSameBook: boolean;
+    orderedAt: string;
+  }[];
+};
+
+const LAG_BANDS: { label: string; maxHours: number }[] = [
+  { label: "1–24 hours", maxHours: 24 },
+  { label: "1–7 days", maxHours: 24 * 7 },
+  { label: "Over a week", maxHours: Infinity },
+];
+
+export async function fetchCartsConversion(f: CartFilters): Promise<CartsConversion> {
+  const { carts } = await filtered(f);
+  const now = Date.now();
+  const stamps = carts.map((c) => (c.updatedAt ? new Date(c.updatedAt).getTime() : now));
+  // Orders matter from the oldest cart activity onward; earlier ones can't be a recovery.
+  const since = stamps.length ? Math.min(...stamps) : now;
+  const od = await loadOrders(since, f.refresh);
+
+  const rate = (): Rate => ({ carts: 0, recovered: 0 });
+  const byAge: CartsConversion["byAge"] = { today: rate(), week: rate(), month: rate(), older: rate() };
+  const byValueBand = VALUE_BANDS.map((b) => ({ label: b.label, ...rate() }));
+  const repeatVsFirst = { repeat: rate(), firstTime: rate() };
+  const lag = LAG_BANDS.map((b) => ({ label: b.label, count: 0 }));
+  const recoveries: CartsConversion["recentRecoveries"] = [];
+
+  const customersSeen = new Set<string>();
+  const buyerSet = new Set<string>();
+  const recoveredCustomers = new Set<string>();
+  let recoveredCarts = 0;
+  let recoveredOrders = 0;
+  let revenue = 0;
+  let sameBookCarts = 0;
+  const checkedOut = { carts: 0, value: 0 };
+  const abandoned = { carts: 0, value: 0 };
+
+  for (const cart of carts) {
+    const uid = cart.customer.id;
+    const updated = cart.updatedAt ? new Date(cart.updatedAt).getTime() : now;
+    const value = cart.amounts.grandTotal;
+    const orders = uid ? (od.orders.get(uid) ?? []) : [];
+    const after = orders.filter((o) => o.placedAt > updated);
+    const hadBefore = orders.some((o) => o.placedAt <= updated);
+    const age = ageBucket(cart.updatedAt, now);
+    const band = byValueBand[VALUE_BANDS.findIndex((b) => value < b.max)]!;
+    const cohort = hadBefore ? repeatVsFirst.repeat : repeatVsFirst.firstTime;
+
+    if (uid) {
+      customersSeen.add(uid);
+      if (orders.length) buyerSet.add(uid);
+    }
+
+    const first = after[0];
+    const hours = first ? (first.placedAt - updated) / 3_600_000 : null;
+
+    // A normal checkout: set aside, it says nothing about win-back.
+    if (first && hours !== null && hours <= CHECKOUT_GRACE_HOURS) {
+      checkedOut.carts += 1;
+      checkedOut.value += value;
+      continue;
+    }
+
+    byAge[age].carts += 1;
+    band.carts += 1;
+    cohort.carts += 1;
+
+    if (!first || hours === null) {
+      abandoned.carts += 1;
+      abandoned.value += value;
+      continue;
+    }
+
+    recoveredCarts += 1;
+    byAge[age].recovered += 1;
+    band.recovered += 1;
+    cohort.recovered += 1;
+    recoveredCustomers.add(uid!);
+    recoveredOrders += after.length;
+    revenue += after.reduce((s, o) => s + o.total, 0);
+    lag[LAG_BANDS.findIndex((b) => hours <= b.maxHours)]!.count += 1;
+
+    const cartSkus = new Set(cart.items.map((i) => i.sku).filter(Boolean) as string[]);
+    const sameBook = after.some((o) => [...o.skus].some((s) => cartSkus.has(s)));
+    if (sameBook) sameBookCarts += 1;
+
+    recoveries.push({
+      customer: displayName(cart.customer),
+      phone: cart.customer.phone,
+      cartValue: round2(value),
+      orderValue: round2(first.total),
+      hoursAfter: round2(hours),
+      boughtSameBook: sameBook,
+      orderedAt: new Date(first.placedAt).toISOString(),
+    });
+  }
+
+  return {
+    window: { from: new Date(since).toISOString(), to: new Date(now).toISOString() },
+    ordersScanned: od.count,
+    truncated: od.truncated,
+    cartCount: carts.length,
+    buyers: { customers: buyerSet.size, cartCustomers: customersSeen.size },
+    checkedOut: { carts: checkedOut.carts, value: round2(checkedOut.value) },
+    abandoned: { carts: abandoned.carts, value: round2(abandoned.value) },
+    recovered: {
+      carts: recoveredCarts,
+      customers: recoveredCustomers.size,
+      orders: recoveredOrders,
+      revenue: round2(revenue),
+      rate: recoveredCarts + abandoned.carts ? recoveredCarts / (recoveredCarts + abandoned.carts) : 0,
+      sameBookCarts,
+    },
+    lag,
+    byAge,
+    byValueBand,
+    repeatVsFirst,
+    recentRecoveries: recoveries.sort((a, b) => b.orderedAt.localeCompare(a.orderedAt)).slice(0, 8),
+  };
+}

@@ -91,6 +91,42 @@ export interface CartsSummary {
   }[];
 }
 
+export interface Rate {
+  carts: number;
+  recovered: number;
+}
+
+export interface CartsConversion {
+  window: { from: string; to: string };
+  ordersScanned: number;
+  truncated: boolean;
+  cartCount: number;
+  buyers: { customers: number; cartCustomers: number };
+  checkedOut: { carts: number; value: number };
+  abandoned: { carts: number; value: number };
+  recovered: {
+    carts: number;
+    customers: number;
+    orders: number;
+    revenue: number;
+    rate: number;
+    sameBookCarts: number;
+  };
+  lag: { label: string; count: number }[];
+  byAge: Record<AgeBucketKey, Rate>;
+  byValueBand: ({ label: string } & Rate)[];
+  repeatVsFirst: { repeat: Rate; firstTime: Rate };
+  recentRecoveries: {
+    customer: string;
+    phone: string | null;
+    cartValue: number;
+    orderValue: number;
+    hoursAfter: number;
+    boughtSameBook: boolean;
+    orderedAt: string;
+  }[];
+}
+
 /** Everything the filter panel controls. Numeric bounds stay strings so inputs can be empty. */
 export interface CartFilterState {
   search: string;
@@ -170,6 +206,21 @@ export const useWebsiteCartsSummary = (filters: CartQuery) =>
     select: (response) => response.data,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
+  });
+
+/**
+ * Conversion matches cart owners against recent orders, which means paging through
+ * thousands of orders on a cold server cache (~30s). It loads on its own so the rest
+ * of the page is never held up, and is cached hard on both sides.
+ */
+export const useWebsiteCartsConversion = (filters: CartQuery) =>
+  useQuery({
+    queryKey: ["website-carts", "conversion", filters],
+    queryFn: () => apiClient.get<ApiEnvelope<CartsConversion>>(`website-carts/conversion${toQuery(filters)}`),
+    select: (response) => response.data,
+    placeholderData: keepPreviousData,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
   });
 
 /** Every cart matching the filters (for CSV export). */
