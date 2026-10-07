@@ -183,7 +183,7 @@ function normalizeCart(cart: any): WebsiteCart {
       name: trimmed(item?.product?.name) ?? "—",
       sku: trimmed(item?.variant?.sku),
       variant: trimmed(item?.variant?.title),
-      coverImage: trimmed(item?.variant?.coverImage),
+      coverImage: trimmed(item?.thumbnail) || trimmed(item?.imageUrl) || trimmed(item?.variant?.coverImage) || trimmed(item?.variant?.imageUrl) || trimmed(item?.product?.coverImage) || trimmed(item?.product?.imageUrl) || trimmed(item?.productVariant?.product?.imageUrl) || trimmed(item?.productVariant?.product?.thumbnail) || trimmed(item?.variant?.thumbnail),
       quantity,
       unitPrice,
       lineTotal: item?.lineTotal !== undefined ? money(item.lineTotal) : round2(unitPrice * quantity),

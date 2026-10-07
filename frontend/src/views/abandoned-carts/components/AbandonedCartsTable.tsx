@@ -1,5 +1,5 @@
 import React from "react";
-import { FiChevronDown, FiChevronRight, FiAlertCircle, FiPhone, FiMail, FiMessageCircle } from "react-icons/fi";
+import { FiChevronDown, FiChevronRight, FiAlertCircle, FiPhone, FiMail, FiMessageCircle, FiImage } from "react-icons/fi";
 import { formatINR } from "../../total-offline-sales/components";
 import TablePagination from "../../../components/TablePagination";
 import type { CartsPage, WebsiteCart } from "../../../services/websiteCartsService";
@@ -31,6 +31,35 @@ function timeAgo(value: string | null): { label: string; tone: string } {
   if (days < 7) return { label: `${Math.floor(days)}d ago`, tone: "text-amber-600" };
   if (days < 30) return { label: `${Math.floor(days)}d ago`, tone: "text-orange-600" };
   return { label: `${Math.floor(days)}d ago`, tone: "text-rose-600" };
+}
+
+function CartItemImage({ src, alt }: { src: string | null; alt: string }) {
+  const [error, setError] = React.useState(false);
+
+  if (error || !src) {
+    return (
+      <div className="flex h-14 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-300">
+        <FiImage className="h-4 w-4" />
+      </div>
+    );
+  }
+
+  // Handle relative URLs assuming they belong to rajkamalprakashan.com
+  const fullSrc =
+    src.startsWith("http") || src.startsWith("data:") || src.startsWith("//")
+      ? src
+      : `https://rajkamalprakashan.com${src.startsWith("/") ? "" : "/"}${src}`;
+
+  return (
+    <img
+      src={fullSrc}
+      alt={alt}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className="h-14 w-10 shrink-0 rounded object-cover"
+      onError={() => setError(true)}
+    />
+  );
 }
 
 function CartRow({ cart }: { cart: WebsiteCart }) {
@@ -128,16 +157,7 @@ function CartRow({ cart }: { cart: WebsiteCart }) {
                   key={item.id}
                   className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-2.5"
                 >
-                  {item.coverImage ? (
-                    <img
-                      src={item.coverImage}
-                      alt=""
-                      loading="lazy"
-                      className="h-14 w-10 shrink-0 rounded object-cover"
-                    />
-                  ) : (
-                    <div className="h-14 w-10 shrink-0 rounded bg-gray-100" />
-                  )}
+                  <CartItemImage src={item.coverImage} alt="" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-xs font-semibold text-gray-900" title={item.name}>
                       {item.name}
