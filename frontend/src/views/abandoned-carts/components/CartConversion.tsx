@@ -115,6 +115,39 @@ export const CartConversionSection: React.FC<Props> = ({ conversion, isLoading, 
             />
           </div>
 
+          {c.outreachResults.contacted.carts > 0 && (
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+              <h4 className="text-sm font-bold text-gray-900">Did outreach help?</h4>
+              <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs text-gray-500">Carts you contacted</div>
+                  <div className="text-xl font-semibold text-blue-800">
+                    {fmtPct(pct(c.outreachResults.contacted.ordered, c.outreachResults.contacted.carts))}{" "}
+                    <span className="text-xs font-normal text-gray-500">
+                      ordered afterwards ({c.outreachResults.contacted.ordered} of{" "}
+                      {formatNumber(c.outreachResults.contacted.carts)} · {formatINR(c.outreachResults.contacted.revenue)})
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Carts nobody contacted</div>
+                  <div className="text-xl font-semibold text-gray-700">
+                    {fmtPct(pct(c.outreachResults.notContacted.recovered, c.outreachResults.notContacted.carts))}{" "}
+                    <span className="text-xs font-normal text-gray-500">
+                      ordered on their own ({c.outreachResults.notContacted.recovered} of{" "}
+                      {formatNumber(c.outreachResults.notContacted.carts)})
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {c.outreachResults.contacted.carts < 30 && (
+                <p className="mt-2 text-[11px] text-gray-500">
+                  Only {c.outreachResults.contacted.carts} contacted so far — too few to draw a conclusion yet.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* One bar showing where every cart ended up */}
           <div>
             <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100">

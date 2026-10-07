@@ -26,6 +26,18 @@ export type ContactFilter = "reachable" | "phone" | "email" | "unreachable";
 export type StockFilter = "issues" | "clean";
 export type CartSort = "recent" | "oldest" | "value" | "value_asc" | "items";
 
+export const OUTREACH_STATUSES = ["CONTACTED", "REPLIED", "FOLLOW_UP", "NOT_INTERESTED"] as const;
+export type OutreachStatus = (typeof OUTREACH_STATUSES)[number];
+
+/** What the team has logged against a cart (stored in our DB, not upstream). */
+export type OutreachInfo = {
+  status: string;
+  channel: string | null;
+  note: string | null;
+  contactedAt: string;
+  contactedByName: string | null;
+};
+
 export type CartFilters = {
   page?: number | undefined;
   pageSize?: number | undefined;
@@ -46,6 +58,16 @@ export type CartFilters = {
   sort?: CartSort | undefined;
   /** Bypass the in-memory dataset and re-pull from upstream. */
   refresh?: boolean | undefined;
+  /**
+   * By default carts whose owner already checked out (ordered within an hour of the
+   * last cart edit) are hidden: the site leaves their cart open, so they only look
+   * abandoned. Set to include them.
+   */
+  includeOrdered?: boolean | undefined;
+  /** "none" | "any" | a status — needs `outreachMap`. */
+  outreach?: string | undefined;
+  /** cartId -> logged outreach, supplied by the route from our DB. */
+  outreachMap?: Map<string, OutreachInfo> | undefined;
 };
 
 export type CartItem = {
@@ -79,11 +101,19 @@ export type WebsiteCart = {
   itemCount: number;
   totalQuantity: number;
   hasStockIssue: boolean;
+  /** True when the stored total was stale and the value was recomputed from the books. */
+  valueAdjusted: boolean;
   items: CartItem[];
+  /** Filled in per request from our own DB. */
+  outreach?: OutreachInfo | null;
 };
 
 export type CartsPage = {
   carts: WebsiteCart[];
+  /** False while orders are still being matched; checked-out carts are not hidden yet. */
+  ordersReady: boolean;
+  /** How many already-ordered carts the default view is hiding. */
+  hiddenCheckedOut: number;
   meta: { page: number; pageSize: number; total: number; totalPages: number; hasNextPage: boolean };
   /** When the underlying dataset was pulled from upstream. */
   fetchedAt: string;
@@ -92,6 +122,9 @@ export type CartsPage = {
 type Bucket = { count: number; value: number };
 
 export type CartsSummary = {
+  ordersReady: boolean;
+  hiddenCheckedOut: number;
+  outreach: { contacted: number; notContacted: number; byStatus: Record<string, number> };
   cartCount: number;
   totalValue: number;
   averageCartValue: number;
@@ -152,12 +185,15 @@ function trimmed(value: unknown): string | null {
  */
 function extractCustomer(user: any): WebsiteCart["customer"] {
   const profile = user?.profile ?? {};
-  // Some profiles store a lone dash as a placeholder surname ("Preeti —").
-  const part = (v: unknown) => {
-    const t = trimmed(v);
-    return t && !/^[-–—.]+$/.test(t) ? t : null;
-  };
-  const name = [part(profile.firstName), part(profile.lastName)].filter(Boolean).join(" ");
+  // Profiles sometimes hold placeholder dashes as a name part ("Preeti —", "bimal — yadav")
+  // or stray U+FFFD mojibake. Drop those words and re-space; real words are untouched.
+  const clean = (v: unknown): string =>
+    (typeof v === "string" ? v : "")
+      .replace(/�/g, " ")
+      .split(/\s+/)
+      .filter((word) => word && !/^[-–—.]+$/.test(word))
+      .join(" ");
+  const name = [clean(profile.firstName), clean(profile.lastName)].filter(Boolean).join(" ");
   const email = trimmed(user?.email);
   const phone = trimmed(user?.phone);
   const code = trimmed(user?.phoneCountryCode);
@@ -192,17 +228,27 @@ function normalizeCart(cart: any): WebsiteCart {
     };
   });
 
+  // Upstream keeps cart totals as stored columns that can go stale (seen: a cart whose
+  // total omitted three books added later). What matters here is what is actually left
+  // in the cart, so when the stored subtotal disagrees with the lines, trust the lines.
+  const itemsTotal = round2(items.reduce((sum, i) => sum + i.lineTotal, 0));
+  const storedSubtotal = money(cart?.subtotal);
+  const discount = money(cart?.discountTotal);
+  const tax = money(cart?.taxTotal);
+  const stale = items.length > 0 && Math.abs(storedSubtotal - itemsTotal) > 0.05;
+
   return {
     id: String(cart?.id ?? ""),
     currency: trimmed(cart?.currency) ?? "INR",
     createdAt: trimmed(cart?.createdAt),
     updatedAt: trimmed(cart?.updatedAt),
     customer: extractCustomer(cart?.user),
+    valueAdjusted: stale,
     amounts: {
-      subtotal: money(cart?.subtotal),
-      discount: money(cart?.discountTotal),
-      tax: money(cart?.taxTotal),
-      grandTotal: money(cart?.grandTotal),
+      subtotal: stale ? itemsTotal : storedSubtotal,
+      discount,
+      tax,
+      grandTotal: stale ? round2(Math.max(0, itemsTotal - discount + tax)) : money(cart?.grandTotal),
     },
     itemCount: Number(cart?.itemCount) || items.length,
     totalQuantity: Number(cart?.totalQuantity) || items.reduce((s, i) => s + i.quantity, 0),
@@ -305,6 +351,13 @@ function matchesFilters(cart: WebsiteCart, f: CartFilters, now: number, from: nu
   if (f.stock === "clean" && cart.hasStockIssue) return false;
   if (f.hasDiscount && cart.amounts.discount <= 0) return false;
 
+  if (f.outreach && f.outreachMap) {
+    const logged = f.outreachMap.get(cart.id);
+    if (f.outreach === "none" && logged) return false;
+    if (f.outreach === "any" && !logged) return false;
+    if (f.outreach !== "none" && f.outreach !== "any" && logged?.status !== f.outreach) return false;
+  }
+
   if (f.search) {
     const q = f.search.toLowerCase();
     const qd = digits(f.search);
@@ -344,19 +397,37 @@ async function filtered(f: CartFilters) {
   const now = Date.now();
   const from = bound(f.dateFrom, "from");
   const to = bound(f.dateTo, "to");
-  return { at, now, carts: carts.filter((c) => matchesFilters(c, f, now, from, to)) };
+
+  // Matching orders is slow on a cold cache, so it runs in the background and this
+  // never waits for it: until it lands, nothing is hidden and `ordersReady` is false.
+  const hide = f.includeOrdered ? null : checkedOutIds(carts);
+  const ordersReady = f.includeOrdered ? true : hide !== null;
+
+  let hiddenCheckedOut = 0;
+  const matched: WebsiteCart[] = [];
+  for (const c of carts) {
+    if (!matchesFilters(c, f, now, from, to)) continue;
+    if (hide?.has(c.id)) {
+      hiddenCheckedOut += 1;
+      continue;
+    }
+    matched.push(c);
+  }
+  return { at, now, carts: matched, ordersReady, hiddenCheckedOut };
 }
 
 /** One page of carts matching the filters. */
 export async function fetchCarts(f: CartFilters): Promise<CartsPage> {
-  const { at, now: _now, carts } = await filtered(f);
+  const { at, carts, ordersReady, hiddenCheckedOut } = await filtered(f);
   const pageSize = Math.min(MAX_EXPORT_PAGE_SIZE, Math.max(1, Math.trunc(f.pageSize ?? 20)));
   const total = carts.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(totalPages, Math.max(1, Math.trunc(f.page ?? 1)));
   const slice = sortCarts(carts, f.sort).slice((page - 1) * pageSize, page * pageSize);
   return {
-    carts: slice,
+    carts: f.outreachMap ? slice.map((c) => ({ ...c, outreach: f.outreachMap!.get(c.id) ?? null })) : slice,
+    ordersReady,
+    hiddenCheckedOut,
     meta: { page, pageSize, total, totalPages, hasNextPage: page < totalPages },
     fetchedAt: new Date(at).toISOString(),
   };
@@ -400,8 +471,9 @@ function displayName(c: WebsiteCart["customer"]): string {
 
 /** Aggregates over the carts matching the filters. */
 export async function fetchCartsSummary(f: CartFilters): Promise<CartsSummary> {
-  const { now, carts } = await filtered(f);
+  const { now, carts, ordersReady, hiddenCheckedOut } = await filtered(f);
   const zero = (): Bucket => ({ count: 0, value: 0 });
+  const outreachStats = { contacted: 0, notContacted: 0, byStatus: {} as Record<string, number> };
 
   const byAge: CartsSummary["byAge"] = { today: zero(), week: zero(), month: zero(), older: zero() };
   const byGroup: CartsSummary["byGroup"] = {};
@@ -428,6 +500,14 @@ export async function fetchCartsSummary(f: CartFilters): Promise<CartsSummary> {
     totalValue += value;
     totalItems += cart.totalQuantity;
     values.push(value);
+
+    const logged = f.outreachMap?.get(cart.id);
+    if (logged) {
+      outreachStats.contacted += 1;
+      outreachStats.byStatus[logged.status] = (outreachStats.byStatus[logged.status] ?? 0) + 1;
+    } else {
+      outreachStats.notContacted += 1;
+    }
 
     add(byAge[age], value);
     add((byGroup[c.group ?? "UNKNOWN"] ??= zero()), value);
@@ -509,6 +589,9 @@ export async function fetchCartsSummary(f: CartFilters): Promise<CartsSummary> {
   discounted.discountTotal = round2(discounted.discountTotal);
 
   return {
+    ordersReady,
+    hiddenCheckedOut,
+    outreach: outreachStats,
     cartCount: carts.length,
     totalValue: round2(totalValue),
     averageCartValue: carts.length ? round2(totalValue / carts.length) : 0,
@@ -573,6 +656,39 @@ type OrderData = {
 
 let orderData: OrderData | null = null;
 let orderInFlight: Promise<OrderData> | null = null;
+
+/** An order within the grace window of the last cart edit is a normal checkout. */
+function firstOrderAfter(orders: SlimOrder[], updated: number): SlimOrder | undefined {
+  return orders.find((o) => o.placedAt > updated);
+}
+
+function isCheckedOut(cart: WebsiteCart, orders: SlimOrder[], now: number): boolean {
+  const updated = cart.updatedAt ? new Date(cart.updatedAt).getTime() : now;
+  const first = firstOrderAfter(orders, updated);
+  return Boolean(first && (first.placedAt - updated) / 3_600_000 <= CHECKOUT_GRACE_HOURS);
+}
+
+/**
+ * Carts whose owner already checked out, or null while orders are not loaded yet.
+ * Stale data is used while a refresh runs behind it, so this never blocks a request.
+ */
+function checkedOutIds(carts: WebsiteCart[]): Set<string> | null {
+  const now = Date.now();
+  if (!orderData || Date.now() - orderData.at > ORDERS_TTL_MS) warmOrders(carts);
+  if (!orderData) return null;
+  const ids = new Set<string>();
+  for (const cart of carts) {
+    const uid = cart.customer.id;
+    if (uid && isCheckedOut(cart, orderData.orders.get(uid) ?? [], now)) ids.add(cart.id);
+  }
+  return ids;
+}
+
+function warmOrders(carts: WebsiteCart[]): void {
+  if (orderInFlight || carts.length === 0) return;
+  const since = Math.min(...carts.map((c) => (c.updatedAt ? new Date(c.updatedAt).getTime() : Date.now())));
+  loadOrders(since, true).catch((e) => console.error("[website-carts] order matching failed:", e?.message ?? e));
+}
 
 async function pullOrdersSince(since: number): Promise<OrderData> {
   const byUser = new Map<string, SlimOrder[]>();
@@ -644,6 +760,11 @@ export type CartsConversion = {
   checkedOut: { carts: number; value: number };
   /** Carts that are genuinely abandoned: no order since, once checkouts are set aside. */
   abandoned: { carts: number; value: number };
+  /** How carts the team reached out to fared, against those nobody contacted. */
+  outreachResults: {
+    contacted: { carts: number; ordered: number; revenue: number };
+    notContacted: Rate;
+  };
   /** Ordered more than an hour after leaving: a real win-back. */
   recovered: {
     carts: number;
@@ -677,7 +798,8 @@ const LAG_BANDS: { label: string; maxHours: number }[] = [
 ];
 
 export async function fetchCartsConversion(f: CartFilters): Promise<CartsConversion> {
-  const { carts } = await filtered(f);
+  // Conversion reports on checked-out carts itself, so it must see them.
+  const { carts } = await filtered({ ...f, includeOrdered: true });
   const now = Date.now();
   const stamps = carts.map((c) => (c.updatedAt ? new Date(c.updatedAt).getTime() : now));
   // Orders matter from the oldest cart activity onward; earlier ones can't be a recovery.
@@ -700,6 +822,8 @@ export async function fetchCartsConversion(f: CartFilters): Promise<CartsConvers
   let sameBookCarts = 0;
   const checkedOut = { carts: 0, value: 0 };
   const abandoned = { carts: 0, value: 0 };
+  const contactedResult = { carts: 0, ordered: 0, revenue: 0 };
+  const notContacted = rate();
 
   for (const cart of carts) {
     const uid = cart.customer.id;
@@ -730,6 +854,21 @@ export async function fetchCartsConversion(f: CartFilters): Promise<CartsConvers
     byAge[age].carts += 1;
     band.carts += 1;
     cohort.carts += 1;
+
+    const logged = f.outreachMap?.get(cart.id);
+    if (logged) {
+      contactedResult.carts += 1;
+      // Only an order placed after the team got in touch can be credited to the outreach.
+      const contactedAt = new Date(logged.contactedAt).getTime();
+      const afterContact = orders.filter((o) => o.placedAt > contactedAt);
+      if (afterContact.length) {
+        contactedResult.ordered += 1;
+        contactedResult.revenue += afterContact.reduce((s, o) => s + o.total, 0);
+      }
+    } else {
+      notContacted.carts += 1;
+      if (first) notContacted.recovered += 1;
+    }
 
     if (!first || hours === null) {
       abandoned.carts += 1;
@@ -769,6 +908,10 @@ export async function fetchCartsConversion(f: CartFilters): Promise<CartsConvers
     buyers: { customers: buyerSet.size, cartCustomers: customersSeen.size },
     checkedOut: { carts: checkedOut.carts, value: round2(checkedOut.value) },
     abandoned: { carts: abandoned.carts, value: round2(abandoned.value) },
+    outreachResults: {
+      contacted: { ...contactedResult, revenue: round2(contactedResult.revenue) },
+      notContacted,
+    },
     recovered: {
       carts: recoveredCarts,
       customers: recoveredCustomers.size,

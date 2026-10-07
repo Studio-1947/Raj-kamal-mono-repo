@@ -20,6 +20,10 @@ export function downloadCartsCsv(carts: WebsiteCart[]): void {
     "Discount",
     "Cart value",
     "Out of stock item",
+    "Outreach status",
+    "Outreach channel",
+    "Outreach note",
+    "Contacted by",
     "Books in cart",
   ];
   const rows = carts.map((c) => {
@@ -37,6 +41,10 @@ export function downloadCartsCsv(carts: WebsiteCart[]): void {
       c.amounts.discount,
       c.amounts.grandTotal,
       c.hasStockIssue ? "Yes" : "No",
+      c.outreach?.status ?? "",
+      c.outreach?.channel ?? "",
+      c.outreach?.note ?? "",
+      c.outreach?.contactedByName ?? "",
       c.items.map((i) => `${i.name}${i.sku ? ` [${i.sku}]` : ""} x${i.quantity}`).join("; "),
     ];
   });

@@ -2,9 +2,9 @@ import React from "react";
 import { FiChevronDown, FiChevronRight, FiAlertCircle, FiPhone, FiMail, FiMessageCircle } from "react-icons/fi";
 import { formatINR } from "../../total-offline-sales/components";
 import TablePagination from "../../../components/TablePagination";
-import type { CartsPage, WebsiteCart } from "../../../services/websiteCartsService";
+import { OUTREACH_LABELS, type CartsPage, type OutreachChannel, type WebsiteCart } from "../../../services/websiteCartsService";
 import { formatDateTime, formatNumber } from "../../website-orders/components/utils";
-import { whatsappLink } from "./contact";
+import { buildReminderMessage, whatsappLink } from "./contact";
 import { GroupInfoButton } from "./GroupInfo";
 
 interface Props {
@@ -17,9 +17,20 @@ interface Props {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   groupStats?: Record<string, { count: number; value: number }> | undefined;
+  /** Opens the outreach dialog for a cart. */
+  onEditOutreach: (cart: WebsiteCart) => void;
+  /** Called when someone clicks a contact link, so the contact is logged automatically. */
+  onContact: (cart: WebsiteCart, channel: OutreachChannel) => void;
 }
 
-const COLUMNS = ["", "Customer", "Last activity", "Items", "Group", "Reach out", "Cart value"];
+const COLUMNS = ["", "Customer", "Last activity", "Items", "Group", "Reach out", "Outreach", "Cart value"];
+
+const OUTREACH_TONES: Record<string, string> = {
+  CONTACTED: "border-blue-200 bg-blue-50 text-blue-700",
+  REPLIED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  FOLLOW_UP: "border-amber-200 bg-amber-50 text-amber-700",
+  NOT_INTERESTED: "border-gray-200 bg-gray-100 text-gray-600",
+};
 
 /** "3d ago": how stale a cart is matters more than its exact timestamp. */
 function timeAgo(value: string | null): { label: string; tone: string } {
@@ -33,11 +44,20 @@ function timeAgo(value: string | null): { label: string; tone: string } {
   return { label: `${Math.floor(days)}d ago`, tone: "text-rose-600" };
 }
 
-function CartRow({ cart }: { cart: WebsiteCart }) {
+function CartRow({
+  cart,
+  onEditOutreach,
+  onContact,
+}: {
+  cart: WebsiteCart;
+  onEditOutreach: (cart: WebsiteCart) => void;
+  onContact: (cart: WebsiteCart, channel: OutreachChannel) => void;
+}) {
   const [open, setOpen] = React.useState(false);
   const age = timeAgo(cart.updatedAt);
   const c = cart.customer;
-  const wa = whatsappLink(c.phone);
+  const wa = whatsappLink(c.phone, buildReminderMessage(cart));
+  const logged = cart.outreach;
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
@@ -94,25 +114,55 @@ function CartRow({ cart }: { cart: WebsiteCart }) {
         <td className="px-3 py-3">
           <div className="flex items-center gap-1">
             {wa && (
-              <a href={wa} onClick={stop} target="_blank" rel="noreferrer" title="WhatsApp" className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50">
+              <a href={wa} onClick={(e) => { stop(e); onContact(cart, "WHATSAPP"); }} target="_blank" rel="noreferrer" title="WhatsApp (message prefilled)" className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50">
                 <FiMessageCircle className="h-4 w-4" />
               </a>
             )}
             {c.phone && (
-              <a href={`tel:${c.phone.replace(/\s/g, "")}`} onClick={stop} title="Call" className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50">
+              <a href={`tel:${c.phone.replace(/\s/g, "")}`} onClick={(e) => { stop(e); onContact(cart, "CALL"); }} title="Call" className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50">
                 <FiPhone className="h-4 w-4" />
               </a>
             )}
             {c.email && (
-              <a href={`mailto:${c.email}`} onClick={stop} title="Email" className="rounded-lg p-1.5 text-violet-600 hover:bg-violet-50">
+              <a href={`mailto:${c.email}`} onClick={(e) => { stop(e); onContact(cart, "EMAIL"); }} title="Email" className="rounded-lg p-1.5 text-violet-600 hover:bg-violet-50">
                 <FiMail className="h-4 w-4" />
               </a>
             )}
             {!wa && !c.phone && !c.email && <span className="text-xs text-gray-300">—</span>}
           </div>
         </td>
+        <td className="px-3 py-3">
+          <button
+            type="button"
+            onClick={(e) => {
+              stop(e);
+              onEditOutreach(cart);
+            }}
+            title={
+              logged
+                ? `${OUTREACH_LABELS[logged.status] ?? logged.status}${logged.contactedByName ? ` by ${logged.contactedByName}` : ""}${logged.note ? ` — ${logged.note}` : ""}`
+                : "Log outreach"
+            }
+            className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${
+              logged
+                ? (OUTREACH_TONES[logged.status] ?? OUTREACH_TONES.CONTACTED)
+                : "border-dashed border-gray-300 bg-white text-gray-400 hover:border-gray-400 hover:text-gray-600"
+            }`}
+          >
+            {logged ? (OUTREACH_LABELS[logged.status] ?? logged.status) : "Log"}
+          </button>
+          {logged && (
+            <div className="mt-0.5 text-[10px] text-gray-400">{timeAgo(logged.contactedAt).label}</div>
+          )}
+        </td>
         <td className="px-4 py-3 text-right">
-          <div className="text-sm font-bold text-gray-900">{formatINR(cart.amounts.grandTotal)}</div>
+          <div
+            className="text-sm font-bold text-gray-900"
+            title={cart.valueAdjusted ? "Recalculated from the books in the cart (the website's stored total was out of date)" : undefined}
+          >
+            {formatINR(cart.amounts.grandTotal)}
+            {cart.valueAdjusted && <span className="ml-0.5 text-gray-400">*</span>}
+          </div>
           {cart.amounts.discount > 0 && (
             <div className="text-[11px] text-emerald-600">−{formatINR(cart.amounts.discount)} discount</div>
           )}
@@ -171,6 +221,8 @@ export const AbandonedCartsTable: React.FC<Props> = ({
   onPageChange,
   onPageSizeChange,
   groupStats,
+  onEditOutreach,
+  onContact,
 }) => {
   const carts = page?.carts ?? [];
 
@@ -221,7 +273,9 @@ export const AbandonedCartsTable: React.FC<Props> = ({
                   </td>
                 </tr>
               ) : (
-                carts.map((cart) => <CartRow key={cart.id} cart={cart} />)
+                carts.map((cart) => (
+                  <CartRow key={cart.id} cart={cart} onEditOutreach={onEditOutreach} onContact={onContact} />
+                ))
               )}
             </tbody>
           </table>

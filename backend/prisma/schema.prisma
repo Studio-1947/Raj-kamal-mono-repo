@@ -671,3 +671,21 @@ model UserFilterLock {
   @@map("user_filter_locks")
 }
 
+
+/// Team notes on abandoned carts: who reached out, how, and what came of it.
+/// One row per website cart (the latest state), shared by the whole team.
+model CartOutreach {
+  id              String   @id @default(cuid())
+  cartId          String   @unique
+  customerId      String?
+  status          String   @default("CONTACTED")
+  channel         String?
+  note            String?
+  contactedById   String?
+  contactedByName String?
+  contactedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@map("cart_outreach")
+}

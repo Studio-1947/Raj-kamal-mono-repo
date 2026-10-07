@@ -11,6 +11,8 @@ import {
   FiUnlock,
 } from "react-icons/fi";
 import {
+  OUTREACH_LABELS,
+  OUTREACH_STATUSES,
   DEFAULT_CART_FILTERS,
   type AgeBucketKey,
   type CartFilterState,
@@ -112,6 +114,8 @@ export function countActiveFilters(f: CartFilterState): number {
   if (f.contact) n++;
   if (f.stock) n++;
   if (f.hasDiscount) n++;
+  if (f.includeOrdered) n++;
+  if (f.outreach) n++;
   return n;
 }
 
@@ -400,6 +404,35 @@ export const CartFilterPanel: React.FC<Props> = ({
               <option value="clean">All books in stock</option>
               <option value="issues">Has out-of-stock book</option>
             </select>
+          </Field>
+
+          <Field label="Outreach">
+            <select
+              value={filters.outreach}
+              onChange={(e) => onChange({ outreach: e.target.value as CartFilterState["outreach"] })}
+              className={inputCls}
+            >
+              <option value="">Any</option>
+              <option value="none">Not contacted yet</option>
+              <option value="any">Contacted</option>
+              {OUTREACH_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {OUTREACH_LABELS[s]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Already ordered">
+            <label className="flex h-[38px] cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={filters.includeOrdered}
+                onChange={(e) => onChange({ includeOrdered: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600"
+              />
+              Include them
+            </label>
           </Field>
 
           <Field label="Discount">

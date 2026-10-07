@@ -7,7 +7,7 @@
  */
 
 import React from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FiShoppingCart,
   FiTrendingUp,
@@ -20,12 +20,17 @@ import AppLayout from "../shared/AppLayout";
 import { useLockedFilters } from "../hooks/useLockedFilters";
 import {
   DEFAULT_CART_FILTERS,
+  clearCartOutreach,
+  saveCartOutreach,
   fetchAllMatchingCarts,
   refreshWebsiteCarts,
   useWebsiteCarts,
   useWebsiteCartsConversion,
   useWebsiteCartsSummary,
   type CartFilterState,
+  type OutreachChannel,
+  type OutreachInput,
+  type WebsiteCart,
 } from "../services/websiteCartsService";
 import { KpiCard, formatINR } from "./total-offline-sales/components";
 import {
@@ -37,6 +42,7 @@ import {
   CartRecoveryPanel,
   CartSizeBandsChart,
   CartTrendChart,
+  OutreachDialog,
   CartValueBandsChart,
   CartWeekdayChart,
   TopCartCustomersPanel,
@@ -100,6 +106,37 @@ export default function AbandonedCarts() {
       setIsExporting(false);
     }
   }, [filters]);
+
+  const [outreachCart, setOutreachCart] = React.useState<WebsiteCart | null>(null);
+
+  const refreshAfterOutreach = () => queryClient.invalidateQueries({ queryKey: ["website-carts"] });
+  const saveOutreach = useMutation({
+    mutationFn: ({ cartId, input }: { cartId: string; input: OutreachInput }) => saveCartOutreach(cartId, input),
+    onSuccess: () => {
+      setOutreachCart(null);
+      return refreshAfterOutreach();
+    },
+  });
+  const clearOutreach = useMutation({
+    mutationFn: (cartId: string) => clearCartOutreach(cartId),
+    onSuccess: () => {
+      setOutreachCart(null);
+      return refreshAfterOutreach();
+    },
+  });
+
+  // Clicking WhatsApp / call / email is as good as a log entry: record it once, so the
+  // team does not have to remember to. A cart that is already logged is left alone.
+  const handleContact = React.useCallback(
+    (cart: WebsiteCart, channel: OutreachChannel) => {
+      if (cart.outreach) return;
+      saveOutreach.mutate({
+        cartId: cart.id,
+        input: { status: "CONTACTED", channel, customerId: cart.customer.id },
+      });
+    },
+    [saveOutreach],
+  );
 
   const stale = summary ? summary.byAge.month.count + summary.byAge.older.count : 0;
 
@@ -208,6 +245,28 @@ export default function AbandonedCarts() {
           </div>
         )}
 
+        {cartsQuery.data && !cartsQuery.data.ordersReady && !filters.includeOrdered && (
+          <p className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            Checking which customers have already ordered… carts that were really checkouts will drop out of these figures
+            in about a minute.
+          </p>
+        )}
+        {cartsQuery.data && cartsQuery.data.ordersReady && cartsQuery.data.hiddenCheckedOut > 0 && !filters.includeOrdered && (
+          <p className="flex flex-wrap items-center gap-x-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            <span>
+              {formatNumber(cartsQuery.data.hiddenCheckedOut)} carts are hidden because the customer already ordered
+              (the site leaves a cart open after checkout).
+            </span>
+            <button
+              type="button"
+              onClick={() => updateFilters({ includeOrdered: true })}
+              className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800"
+            >
+              Show them
+            </button>
+          </p>
+        )}
+
         <CartConversionSection
           conversion={conversionQuery.data}
           isLoading={conversionQuery.isLoading}
@@ -249,8 +308,18 @@ export default function AbandonedCarts() {
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           groupStats={summary?.byGroup}
+          onEditOutreach={setOutreachCart}
+          onContact={handleContact}
         />
       </div>
+
+      <OutreachDialog
+        cart={outreachCart}
+        isSaving={saveOutreach.isPending || clearOutreach.isPending}
+        onSave={(cartId, input) => saveOutreach.mutate({ cartId, input })}
+        onClear={(cartId) => clearOutreach.mutate(cartId)}
+        onClose={() => setOutreachCart(null)}
+      />
     </AppLayout>
   );
 }

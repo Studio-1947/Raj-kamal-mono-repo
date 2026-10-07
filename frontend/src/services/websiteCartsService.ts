@@ -19,6 +19,25 @@ export interface CartItem {
   inStock: boolean | null;
 }
 
+export const OUTREACH_STATUSES = ["CONTACTED", "REPLIED", "FOLLOW_UP", "NOT_INTERESTED"] as const;
+export type OutreachStatus = (typeof OUTREACH_STATUSES)[number];
+export type OutreachChannel = "WHATSAPP" | "CALL" | "EMAIL" | "OTHER";
+
+export const OUTREACH_LABELS: Record<string, string> = {
+  CONTACTED: "Contacted",
+  REPLIED: "Replied",
+  FOLLOW_UP: "Follow up",
+  NOT_INTERESTED: "Not interested",
+};
+
+export interface OutreachInfo {
+  status: string;
+  channel: string | null;
+  note: string | null;
+  contactedAt: string;
+  contactedByName: string | null;
+}
+
 export interface WebsiteCart {
   id: string;
   currency: string;
@@ -36,11 +55,15 @@ export interface WebsiteCart {
   itemCount: number;
   totalQuantity: number;
   hasStockIssue: boolean;
+  valueAdjusted: boolean;
   items: CartItem[];
+  outreach?: OutreachInfo | null;
 }
 
 export interface CartsPage {
   carts: WebsiteCart[];
+  ordersReady: boolean;
+  hiddenCheckedOut: number;
   meta: { page: number; pageSize: number; total: number; totalPages: number; hasNextPage: boolean };
   fetchedAt: string;
 }
@@ -54,6 +77,9 @@ export interface Bucket {
 }
 
 export interface CartsSummary {
+  ordersReady: boolean;
+  hiddenCheckedOut: number;
+  outreach: { contacted: number; notContacted: number; byStatus: Record<string, number> };
   cartCount: number;
   totalValue: number;
   averageCartValue: number;
@@ -104,6 +130,10 @@ export interface CartsConversion {
   buyers: { customers: number; cartCustomers: number };
   checkedOut: { carts: number; value: number };
   abandoned: { carts: number; value: number };
+  outreachResults: {
+    contacted: { carts: number; ordered: number; revenue: number };
+    notContacted: Rate;
+  };
   recovered: {
     carts: number;
     customers: number;
@@ -142,6 +172,9 @@ export interface CartFilterState {
   contact: "" | "reachable" | "phone" | "email" | "unreachable";
   stock: "" | "issues" | "clean";
   hasDiscount: boolean;
+  /** Show carts whose owner already ordered (hidden by default: they only look abandoned). */
+  includeOrdered: boolean;
+  outreach: "" | "none" | "any" | OutreachStatus;
   sort: CartSort;
 }
 
@@ -159,6 +192,8 @@ export const DEFAULT_CART_FILTERS: CartFilterState = {
   contact: "",
   stock: "",
   hasDiscount: false,
+  includeOrdered: false,
+  outreach: "",
   sort: "recent",
 };
 
@@ -197,6 +232,9 @@ export const useWebsiteCarts = (filters: CartQuery) =>
     select: (response) => response.data,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
+    // While the server is still matching orders, check back so the already-ordered
+    // carts drop out as soon as that finishes.
+    refetchInterval: (query) => (query.state.data?.data.ordersReady === false && !filters.includeOrdered ? 6000 : false),
   });
 
 export const useWebsiteCartsSummary = (filters: CartQuery) =>
@@ -206,6 +244,7 @@ export const useWebsiteCartsSummary = (filters: CartQuery) =>
     select: (response) => response.data,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
+    refetchInterval: (query) => (query.state.data?.data.ordersReady === false && !filters.includeOrdered ? 6000 : false),
   });
 
 /**
@@ -228,6 +267,19 @@ export async function fetchAllMatchingCarts(filters: CartQuery): Promise<Website
   const res = await websiteCartsApi.list({ ...filters, page: 1, pageSize: 5000 });
   return res.data.carts;
 }
+
+export interface OutreachInput {
+  status?: OutreachStatus;
+  channel?: OutreachChannel;
+  note?: string;
+  customerId?: string | null;
+}
+
+export const saveCartOutreach = (cartId: string, input: OutreachInput) =>
+  apiClient.put<{ success: boolean }>(`website-carts/outreach/${encodeURIComponent(cartId)}`, input);
+
+export const clearCartOutreach = (cartId: string) =>
+  apiClient.delete<{ success: boolean }>(`website-carts/outreach/${encodeURIComponent(cartId)}`);
 
 export async function refreshWebsiteCarts(filters: CartQuery) {
   // One request with refresh=true re-pulls upstream; the queries that follow reuse it.
