@@ -187,6 +187,8 @@ router.get("/summary", async (req, res) => {
       until.setUTCHours(23,59,59,999);
       conditions.push(Prisma.sql`"date" <= ${until}`);
     }
+    // Everything pushed so far is date-related; the FY chart replaces it with its own bounds.
+    const dateConditionCount = conditions.length;
     if (q) {
       const tokens = getSearchTokens(q);
         tokens.forEach(t => {
@@ -266,6 +268,14 @@ router.get("/summary", async (req, res) => {
     const yearStart = new Date(`${fyStartYear}-04-01T00:00:00Z`);
     const yearEnd = new Date(`${fyStartYear + 1}-03-31T23:59:59Z`);
     const currentMonth = (currentMonthCalendar >= 3) ? (currentMonthCalendar - 2) : (currentMonthCalendar + 10);
+
+    // Same filters/rules as the summary cards (so chart totals reconcile), bounded to the current FY.
+    const monthlyWhereClause = Prisma.sql`WHERE ${Prisma.join([
+      Prisma.sql`"date" IS NOT NULL`,
+      Prisma.sql`"date" >= ${yearStart}`,
+      Prisma.sql`"date" <= ${now}`,
+      ...conditions.slice(dateConditionCount),
+    ], ' AND ')}`;
 
     // Run every independent aggregation concurrently instead of sequentially.
     // Prisma's connection pool naturally caps how many actually execute at once.
@@ -368,11 +378,7 @@ router.get("/summary", async (req, res) => {
                           ELSE 0 END), 0))::float AS total,
         COUNT(*)::int AS txn_count
       FROM "patna_offline_sales"
-      WHERE "date" IS NOT NULL
-        AND "date" >= ${yearStart}
-        AND "date" <= ${now}
-        AND ("amount" IS NULL OR "amount" >= 0)
-        AND ("title" IS NULL OR "title" !~* '^E-')
+      ${monthlyWhereClause}
       GROUP BY 1
       ORDER BY 1
     `),

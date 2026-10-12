@@ -126,7 +126,7 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
         </div>
       </div>
 
-      <div className={`transition-all duration-500 overflow-hidden ${isExpanded ? 'max-h-[900px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
+      <div className={`relative z-10 transition-all duration-500 overflow-hidden ${isExpanded ? 'max-h-[900px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
         {/* KPI tiles */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <div className="rounded-lg bg-gray-50 p-3 border border-gray-200/50">
@@ -155,7 +155,7 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
         <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
           <div className="flex items-center justify-between mb-4">
             <span className="text-[10px] font-normal uppercase tracking-wider text-gray-400">Month-wise Breakdown — {p.year}</span>
-            <div className="flex items-center gap-4 text-[10px] font-normal uppercase tracking-wide">
+            <div className="flex items-center gap-4 text-[10px] font-normal uppercase tracking-wide text-gray-500">
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-teal-600" />Actual</span>
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-orange-400" />Current (est.)</span>
               <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-gray-300" />Projected</span>
