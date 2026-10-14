@@ -107,7 +107,7 @@ export default function AbandonedCarts() {
     <AppLayout>
       <div className="space-y-6 py-6">
         <header>
-          <h1 className="text-3xl font-normal text-gray-900">Abandoned Carts</h1>
+          <h1 className="text-3xl font-normal text-gray-900">Abandoned Carts Analysis</h1>
           <p className="mt-2 text-gray-600">
             Carts on rajkamalprakashan.com that were filled but never checked out.
             {cartsQuery.data?.fetchedAt &&
