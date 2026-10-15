@@ -13,6 +13,7 @@ import { useLockedFilters } from "../hooks/useLockedFilters";
 import {
   useWebsiteOrders,
   useWebsiteOrdersSummary,
+  usePendingAnalysis,
   type WebsiteOrder,
 } from "../services/websiteOrdersService";
 import {
@@ -28,6 +29,7 @@ import {
   TopPincodesPanel,
   IndiaHeatmapSection,
   CampaignComparisonSection,
+  PendingAnalysisSection,
   daysAgo,
   toDateInput,
   type OrdersFilterState,
@@ -97,6 +99,10 @@ export default function WebsiteOrders() {
 
   const ordersQuery = useWebsiteOrders({ ...queryFilters, page, pageSize });
   const summaryQuery = useWebsiteOrdersSummary(queryFilters);
+  const pendingQuery = usePendingAnalysis({
+    dateFrom: queryFilters.dateFrom,
+    dateTo: queryFilters.dateTo,
+  });
 
   const handleFilterChange = React.useCallback(
     (patch: Partial<OrdersFilterState>) => {
@@ -133,7 +139,9 @@ export default function WebsiteOrders() {
           onChange={handleFilterChange}
           onReset={handleReset}
           onRefresh={handleRefresh}
-          isFetching={ordersQuery.isFetching || summaryQuery.isFetching}
+          isFetching={
+            ordersQuery.isFetching || summaryQuery.isFetching || pendingQuery.isFetching
+          }
           isLocked={isLocked}
           onToggleLock={toggleLock}
         />
@@ -147,6 +155,13 @@ export default function WebsiteOrders() {
         ) : (
           <OrdersKpiRow summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
         )}
+
+        <PendingAnalysisSection
+          analysis={pendingQuery.data}
+          isLoading={pendingQuery.isLoading}
+          error={pendingQuery.error}
+          onSelectOrder={setSelectedOrder}
+        />
 
         <CampaignComparisonSection
           dateFrom={queryFilters.dateFrom}

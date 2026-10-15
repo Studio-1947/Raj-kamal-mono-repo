@@ -132,6 +132,60 @@ export interface OrdersSummary {
   coveredFrom: string | null;
 }
 
+export type PendingVerdict = "ON_TRACK" | "STUCK" | "STATUS_LAGGING" | "NOT_REALLY_PENDING";
+export type PendingStage = "PENDING" | "PENDING_INVOICE" | "PENDING_LABEL" | "PENDING_DISPATCH";
+
+export interface FlaggedOrder {
+  order: WebsiteOrder;
+  verdict: PendingVerdict;
+  reasons: string[];
+  ageHours: number;
+  idleHours: number;
+}
+
+export interface PendingAnalysis {
+  placed: number;
+  pendingCount: number;
+  pendingRevenue: number;
+  verdicts: Record<PendingVerdict, { count: number; revenue: number }>;
+  reasons: Record<string, number>;
+  stages: {
+    stage: PendingStage;
+    count: number;
+    revenue: number;
+    byVerdict: Record<PendingVerdict, number>;
+    medianIdleHours: number;
+    maxIdleHours: number;
+    slaHours: number;
+  }[];
+  funnel: { stage: string; reached: number; stepConversion: number | null; ofPlaced: number }[];
+  cancelled: number;
+  completed: number;
+  rawConversion: number;
+  realConversion: number;
+  cohorts: {
+    label: string;
+    placed: number;
+    completed: number;
+    stillPending: number;
+    cancelled: number;
+    completedPct: number;
+    stillPendingPct: number;
+  }[];
+  velocity: {
+    medianHoursToShip: number | null;
+    medianHoursToDeliver: number | null;
+    shippedSample: number;
+    deliveredSample: number;
+  };
+  slaHours: Record<PendingStage, number>;
+  flagged: FlaggedOrder[];
+  flaggedTruncated: boolean;
+  truncated: boolean;
+  scannedOrders: number;
+  coveredFrom: string | null;
+}
+
 export interface OrderFilters {
   page?: number;
   pageSize?: number;
@@ -168,6 +222,8 @@ const websiteOrdersApi = {
     apiClient.get<ApiEnvelope<OrdersPage>>(`website-orders${toQuery(filters)}`),
   summary: (filters: Omit<OrderFilters, "page" | "pageSize">) =>
     apiClient.get<ApiEnvelope<OrdersSummary>>(`website-orders/summary${toQuery(filters)}`),
+  pendingAnalysis: (filters: Pick<OrderFilters, "dateFrom" | "dateTo">) =>
+    apiClient.get<ApiEnvelope<PendingAnalysis>>(`website-orders/pending-analysis${toQuery(filters)}`),
   byId: (id: string) => apiClient.get<ApiEnvelope<WebsiteOrder>>(`website-orders/${id}`),
 };
 
@@ -192,6 +248,19 @@ export const useWebsiteOrdersSummary = (filters: Omit<OrderFilters, "page" | "pa
   useQuery({
     queryKey: ["website-orders", "summary", filters],
     queryFn: () => websiteOrdersApi.summary(filters),
+    select: (response) => response.data,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
+  });
+
+/**
+ * Pending-order breakdown. Takes only the date range: it needs every status in the
+ * range to measure conversion, so the page's status filter must not narrow it.
+ */
+export const usePendingAnalysis = (filters: Pick<OrderFilters, "dateFrom" | "dateTo">) =>
+  useQuery({
+    queryKey: ["website-orders", "pending-analysis", filters],
+    queryFn: () => websiteOrdersApi.pendingAnalysis(filters),
     select: (response) => response.data,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,

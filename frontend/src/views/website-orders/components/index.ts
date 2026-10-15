@@ -8,4 +8,5 @@ export * from "./OrderDetailDrawer";
 export * from "./ExportOrdersModal";
 export * from "./IndiaHeatmapSection";
 export * from "./CampaignComparisonSection";
+export * from "./PendingAnalysisSection";
 

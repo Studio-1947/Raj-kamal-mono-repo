@@ -20,6 +20,7 @@ import {
   PAYMENT_STATUSES,
   type OrderFilters,
 } from "../services/websiteOrdersService.js";
+import { fetchPendingAnalysis } from "../services/websiteOrdersPending.js";
 import {
   streamOrdersCsv,
   streamOrdersPdf,
@@ -129,6 +130,18 @@ router.get("/", authenticateToken, async (req: AuthRequest, res: Response) => {
 router.get("/summary", authenticateToken, async (req: AuthRequest, res: Response) => {
   const { page: _page, pageSize: _pageSize, ...filters } = readFilters(req);
   await respond(res, `summary:${JSON.stringify(filters)}`, () => fetchOrdersSummary(filters));
+});
+
+/**
+ * GET /api/website-orders/pending-analysis
+ * Which pending orders are real, where they're stuck, and how orders convert.
+ * Only the date range (and channel) applies — the status filter would hide the
+ * very orders the funnel needs to compare against.
+ */
+router.get("/pending-analysis", authenticateToken, async (req: AuthRequest, res: Response) => {
+  const { dateFrom, dateTo, channel } = readFilters(req);
+  const scope = { dateFrom, dateTo, channel };
+  await respond(res, `pending:${JSON.stringify(scope)}`, () => fetchPendingAnalysis(scope));
 });
 
 /**
