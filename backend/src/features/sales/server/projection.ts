@@ -31,6 +31,13 @@ const relMonthOf = (calMonth: number) => (calMonth >= 4 ? calMonth - 3 : calMont
  * so a source sheet that lags behind doesn't drag the estimate down.
  */
 export function buildFyProjection({ monthlyRows, now, yearStart, yearEnd, fyStartYear, currentMonth }: FyProjectionInput) {
+  // A past month whose data stops before its midpoint is a stale/partial sync, not a real month of sales.
+  const daysInMonth = (calMonth: number) => {
+    const year = calMonth >= 4 ? fyStartYear : fyStartYear + 1;
+    return new Date(Date.UTC(year, calMonth, 0)).getUTCDate();
+  };
+  const isStale = (r: MonthlyRow) => r.last_day != null && Number(r.last_day) < daysInMonth(Number(r.month)) / 2;
+
   const completeMonths = monthlyRows.filter(r => relMonthOf(Number(r.month)) < currentMonth);
   const currentMonthRow = monthlyRows.find(r => relMonthOf(Number(r.month)) === currentMonth);
 
@@ -43,6 +50,7 @@ export function buildFyProjection({ monthlyRows, now, yearStart, yearEnd, fyStar
 
   // Weighted average of up to the last 3 complete months that have data (newest = highest weight)
   const recentComplete = completeMonths
+    .filter(r => !isStale(r))
     .map(r => ({ ...r, relMonth: relMonthOf(Number(r.month)) }))
     .sort((a, b) => a.relMonth - b.relMonth)
     .slice(-3);
@@ -68,7 +76,7 @@ export function buildFyProjection({ monthlyRows, now, yearStart, yearEnd, fyStar
     const row = monthlyRows.find(r => Number(r.month) === calMonth);
 
     if (isComplete) {
-      return { month: m, name: MONTH_NAMES[idx], actual: round2(row ? toNum(row.total) : 0), projected: null, isComplete: true, isCurrent: false, noData: !row };
+      return { month: m, name: MONTH_NAMES[idx], actual: round2(row ? toNum(row.total) : 0), projected: null, isComplete: true, isCurrent: false, noData: !row || isStale(row) };
     }
     if (isCurrent) {
       return { month: m, name: MONTH_NAMES[idx], actual: round2(currentMonthActual), projected: round2(currentMonthProjected), isComplete: false, isCurrent: true, noData: !currentHasData, daysElapsed: daysElapsedInCurrentMonth, totalDays: daysInCurrentMonth };
