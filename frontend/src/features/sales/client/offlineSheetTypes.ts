@@ -62,6 +62,8 @@ export interface OfflineSheetSummaryResponse {
       projected: number | null;
       isComplete: boolean;
       isCurrent: boolean;
+      /** True when no rows were synced for this month (not the same as ₹0 sales). */
+      noData?: boolean;
       daysElapsed?: number;
       totalDays?: number;
     }[];

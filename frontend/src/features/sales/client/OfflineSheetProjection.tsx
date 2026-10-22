@@ -38,15 +38,21 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return (
     <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-2xl text-sm min-w-[160px]">
       <p className="font-normal text-gray-900 mb-2 text-base">{label}</p>
-      {d.isComplete && (
+      {d.noData && (
+        <p className="text-gray-400 text-xs">No data synced for this month</p>
+      )}
+      {d.isComplete && !d.noData && (
         <p className="text-teal-700 font-normal">Actual: {fmtCr(d.actual)}</p>
       )}
-      {d.isCurrent && (
+      {d.isCurrent && !d.noData && (
         <>
           <p className="text-teal-700 font-normal">Actual so far: {fmtCr(d.actual)}</p>
           <p className="text-orange-500 font-normal">Full month est.: {fmtCr(d.projected)}</p>
           <p className="text-gray-400 text-xs mt-1">{d.daysElapsed} of {d.totalDays} days</p>
         </>
+      )}
+      {d.isCurrent && d.noData && (
+        <p className="text-orange-500 font-normal">Est. at run rate: {fmtCr(d.projected)}</p>
       )}
       {!d.isComplete && !d.isCurrent && (
         <p className="text-gray-400 font-normal">Projected: {fmtCr(d.projected)}</p>
@@ -83,7 +89,10 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
     barValue: m.isComplete ? m.actual : m.projected,
   }));
 
-  const maxBarVal = Math.max(...chartData.map(d => d.barValue ?? 0), 1);
+  const currentRow = p.monthlyBreakdown[p.currentMonth - 1];
+  const noDataMonths = p.monthlyBreakdown.filter(m => m.noData && (m.isComplete || m.isCurrent));
+
+  const maxBarVal =Math.max(...chartData.map(d => d.barValue ?? 0), 1);
 
   return (
     <div className="rounded-2xl border-4 border-teal-600 bg-white p-6 shadow-2xl relative overflow-hidden transition-all duration-300">
@@ -199,8 +208,8 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
                   m.isCurrent ? 'bg-orange-50 text-orange-600' : m.isComplete ? 'text-teal-700' : 'text-gray-400'
                 }`}
               >
-                {m.isComplete && fmtAxis(m.actual ?? 0)}
-                {m.isCurrent && <span title={`${m.daysElapsed}/${m.totalDays} days`}>{fmtAxis(m.projected ?? 0)}*</span>}
+                {m.isComplete && (m.noData ? <span title="No data synced">—</span> : fmtAxis(m.actual ?? 0))}
+                {m.isCurrent && <span title={m.noData ? 'No data synced yet — estimated at run rate' : `${m.daysElapsed}/${m.totalDays} days`}>{fmtAxis(m.projected ?? 0)}*</span>}
                 {!m.isComplete && !m.isCurrent && fmtAxis(m.projected ?? 0)}
               </div>
             ))}
@@ -228,8 +237,15 @@ export default function OfflineSheetProjection({ data, isLoading }: Props) {
         {/* Methodology note */}
         <p className="mt-3 text-[10px] text-gray-400 italic">
           * Projection uses a weighted average of the last {Math.min(p.currentMonth - 1, 3)} complete months
-          (newest month weighted highest). Current month is extrapolated from {p.monthlyBreakdown[p.currentMonth - 1]?.daysElapsed ?? '?'} of {p.monthlyBreakdown[p.currentMonth - 1]?.totalDays ?? '?'} days recorded.
+          (newest month weighted highest). {currentRow?.noData
+            ? 'No data has been synced for the current month yet, so it is estimated at the run rate.'
+            : `Current month is extrapolated from ${currentRow?.daysElapsed ?? '?'} of ${currentRow?.totalDays ?? '?'} days recorded.`}
         </p>
+        {noDataMonths.length > 0 && (
+          <p className="mt-1 text-[10px] text-amber-600">
+            No synced data for {noDataMonths.map(m => m.name).join(', ')} — shown as “—” and excluded from the run rate. Check that the source sheet has been updated and re-sync.
+          </p>
+        )}
       </div>
     </div>
   );
