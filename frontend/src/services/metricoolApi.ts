@@ -316,6 +316,15 @@ async function fetchDistributionMetric(
   });
 }
 
+export async function fetchConnectedNetworks(
+  blogId?: string,
+): Promise<NetworkFlags & { brandLabel: string | null }> {
+  return getMetricool<NetworkFlags & { brandLabel: string | null }>(
+    "/metricool/connected-networks",
+    blogId ? { blogId } : undefined,
+  );
+}
+
 const BLOCKED_BRANDS_CLIENT = ["1947.io"];
 
 export async function fetchBrands(): Promise<Brand[]> {

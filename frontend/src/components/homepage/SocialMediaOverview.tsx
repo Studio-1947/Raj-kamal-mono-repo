@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     fetchOverview,
+    fetchConnectedNetworks,
 } from "../../services/metricoolApi";
 import { apiClient } from "../../lib/apiClient";
 import { FaFacebook, FaInstagram } from "react-icons/fa";
@@ -82,8 +83,33 @@ export default function SocialMediaOverview() {
                 to: today.toISOString().slice(0, 10),
             };
 
-            // Fetch Instagram metrics
+            // Only query networks actually connected to the brand; Metricool
+            // answers 403 "no <network> connection for blog" otherwise.
+            // If the lookup itself fails, fall back to trying both.
+            let connected = { instagram: true, facebook: true };
             try {
+                const networks = await fetchConnectedNetworks();
+                connected = {
+                    instagram: networks.instagram,
+                    facebook: networks.facebook,
+                };
+            } catch (error) {
+                console.warn("Connected networks lookup failed:", error);
+            }
+
+            const markNotConnected = (platform: PlatformMetrics["platform"]) =>
+                setMetrics((prev) =>
+                    prev.map((m) =>
+                        m.platform === platform
+                            ? { ...m, loading: false, error: "Not connected" }
+                            : m
+                    )
+                );
+
+            // Fetch Instagram metrics
+            if (!connected.instagram) {
+                markNotConnected("instagram");
+            } else try {
                 // Fetch timeline data for Instagram
                 const fetchInstagramTimeline = async (metric: string) => {
                     const response = await apiClient.get<{ success: boolean; data: any }>('/metricool/instagram/timeline', {
@@ -199,7 +225,9 @@ export default function SocialMediaOverview() {
             }
 
             // Fetch Facebook metrics
-            try {
+            if (!connected.facebook) {
+                markNotConnected("facebook");
+            } else try {
                 const fbData = await fetchOverview("facebook", params);
                 console.log("Facebook API Response:", fbData);
                 console.log("Facebook data fields:", fbData.data);
